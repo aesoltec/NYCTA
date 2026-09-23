@@ -1,0 +1,14 @@
+// ============================================================
+// À reporter dans android/app/build.gradle (après flutter create .)
+// section android { buildTypes { release { ... } } }
+// ============================================================
+buildTypes {
+    release {
+        signingConfig signingConfigs.debug   // ← remplacer par votre keystore
+        minifyEnabled true                   // R8 : obfuscation Java
+        shrinkResources true                 // ressources inutilisées retirées
+        proguardFiles getDefaultProguardFile('proguard-android.txt'),
+                      'proguard-rules.pro'   // règles fournies à la racine android/
+    }
+}
+// + créer android/key.properties + keystore (voir docs/OBFUSCATION.md)

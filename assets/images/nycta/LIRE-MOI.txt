@@ -1,0 +1,23 @@
+NYCTA — Identité visuelle
+
+Concept : N géométrique, deux yeux évidés et angles supérieurs inspirés des aigrettes du hibou.
+Accent retenu : vert menthe #10B981. Structure : bleu nuit #0F172A. Blanc : #FFFFFF.
+Lettrage : Montserrat, graisse 650, entièrement converti en tracés dans les SVG et EPS.
+
+Chaque dossier contient les compositions horizontale, verticale et icône seule :
+SVG : tracés vectoriels, fond transparent, sans police externe.
+EPS : tracés vectoriels RGB, fond transparent, sans police externe.
+PNG : fond transparent ; largeurs 3200 px, 2048 px et 1024 px respectivement.
+JPG : mêmes dimensions, fond sombre ou blanc suivant le nom du dossier.
+La version monochrome blanche est invisible sur un fond blanc : l'utiliser sur un fond sombre.
+
+favicons/ : icônes PNG 16, 32, 48, 180 et 512 pixels et favicon.ico, sur fond bleu nuit.
+Utiliser les PNG 180 et 512 pour les raccourcis et icônes d'application web.
+Préserver une marge libre minimale de 10 % de la largeur du symbole autour du logo.
+Taille minimale recommandée : icône 32 px, composition horizontale 172 px.
+À 16 px, les deux yeux restent présents mais le 32 px est préférable.
+Ne pas étirer, ajouter d'ombre ou modifier l'espacement du lettrage.
+Pour une impression CMJN, faire convertir les couleurs avec le profil de l'imprimeur.
+
+La phrase de la planche de présentation est une proposition éditoriale ; elle ne fait pas partie du logo.
+La licence de la police Montserrat est jointe. Aucun fichier de police n'est nécessaire pour utiliser les logos.

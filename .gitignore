@@ -1,0 +1,26 @@
+# ----- Secrets (JAMAIS versionnés) -----
+.env
+backend/.env
+
+# ----- Flutter -----
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.idea/
+android/.gradle/
+android/key.properties
+**/doc/api/
+.pub-cache/
+.pub/
+
+# ----- Backend Node -----
+backend/node_modules/
+npm-debug.log
+
+# ----- Systèmes -----
+.DS_Store
+Thumbs.db
+*.log
