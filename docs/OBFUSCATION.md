@@ -38,8 +38,8 @@ opportuniste.
 ni la lecture des secrets **présents dans le binaire** :
 
 - la clé anon Supabase est **publique par conception** (la sécurité est le RLS)
-- le mot de passe `WIZARD INSTALLER` reste lisible dans l'APK → il verrouille
-  une page d'installation, rien de plus ; la garde réelle reste côté serveur
+- aucun mot de passe en dur ne subsiste dans l'APK (le verrou `WIZARD
+  INSTALLER` a été supprimé) ; la garde réelle reste côté serveur
   (RLS + garde admin de `installer_etape`)
 
 **Règle d'or inchangée : aucun secret réel (service_role, JWT_SECRET, mots de

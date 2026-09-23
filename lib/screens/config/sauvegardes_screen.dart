@@ -5,11 +5,10 @@ import '../../services/cloud_repository.dart';
 
 /// Sauvegardes cloud de la base (migration v1.11) : snapshot complet en
 /// JSONB côté Supabase, restaurable en 1 action. La restauration exige
-/// le mot de passe système + la saisie du mot RESTAURER (opération
-/// destructive : écrase toutes les données actuelles).
+/// la saisie du mot RESTAURER (opération destructive : écrase toutes
+/// les données actuelles).
 class SauvegardesScreen extends StatefulWidget {
   const SauvegardesScreen({super.key});
-  static const motDePasse = 'WIZARD INSTALLER';
 
   @override
   State<SauvegardesScreen> createState() => _SauvegardesScreenState();
@@ -33,12 +32,11 @@ class _SauvegardesScreenState extends State<SauvegardesScreen> {
 
   Future<bool> _verrou(String titre, {bool restauration = false}) async {
     if (!Env.supabaseConfigured) return false;
-    final mdp = TextEditingController();
     final conf = restauration ? TextEditingController() : null;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        // scrollable : sans ça, le contenu (avertissement + 2 champs en mode
+        // scrollable : sans ça, le contenu (avertissement + champ en mode
         // restauration) déborde et se retrouve caché derrière le clavier sur
         // petit écran au lieu de défiler.
         scrollable: true,
@@ -53,14 +51,15 @@ class _SauvegardesScreenState extends State<SauvegardesScreen> {
                   'actuelles seront remplacées par cette sauvegarde.',
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
             ),
-          TextField(controller: mdp, obscureText: true, autofocus: true,
-              decoration: const InputDecoration(labelText: 'Mot de passe')),
           if (restauration) ...[
-            const SizedBox(height: 10),
             TextField(controller: conf,
+                autofocus: true,
                 decoration: const InputDecoration(
                     labelText: 'Tapez RESTAURER pour confirmer')),
-          ],
+          ] else
+            const Text(
+                'Un instantané complet de la base sera enregistré dans le cloud.',
+                style: TextStyle(fontSize: 12.5)),
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false),
@@ -70,8 +69,7 @@ class _SauvegardesScreenState extends State<SauvegardesScreen> {
                   ? FilledButton.styleFrom(backgroundColor: const Color(0xFFD97706))
                   : null,
               onPressed: () => Navigator.pop(ctx,
-                  mdp.text.trim() == SauvegardesScreen.motDePasse &&
-                  (!restauration || conf!.text.trim() == 'RESTAURER')),
+                  !restauration || conf!.text.trim() == 'RESTAURER'),
               child: const Text('Confirmer')),
         ],
       ),

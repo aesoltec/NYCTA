@@ -336,8 +336,9 @@ bucket d'images. Diagnostic visuel étape par étape, ré-exécutable à volont�
 ## Verrou wizard & données de test (v1.6.0)
 
 - **Configuration → Système** : activer/désactiver la page « Assistant
-  d'installation » (écran de connexion), protégée par le mot de passe
-  `WIZARD INSTALLER`
+  d'installation » (écran de connexion). Le verrou mot de passe
+  `WIZARD INSTALLER` a été **supprimé** — la garde réelle est côté serveur
+  (RLS + garde admin).
 - **Données de test en un bouton** : le wizard propose « Charger les données
   de test » (RPC v1.7) — base pré-remplie réaliste pour débuter, idempotente
 

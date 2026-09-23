@@ -263,7 +263,7 @@ Principe appliqué : **une incohérence ne passe jamais silencieusement** — el
 
 | Élément | Détail |
 |---|---|
-| Verrou de la page assistant | Paramètre **Configuration → Système** : activer/désactiver la page wizard sur l'écran de connexion — **mot de passe requis : `WIZARD INSTALLER`** (mauvais mot de passe refusé) |
+| Verrou de la page assistant | Paramètre **Configuration → Système** : activer/désactiver la page wizard sur l'écran de connexion (verrou mot de passe `WIZARD INSTALLER` **supprimé** — la garde réelle reste côté serveur : RLS + garde admin) |
 | Données de test en 1 bouton | Wizard → « Charger les données de test » : RPC `charger_donnees_test()` (migration v1.7) — 2 boutiques, 2 partenaires, 5 produits, 4 tarifs, 3 clients, 2 fournisseurs, 15 transactions sur 6 jours, 3 charges, budgets/fonds, 1 suggestion, 1 événement, 1 note-rappel, 1 message de bienvenue |
 | Installateur régénéré | embarque désormais les migrations jusqu'à v1.7 |
 
