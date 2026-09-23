@@ -274,13 +274,24 @@ class _CloudLoaderState extends State<CloudLoader> {
     if (ok) {
       Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const AppShell()));
-    } else {
-      // Session invalide ou cloud inaccessible : retour à la connexion.
-      await SupabaseService.client?.auth.signOut();
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const LoginScreen()));
-      }
+      return;
+    }
+    // Cloud injoignable (pas de réseau) avec une session encore valide :
+    // on NE déconnecte plus (cela détruisait la session et rendait l'app
+    // inutilisable hors-ligne) — on démarre sur le snapshot local, les
+    // saisies partent en file et se synchronisent au retour du réseau.
+    if (SupabaseService.utilisateur != null &&
+        await store.chargerSnapshotLocal()) {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const AppShell()));
+      return;
+    }
+    // Session invalide ou rien en local : retour à la connexion.
+    await SupabaseService.client?.auth.signOut();
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LoginScreen()));
     }
   }
 

@@ -68,6 +68,12 @@ class Store extends ChangeNotifier {
   /// c'est ce qui produisait les erreurs RLS/UUID invisibles jusqu'ici.
   bool profilCloudManquant = false;
 
+  /// Vrai quand l'app a démarré sur le snapshot local faute de réseau
+/// (voir CloudLoader) : bandeau « hors-ligne » dans AppShell + bouton
+/// Reconnecter. Les saisies/modifs/suppressions restent possibles :
+/// elles partent en file SyncService et sont rejouées au retour réseau.
+  bool demarrageHorsLigne = false;
+
   /// Chargement initial production : remplit l'app depuis Supabase.
   Future<bool> chargerDuCloud() async {
     final data = await CloudRepository.chargerTout();
@@ -390,6 +396,43 @@ class Store extends ChangeNotifier {
     // trop tôt — sur une liste encore vide — et ne faisait donc jamais rien).
     await genererChargesRecurrentesSiNouveauMois();
     return true;
+  }
+
+  /// Secours hors-ligne : recharge le dernier snapshot local
+  /// (sauvegardé à chaque mutation via _persist) quand Supabase est
+  /// injoignable au démarrage. L'identité de session est CONSERVÉE
+  /// (jamais écrasée par le snapshot) pour que les écritures en file
+  /// gardent le bon employe_id au rejeu. Retourne false si aucun
+  /// snapshot exploitable (boutiques vides → rien à afficher).
+  Future<bool> chargerSnapshotLocal() async {
+    final sauvegarde = LocalPersistence.load();
+    if (sauvegarde == null) return false;
+    final sessionUser = user;
+    final sessionPartenaire = monPartenaireId;
+    final profilManquant = profilCloudManquant;
+    try {
+      _chargerEtat(Map<String, dynamic>.from(sauvegarde));
+    } catch (_) {
+      return false;
+    }
+    if (boutiques.isEmpty) return false;
+    user = sessionUser;
+    monPartenaireId = sessionPartenaire;
+    profilCloudManquant = profilManquant;
+    demarrageHorsLigne = true;
+    notifyListeners();
+    return true;
+  }
+
+  /// Tentative de retour en ligne depuis le bandeau hors-ligne :
+  /// recharge le cloud et n'efface le mode que si ça réussit.
+  Future<bool> reconnecter() async {
+    final ok = await chargerDuCloud();
+    if (ok) {
+      demarrageHorsLigne = false;
+      notifyListeners();
+    }
+    return ok;
   }
 
   // ---------- Données ----------

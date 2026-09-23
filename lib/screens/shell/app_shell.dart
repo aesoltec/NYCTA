@@ -22,6 +22,63 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
+/// Bandeau hors-ligne : données locales, synchronisation en attente.
+/// Le bouton Reconnecter recharge le cloud et efface le mode.
+class _BandeauHorsLigne extends StatefulWidget {
+  final Store store;
+  const _BandeauHorsLigne({required this.store});
+
+  @override
+  State<_BandeauHorsLigne> createState() => _BandeauHorsLigneState();
+}
+
+class _BandeauHorsLigneState extends State<_BandeauHorsLigne> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: const Color(0xFFFFF4E0),
+      child: Row(children: [
+        const Icon(Icons.cloud_off_outlined,
+            size: 18, color: Color(0xFFB26A00)),
+        const SizedBox(width: 8),
+        const Expanded(
+          child: Text('Hors-ligne — données locales, synchro en attente',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12.5, color: Color(0xFFB26A00),
+                  fontWeight: FontWeight.w600)),
+        ),
+        const SizedBox(width: 8),
+        _busy
+            ? const SizedBox(height: 20, width: 20,
+                child: CircularProgressIndicator(strokeWidth: 2))
+            : TextButton(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10),
+                ),
+                onPressed: () async {
+                  setState(() => _busy = true);
+                  final ok = await widget.store.reconnecter();
+                  if (!mounted) return;
+                  setState(() => _busy = false);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(ok
+                          ? '✅ Reconnecté — données à jour'
+                          : '📡 Toujours hors-ligne — réessayez plus tard')));
+                },
+                child: const Text('Reconnecter'),
+              ),
+      ]),
+    );
+  }
+}
+
 class _AppShellState extends State<AppShell> {
   int _index = 0;
 
@@ -169,10 +226,18 @@ class _AppShellState extends State<AppShell> {
           const SizedBox(width: 8),
         ],
       ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 220),
-        child: KeyedSubtree(key: ValueKey(_index), child: _pages[_index]),
-      ),
+      body: Column(children: [
+        // Démarrage hors-ligne (snapshot local) : saisies/modifs/
+        // suppressions possibles, file rejouée au retour réseau.
+        if (store.demarrageHorsLigne) _BandeauHorsLigne(store: store),
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            child:
+                KeyedSubtree(key: ValueKey(_index), child: _pages[_index]),
+          ),
+        ),
+      ]),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
