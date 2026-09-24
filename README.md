@@ -15,7 +15,7 @@ données de démo réalistes — aucune configuration Firebase requise.
 | 📦 Stock | Inventaire + valorisation, alertes, vente directe atomique, **mouvements tracés** (entrées/sorties/ajustements), ajustements avec motif |
 | 🛒 Achats fournisseurs | Demandes, commandes, réception (stock + CUMP), paiements, dettes, annulation avec motif |
 | 🤝 Partenaires | Ventes mensuelles par partenaire, **clôture du mois** avec calcul automatique des parts |
-| 📊 Rapports | CA/marge du mois, détail par activité, **frais Mobile Money par opérateur**, CA par boutique |
+| 📊 Rapports | CA/mois, activités, MoMo, boutiques + **Analytique** (7j/mois/années, comparaisons, détail filtrable) |
 | 🏬 Multi-boutiques | Sélecteur dans l'AppBar, toutes les données filtrées par boutique |
 
 ## Règles anti-overflow appliquées (senior)

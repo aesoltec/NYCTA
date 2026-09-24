@@ -21,6 +21,7 @@ import '../documents/documents_history_screen.dart';
 import '../documents/documents_screen.dart';
 import '../backup/backup_screen.dart';
 import '../partenaires/partenaires_screen.dart';
+import '../rapports/analytique_screen.dart';
 import '../rapports/rapports_screen.dart';
 import '../stats/stats_screen.dart';
 import '../tarifs/tarifs_screen.dart';
@@ -60,6 +61,14 @@ class MenuScreen extends StatelessWidget {
             titre: 'Rapports',
             sousTitre: 'Par activité, opérateurs, boutiques',
             destination: const RapportsScreen(),
+          ),
+        if (store.peut(Permission.voirRapports))
+          _Tuille(
+            icone: Icons.query_stats_outlined,
+            couleur: const Color(0xFF00838F),
+            titre: 'Analytique CA & dépenses',
+            sousTitre: '7 jours, mois, années — comparaisons, détail filtrable',
+            destination: const AnalytiqueScreen(),
           ),
         if (store.peut(Permission.voirRapports))
           _Tuille(
