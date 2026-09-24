@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/achat.dart';
 import '../models/app_user.dart';
+import '../models/mouvement_stock.dart';
 import '../models/boutique.dart';
 import '../models/client.dart';
 import '../models/evenement.dart';
@@ -93,6 +94,9 @@ class CloudRepository {
         // décaler les indices results[16]/[17] existants.
         c.from('achats').select()
             .order('date_achat', ascending: false).limit(500),
+        // Mouvements de stock (mission 1 §1.3) — idem, en fin de liste.
+        c.from('mouvements_stock').select()
+            .order('date_mouvement', ascending: false).limit(1000),
       ]);
       final uid = c.auth.currentUser?.id;
       Map<String, dynamic>? monProfil;
@@ -128,7 +132,7 @@ class CloudRepository {
         'clients': clientsRows,
         'mon_profil': monProfil, 'mes_boutiques': mesBoutiques,
         'users': tousUsers, 'user_boutiques': toutesUserBoutiques,
-        'achats': results[18],
+        'achats': results[18], 'mouvements': results[19],
       };
     } catch (e, st) {
       // Ne jamais avaler cette erreur en silence : c'est la seule piste pour
@@ -568,6 +572,19 @@ class CloudRepository {
             .select('donnees').eq('id', id).limit(1);
         if (rows.isEmpty) return null;
         return rows.first['donnees'].toString();
+      });
+
+  /// Mouvement de stock : traçabilité des entrées/sorties/ajustements.
+  static Future<void> upsertMouvement(MouvementStock m) =>
+      _silencieux(() async {
+        await _c!.from('mouvements_stock').upsert({
+          'id': m.id, 'boutique_id': m.boutiqueId, 'produit_id': m.produitId,
+          'produit_nom': m.produitNom, 'type': m.type,
+          'quantite': m.quantite, 'stock_apres': m.stockApres,
+          'motif': m.motif, 'ref_id': m.refId.isEmpty ? null : m.refId,
+          'date_mouvement': m.date.toIso8601String(),
+          'created_by': _c!.auth.currentUser?.id,
+        }, onConflict: 'id');
       });
 
   static Future<void> upsertTarif(Tarif t) => _silencieux(() async {

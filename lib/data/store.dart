@@ -5,6 +5,7 @@ import '../core/validators.dart';
 import '../models/achat.dart';
 import '../models/achat.dart';
 import '../models/app_user.dart';
+import '../models/mouvement_stock.dart';
 import '../models/boutique.dart';
 import '../models/charge.dart';
 import '../models/client.dart';
@@ -382,6 +383,27 @@ class Store extends ChangeNotifier {
                 DateTime.now(),
           ),
       ]);
+    // Mouvements de stock (mission 1 §1.3).
+    mouvements
+      ..clear()
+      ..addAll([
+        for (final r in (data['mouvements'] as List? ?? []))
+          MouvementStock(
+            id: r['id'].toString(),
+            boutiqueId: r['boutique_id']?.toString() ?? '',
+            produitId: r['produit_id']?.toString() ?? '',
+            produitNom: r['produit_nom']?.toString() ?? '',
+            type: r['type']?.toString() ?? MouvementStock.ajustement,
+            quantite: (r['quantite'] as num?)?.toInt() ?? 0,
+            stockApres: (r['stock_apres'] as num?)?.toInt() ?? 0,
+            motif: r['motif']?.toString() ?? '',
+            refId: r['ref_id']?.toString() ?? '',
+            date: DateTime.tryParse(
+                    r['date_mouvement']?.toString() ?? '') ??
+                DateTime.now(),
+            createdBy: r['created_by']?.toString() ?? '',
+          ),
+      ]);
     // Historique des documents (cloud → reconstruction complète)
     final docRows = data['documents'] as List? ?? [];
     documentsEmis.clear();
@@ -495,6 +517,7 @@ class Store extends ChangeNotifier {
   final dureesForfaitListe = List<String>.of(C.dureesForfait);
   final documentsEmis = <DocumentBati>[];
   final achats = <Achat>[];                // achats fournisseurs (Phase 2)
+  final mouvements = <MouvementStock>[];   // historique des stocks (mission 1)
   CompanyProfile profile = const CompanyProfile();
   int _seq = 0;
   Timer? _persistTimer;
@@ -1161,6 +1184,12 @@ class Store extends ChangeNotifier {
           produits[pi] = restaure;
           await CloudRepository.upsertProduit(restaure);
           await _fileUpsert('produits', _payloadProduit(restaure));
+          await _journaliser(
+            produitId: restaure.id, produitNom: restaure.libelle,
+            type: MouvementStock.retour, quantite: qte,
+            stockApres: restaure.stock,
+            motif: 'Vente supprimée (remise en rayon)', refId: id,
+          );
         }
       }
     }
@@ -1457,11 +1486,20 @@ class Store extends ChangeNotifier {
         _memeLibelle(x.libelle, p.libelle))) {
       return 'Un autre produit porte déjà ce nom dans cette boutique';
     }
+    final avant = produits[i].stock;
     produits[i] = p;
     notifyListeners();
     await CloudRepository.upsertProduit(p);
     await _fileUpsert('produits', _payloadProduit(p));
     await _syncCatalogueDepuisProduit(p);
+    // Correction manuelle du stock via la fiche : tracée (mission 1 §1.3).
+    if (p.stock != avant) {
+      await _journaliser(
+        produitId: p.id, produitNom: p.libelle,
+        type: MouvementStock.ajustement, quantite: p.stock - avant,
+        stockApres: p.stock, motif: 'Correction fiche produit',
+      );
+    }
     return null;
   }
 
@@ -1530,8 +1568,10 @@ class Store extends ChangeNotifier {
   /// Décrémente le stock pour chaque ligne dont le libellé correspond à un
   /// produit de la boutique courante (facture, ticket, bordereau validé).
   /// Les lignes sans correspondance sont ignorées (service, article libre).
+  /// Chaque sortie est journalisée ([refId] = id du document d'origine).
   /// Retourne la liste des libellés ignorés faute de stock suffisant.
-  Future<List<String>> deduireStockPourLignes(List<LigneDoc> lignes) async {
+  Future<List<String>> deduireStockPourLignes(List<LigneDoc> lignes,
+      {String refId = '', DateTime? date}) async {
     final ignores = <String>[];
     for (final l in lignes) {
       final i = produits.indexWhere((p) =>
@@ -1546,6 +1586,12 @@ class Store extends ChangeNotifier {
       produits[i] = maj;
       await CloudRepository.upsertProduit(maj);
       await _fileUpsert('produits', _payloadProduit(maj));
+      await _journaliser(
+        produitId: maj.id, produitNom: maj.libelle,
+        type: MouvementStock.sortie, quantite: -l.quantite,
+        stockApres: maj.stock, motif: 'Document commercial', refId: refId,
+        date: date,
+      );
     }
     if (ignores.isEmpty) {
       // notifyListeners déjà déclenché par les upserts ? non : on le fait.
@@ -1567,7 +1613,7 @@ class Store extends ChangeNotifier {
     // au prochain chargement depuis Supabase.
     await CloudRepository.upsertProduit(produit);
     await _fileUpsert('produits', _payloadProduit(produit));
-    await ajouterTransaction(
+    final txId = await ajouterTransaction(
       type: TypeTransaction.venteMateriel,
       montant: p.prixVente * quantite,
       cout: p.prixAchat * quantite,
@@ -1578,6 +1624,82 @@ class Store extends ChangeNotifier {
          'quantite': quantite, 'prixUnitaire': p.prixVente}
       ]},
     );
+    await _journaliser(
+      produitId: produit.id, produitNom: produit.libelle,
+      type: MouvementStock.sortie, quantite: -quantite,
+      stockApres: produit.stock,
+      motif: clientNom == null ? 'Vente directe' : 'Vente — $clientNom',
+      refId: txId, date: date,
+    );
+  }
+
+  // ---------- Mouvements de stock (mission 1, §1.3) ----------
+  /// Historique traçable : toute variation de quantité passe par ici
+  /// (vente, réception, document, annulation, ajustement manuel).
+  List<MouvementStock> get mouvementsBoutique => mouvements
+      .where((m) => m.boutiqueId == _boutiqueId)
+      .toList();
+
+  List<MouvementStock> mouvementsProduit(String produitId) => mouvements
+      .where((m) => m.produitId == produitId)
+      .toList();
+
+  /// Valorisation du stock (quantité × coût d'achat courant).
+  double get valeurStock =>
+      produitsBoutique.fold(0.0, (s, p) => s + p.stock * p.prixAchat);
+
+  Future<void> _journaliser({
+    required String produitId,
+    required String produitNom,
+    required String type,
+    required int quantite,
+    required int stockApres,
+    String motif = '',
+    String refId = '',
+    DateTime? date,
+  }) async {
+    final m = MouvementStock(
+      id: _nid(), boutiqueId: _boutiqueId, produitId: produitId,
+      produitNom: produitNom, type: type, quantite: quantite,
+      stockApres: stockApres, motif: motif, refId: refId,
+      date: date ?? DateTime.now(), createdBy: user.id,
+    );
+    mouvements.insert(0, m);
+    notifyListeners();
+    await CloudRepository.upsertMouvement(m);
+    await _fileUpsert('mouvements_stock', {
+      'id': m.id, 'boutique_id': m.boutiqueId, 'produit_id': m.produitId,
+      'produit_nom': m.produitNom, 'type': m.type, 'quantite': m.quantite,
+      'stock_apres': m.stockApres, 'motif': m.motif, 'ref_id': m.refId,
+      'date_mouvement': m.date.toIso8601String(),
+      'created_by': m.createdBy,
+    });
+  }
+
+  /// Ajustement manuel (correction, perte, casse, don) avec motif
+  /// obligatoire. Retourne null si OK, sinon un message d'erreur.
+  Future<String?> ajusterStock(String produitId, int nouveauStock,
+      String motif) async {
+    if (!peut(Permission.gererStock)) {
+      return 'Réservé à la gestion du stock';
+    }
+    if (motif.trim().length < 3) return 'Motif requis (3 car. min.)';
+    if (nouveauStock < 0) return 'Le stock ne peut pas être négatif';
+    final i = produits.indexWhere((x) => x.id == produitId);
+    if (i < 0) return 'Produit introuvable';
+    final avant = produits[i].stock;
+    if (avant == nouveauStock) return 'Aucun changement';
+    final maj = produits[i].copyWith(stock: nouveauStock);
+    produits[i] = maj;
+    notifyListeners();
+    await CloudRepository.upsertProduit(maj);
+    await _fileUpsert('produits', _payloadProduit(maj));
+    await _journaliser(
+      produitId: maj.id, produitNom: maj.libelle,
+      type: MouvementStock.ajustement, quantite: nouveauStock - avant,
+      stockApres: nouveauStock, motif: motif.trim(),
+    );
+    return null;
   }
 
   // ---------- Partenaires ----------
@@ -1825,6 +1947,13 @@ class Store extends ChangeNotifier {
         produits[pi] = maj;
         await CloudRepository.upsertProduit(maj);
         await _fileUpsert('produits', _payloadProduit(maj));
+        await _journaliser(
+          produitId: maj.id, produitNom: maj.libelle,
+          type: MouvementStock.entree, quantite: qte,
+          stockApres: nouveauStock,
+          motif: 'Réception ${a.numero} — ${a.fournisseurNom}',
+          refId: a.id, date: a.date,
+        );
       } else {
         final nouveau = Produit(
           id: _nid(), boutiqueId: a.boutiqueId,
@@ -1836,6 +1965,13 @@ class Store extends ChangeNotifier {
         await CloudRepository.upsertProduit(nouveau);
         await _fileUpsert('produits', _payloadProduit(nouveau));
         await _syncCatalogueDepuisProduit(nouveau);
+        await _journaliser(
+          produitId: nouveau.id, produitNom: nouveau.libelle,
+          type: MouvementStock.entree, quantite: l.quantite.toInt(),
+          stockApres: nouveau.stock,
+          motif: 'Création à la réception ${a.numero}', refId: a.id,
+          date: a.date,
+        );
       }
     }
     achats[i] = a.copyWith(statut: Achat.statutRecu);
@@ -1905,6 +2041,13 @@ class Store extends ChangeNotifier {
           produits[pi] = maj;
           await CloudRepository.upsertProduit(maj);
           await _fileUpsert('produits', _payloadProduit(maj));
+          await _journaliser(
+            produitId: maj.id, produitNom: maj.libelle,
+            type: MouvementStock.ajustement,
+            quantite: maj.stock - p.stock, stockApres: maj.stock,
+            motif: 'Annulation ${a.numero} : ${motif.trim()}',
+            refId: a.id,
+          );
         }
       }
     }
@@ -2035,6 +2178,7 @@ class Store extends ChangeNotifier {
              'part_entreprise': p.partEntreprise},
         ],
         'achats': [for (final a in achats) a.toJson()],
+        'mouvements': [for (final m in mouvements) m.toJson()],
       };
 
   void _chargerEtat(Map<String, dynamic> data) {
@@ -2291,6 +2435,12 @@ class Store extends ChangeNotifier {
         for (final a in (data['achats'] as List? ?? []))
           Achat.fromJson(Map<String, dynamic>.from(a as Map)),
       ]);
+    mouvements
+      ..clear()
+      ..addAll([
+        for (final m in (data['mouvements'] as List? ?? []))
+          MouvementStock.fromJson(Map<String, dynamic>.from(m as Map)),
+      ]);
     final bt = data['boutique_id_courante']?.toString();
     if (bt != null && boutiques.any((b) => b.id == bt)) {
       _boutiqueId = bt;
@@ -2319,6 +2469,7 @@ class Store extends ChangeNotifier {
       'charges': data['charges'] ?? const [],
       'partages': data['partages'] ?? const [],
       'achats': data['achats'] ?? const [],
+      'mouvements': data['mouvements'] ?? const [],
     });
   }
 

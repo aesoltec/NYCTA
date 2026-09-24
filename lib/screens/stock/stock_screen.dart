@@ -9,6 +9,7 @@ import '../../widgets/app_image.dart';
 import '../../widgets/date_selector.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
+import 'mouvements_screen.dart';
 
 class StockScreen extends StatelessWidget {
   const StockScreen({super.key});
@@ -21,20 +22,68 @@ class StockScreen extends StatelessWidget {
     final peutGererStock = store.peut(Permission.gererStock);
 
     return Scaffold(
-      body: produits.isEmpty
-          ? const EmptyView(
-              icon: Icons.inventory_2_outlined,
-              message: 'Aucun produit dans cette boutique',
-              hint: 'Ajoutez votre premier produit avec le bouton +')
-          : ListView.separated(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, peutGererStock ? 90 : 24),
-              itemCount: produits.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) => _LigneProduit(
-                  produit: produits[i],
-                  peutVendre: peutVendre,
-                  peutGererStock: peutGererStock),
+      body: Column(children: [
+        // Valorisation + accès historique (mission 1, §1.3).
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: const [
+                BoxShadow(
+                    color: Color(0x10000000),
+                    blurRadius: 8, offset: Offset(0, 3))
+              ],
             ),
+            child: Row(children: [
+              const Icon(Icons.assessment_outlined,
+                  size: 20, color: Color(0xFF3D6FB4)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Valorisation du stock',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade600)),
+                      MoneyText(store.valeurStock,
+                          style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800)),
+                    ]),
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.history_rounded, size: 18),
+                label: const Text('Mouvements'),
+                onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const MouvementsScreen())),
+              ),
+            ]),
+          ),
+        ),
+        Expanded(
+          child: produits.isEmpty
+              ? const EmptyView(
+                  icon: Icons.inventory_2_outlined,
+                  message: 'Aucun produit dans cette boutique',
+                  hint: 'Ajoutez votre premier produit avec le bouton +')
+              : ListView.separated(
+                  padding: EdgeInsets.fromLTRB(
+                      16, 8, 16, peutGererStock ? 90 : 24),
+                  itemCount: produits.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(height: 8),
+                  itemBuilder: (_, i) => _LigneProduit(
+                      produit: produits[i],
+                      peutVendre: peutVendre,
+                      peutGererStock: peutGererStock),
+                ),
+        ),
+      ]),
       floatingActionButton: peutGererStock
           ? FloatingActionButton.extended(
               onPressed: () => _formProduit(context, store, null),
@@ -338,6 +387,25 @@ class _FormProduitState extends State<_FormProduit> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
+                  icon: const Icon(Icons.tune_rounded, size: 19),
+                  label: Text(
+                      'Ajuster le stock (actuel : ${widget.produit!.stock})'),
+                  onPressed: _sauvegardeEnCours
+                      ? null
+                      : () => _ajuster(context, store),
+                ),
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.history_rounded, size: 18),
+                label: const Text('Historique de ce produit'),
+                onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => MouvementsScreen(
+                            produitId: widget.produit!.id))),
+              ),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
                   icon: const Icon(Icons.delete_outline,
                       size: 19, color: Colors.redAccent),
                   label: const Text('Retirer ce produit du stock',
@@ -352,6 +420,64 @@ class _FormProduitState extends State<_FormProduit> {
         ),
       ],
     );
+  }
+
+  Future<void> _ajuster(BuildContext context, Store store) async {
+    final p = widget.produit!;
+    final qteCtrl = TextEditingController(text: '${p.stock}');
+    final motifCtrl = TextEditingController();
+    final key = GlobalKey<FormState>();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        scrollable: true,
+        title: Text('Ajuster « ${p.libelle} »'),
+        content: Form(
+          key: key,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextFormField(
+              controller: qteCtrl,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                  labelText: 'Nouveau stock',
+                  helperText:
+                      'Correction, perte, casse, don, inventaire…'),
+              validator: (v) => V.entier(v, min: 0, label: 'Stock'),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: motifCtrl,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                  labelText: 'Motif (obligatoire)'),
+              validator: (v) => V.texte(v, 3, 'Motif'),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          FilledButton(
+              onPressed: () {
+                if (!key.currentState!.validate()) return;
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('Appliquer')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final erreur = await store.ajusterStock(
+        p.id, int.parse(qteCtrl.text.trim()), motifCtrl.text.trim());
+    if (!context.mounted) return;
+    messenger.showSnackBar(SnackBar(
+        content: Text(erreur == null
+            ? '✅ Stock ajusté (mouvement tracé)'
+            : '⚠️ $erreur')));
+    if (erreur == null) Navigator.pop(context);
   }
 
   Future<void> _confirmerSuppression(BuildContext context, Store store) async {
