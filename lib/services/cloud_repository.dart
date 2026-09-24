@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/achat.dart';
 import '../models/app_user.dart';
 import '../models/boutique.dart';
 import '../models/client.dart';
@@ -88,6 +89,10 @@ class CloudRepository {
         // "user_boutiques select" (RLS) ne renvoie que sa propre ligne
         // pour un rôle non admin/gerant — sans danger de tout demander ici.
         c.from('user_boutiques').select(),
+        // Achats fournisseurs (Phase 2) — en fin de liste pour ne pas
+        // décaler les indices results[16]/[17] existants.
+        c.from('achats').select()
+            .order('date_achat', ascending: false).limit(500),
       ]);
       final uid = c.auth.currentUser?.id;
       Map<String, dynamic>? monProfil;
@@ -123,6 +128,7 @@ class CloudRepository {
         'clients': clientsRows,
         'mon_profil': monProfil, 'mes_boutiques': mesBoutiques,
         'users': tousUsers, 'user_boutiques': toutesUserBoutiques,
+        'achats': results[18],
       };
     } catch (e, st) {
       // Ne jamais avaler cette erreur en silence : c'est la seule piste pour
@@ -569,6 +575,24 @@ class CloudRepository {
           'id': t.id, 'libelle': t.libelle, 'categorie': t.categorie,
           'prix': t.prix, 'description': t.description, 'actif': t.actif,
         });
+      });
+
+  /// Achat fournisseur : en-tête + lignes JSONB (même pattern que les
+  /// transactions — une seule table, pas de RLS sur une table de lignes).
+  static Future<void> upsertAchat(Achat a) => _silencieux(() async {
+        await _c!.from('achats').upsert({
+          'id': a.id, 'numero': a.numero, 'boutique_id': a.boutiqueId,
+          'fournisseur_id':
+              a.fournisseurId.isEmpty ? null : a.fournisseurId,
+          'fournisseur_nom': a.fournisseurNom,
+          'lignes': [for (final l in a.lignes) l.toJson()],
+          'date_achat': a.date.toIso8601String(), 'statut': a.statut,
+          'mode_paiement': a.modePaiement,
+          'reference_facture': a.referenceFacture, 'notes': a.notes,
+          'motif_annulation': a.motifAnnulation,
+          'montant_paye': a.montantPaye,
+          'created_by': _c!.auth.currentUser?.id,
+        }, onConflict: 'id');
       });
 
   static Future<void> _silencieux(Future<void> Function() fn) async {

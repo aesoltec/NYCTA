@@ -14,6 +14,7 @@ enum Permission {
   configurer,        // configuration entreprise (identité, fiscal, budgets…)
   gererUtilisateurs, // créer comptes, affecter rôles et boutiques
   gererDocuments,    // émettre factures, devis, bons, tickets
+  gererAchats,       // achats fournisseurs (Phase 2)
 }
 
 /// Matrice rôle → permissions. L'administrateur a tout, par définition.
@@ -22,16 +23,17 @@ const Map<Role, Set<Permission>> rolePermissions = {
     Permission.vendre, Permission.gererStock, Permission.voirCaisse,
     Permission.voirRapports, Permission.gererPartenaires, Permission.cloturerMois,
     Permission.gererDepenses, Permission.configurer, Permission.gererUtilisateurs,
-    Permission.gererDocuments,
+    Permission.gererDocuments, Permission.gererAchats,
   },
   Role.gerant: {
     Permission.vendre, Permission.gererStock, Permission.voirCaisse,
     Permission.voirRapports, Permission.gererPartenaires, Permission.cloturerMois,
     Permission.gererDepenses, Permission.configurer, Permission.gererDocuments,
+    Permission.gererAchats,
   },
   Role.comptable: {
     Permission.voirCaisse, Permission.voirRapports, Permission.gererDepenses,
-    Permission.gererDocuments, Permission.vendre,
+    Permission.gererDocuments, Permission.vendre, Permission.gererAchats,
   },
   Role.caissier: {
     Permission.vendre, Permission.voirCaisse, Permission.gererDocuments,

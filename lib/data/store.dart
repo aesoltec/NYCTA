@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../core/constants.dart';
 import '../core/validators.dart';
+import '../models/achat.dart';
+import '../models/achat.dart';
 import '../models/app_user.dart';
 import '../models/boutique.dart';
 import '../models/charge.dart';
@@ -352,6 +354,34 @@ class Store extends ChangeNotifier {
             actif: r['actif'] != false,
           ),
       ]);
+    // Achats fournisseurs (Phase 2) — lignes stockées en JSONB.
+    achats
+      ..clear()
+      ..addAll([
+        for (final r in (data['achats'] as List? ?? []))
+          Achat(
+            id: r['id'].toString(),
+            numero: r['numero']?.toString() ?? '',
+            boutiqueId: r['boutique_id']?.toString() ?? '',
+            fournisseurId: r['fournisseur_id']?.toString() ?? '',
+            fournisseurNom: r['fournisseur_nom']?.toString() ?? '',
+            lignes: [
+              for (final l in (r['lignes'] as List? ?? const []))
+                LigneAchat.fromJson(Map<String, dynamic>.from(l as Map)),
+            ],
+            date: DateTime.tryParse(r['date_achat']?.toString() ?? '') ??
+                DateTime.now(),
+            statut: r['statut']?.toString() ?? Achat.statutEnAttente,
+            modePaiement: r['mode_paiement']?.toString() ?? 'especes',
+            referenceFacture: r['reference_facture']?.toString(),
+            notes: r['notes']?.toString(),
+            motifAnnulation: r['motif_annulation']?.toString(),
+            montantPaye: (r['montant_paye'] as num?)?.toDouble() ?? 0,
+            createdBy: r['created_by']?.toString() ?? '',
+            createdAt: DateTime.tryParse(r['created_at']?.toString() ?? '') ??
+                DateTime.now(),
+          ),
+      ]);
     // Historique des documents (cloud → reconstruction complète)
     final docRows = data['documents'] as List? ?? [];
     documentsEmis.clear();
@@ -464,6 +494,7 @@ class Store extends ChangeNotifier {
   final domainesPresta = List<String>.of(C.domaines);
   final dureesForfaitListe = List<String>.of(C.dureesForfait);
   final documentsEmis = <DocumentBati>[];
+  final achats = <Achat>[];                // achats fournisseurs (Phase 2)
   CompanyProfile profile = const CompanyProfile();
   int _seq = 0;
   Timer? _persistTimer;
@@ -1662,6 +1693,229 @@ class Store extends ChangeNotifier {
   List<Partage> partagesDe(String partenaireId) =>
       partages.where((p) => p.partenaireId == partenaireId).toList();
 
+  // ---------- Achats fournisseurs (Phase 2) ----------
+  /// Cycle : demande/en_attente (aucun impact) → valide (dette) →
+  /// recu (stock+ CUMP) + paiements (charges Fournisseurs) ; annule
+  /// avec motif, contre-écriture stock si déjà reçu. Toute action
+  /// sensible est tracée (createdBy + motif).
+  List<Achat> get achatsBoutique =>
+      achats.where((a) => a.boutiqueId == _boutiqueId).toList();
+
+  List<Achat> get achatsEnAttente => achatsBoutique
+      .where((a) =>
+          a.statut == Achat.statutDemande ||
+          a.statut == Achat.statutEnAttente)
+      .toList();
+
+  double get totalAchatsMois => achatsBoutique
+      .where((a) =>
+          a.statut != Achat.statutAnnule &&
+          C.moisKey(a.date) == moisCourant)
+      .fold(0.0, (s, a) => s + a.montantTTC);
+
+  double get duFournisseurs => achatsBoutique
+      .where((a) =>
+          a.statut == Achat.statutValide ||
+          a.statut == Achat.statutRecu)
+      .fold(0.0, (s, a) => s + a.montantRestant);
+
+  Map<String, dynamic> _payloadAchat(Achat a) => {
+        'id': a.id, 'numero': a.numero, 'boutique_id': a.boutiqueId,
+        'fournisseur_id': a.fournisseurId.isEmpty ? null : a.fournisseurId,
+        'fournisseur_nom': a.fournisseurNom,
+        'lignes': [for (final l in a.lignes) l.toJson()],
+        'date_achat': a.date.toIso8601String(), 'statut': a.statut,
+        'mode_paiement': a.modePaiement,
+        'reference_facture': a.referenceFacture, 'notes': a.notes,
+        'motif_annulation': a.motifAnnulation,
+        'montant_paye': a.montantPaye, 'created_by': a.createdBy,
+      };
+
+  /// Création : vendeur/caissier (sans gererAchats) ⇒ statut `demande`
+  /// imposé, sans accès aux actions suivantes. Retourne null si OK.
+  Future<String?> creerAchat(Achat brouillon) async {
+    if (brouillon.fournisseurNom.trim().length < 2) {
+      return 'Fournisseur requis (2 car. min.)';
+    }
+    if (brouillon.lignes.isEmpty) return 'Ajoutez au moins une ligne';
+    for (final l in brouillon.lignes) {
+      if (l.produitNom.trim().isEmpty) return 'Ligne sans libellé';
+      if (l.quantite <= 0) return 'Quantité > 0 requise (${l.produitNom})';
+      if (l.prixUnitaire < 0) return 'Prix invalide (${l.produitNom})';
+    }
+    final statut = peut(Permission.gererAchats)
+        ? (brouillon.statut == Achat.statutDemande
+            ? Achat.statutDemande
+            : Achat.statutEnAttente)
+        : Achat.statutDemande;
+    final a = Achat(
+      id: _nid(), numero: await numeroDocument('ACH'),
+      boutiqueId: brouillon.boutiqueId,
+      fournisseurId: brouillon.fournisseurId,
+      fournisseurNom: brouillon.fournisseurNom.trim(),
+      lignes: brouillon.lignes, date: brouillon.date, statut: statut,
+      modePaiement: brouillon.modePaiement,
+      referenceFacture: brouillon.referenceFacture?.trim(),
+      notes: brouillon.notes?.trim(),
+      createdBy: user.id, createdAt: DateTime.now(),
+    );
+    achats.insert(0, a);
+    notifyListeners();
+    await CloudRepository.upsertAchat(a);
+    await _fileUpsert('achats', _payloadAchat(a));
+    return null;
+  }
+
+  /// Correction d'un brouillon (demande/en_attente uniquement).
+  Future<String?> majAchat(Achat maj) async {
+    final i = achats.indexWhere((x) => x.id == maj.id);
+    if (i < 0) return 'Achat introuvable';
+    final actuel = achats[i];
+    if (actuel.statut != Achat.statutDemande &&
+        actuel.statut != Achat.statutEnAttente) {
+      return 'Seule une demande ou un achat en attente est modifiable';
+    }
+    if (maj.lignes.isEmpty) return 'Ajoutez au moins une ligne';
+    achats[i] = maj;
+    notifyListeners();
+    await CloudRepository.upsertAchat(maj);
+    await _fileUpsert('achats', _payloadAchat(maj));
+    return null;
+  }
+
+  /// Validation : demande/en_attente → valide (dette fournisseur).
+  /// Aucun impact stock ni trésorerie à ce stade.
+  Future<String?> validerAchat(String id) async {
+    if (!peut(Permission.gererAchats)) return 'Réservé (admin, gérant, comptable)';
+    final i = achats.indexWhere((x) => x.id == id);
+    if (i < 0) return 'Achat introuvable';
+    if (!achats[i].peutValider) return 'Statut incompatible avec la validation';
+    achats[i] = achats[i].copyWith(statut: Achat.statutValide);
+    notifyListeners();
+    await CloudRepository.upsertAchat(achats[i]);
+    await _fileUpsert('achats', _payloadAchat(achats[i]));
+    return null;
+  }
+
+  /// Réception : valide → recu + entrée stock (CUMP) par ligne.
+  /// Ligne liée à un produit : stock += qté, prixAchat = moyenne pondérée.
+  /// Ligne libre : crée la fiche produit (prixVente = prixAchat, à ajuster).
+  Future<String?> recevoirAchat(String id) async {
+    if (!peut(Permission.gererAchats)) return 'Réservé (admin, gérant, comptable)';
+    final i = achats.indexWhere((x) => x.id == id);
+    if (i < 0) return 'Achat introuvable';
+    final a = achats[i];
+    if (!a.peutRecevoir) return 'Validez d\'abord cet achat';
+    for (final l in a.lignes) {
+      final pi = produits.indexWhere((p) =>
+          p.boutiqueId == a.boutiqueId &&
+          (l.produitId.isNotEmpty
+              ? p.id == l.produitId
+              : _memeLibelle(p.libelle, l.produitNom)));
+      if (pi >= 0) {
+        final p = produits[pi];
+        final qte = (l.quantite).toInt();
+        final nouveauStock = p.stock + qte;
+        // CUMP : (stock × ancien PA + qté × nouveau PA) / nouveau stock.
+        final cump = nouveauStock > 0
+            ? (p.stock * p.prixAchat + l.quantite * l.prixUnitaire) /
+                nouveauStock
+            : l.prixUnitaire;
+        final maj = p.copyWith(stock: nouveauStock, prixAchat: cump);
+        produits[pi] = maj;
+        await CloudRepository.upsertProduit(maj);
+        await _fileUpsert('produits', _payloadProduit(maj));
+      } else {
+        final nouveau = Produit(
+          id: _nid(), boutiqueId: a.boutiqueId,
+          libelle: l.produitNom.trim(), categorie: 'Autre',
+          prixAchat: l.prixUnitaire, prixVente: l.prixUnitaire,
+          stock: l.quantite.toInt(), seuil: 3,
+        );
+        produits.add(nouveau);
+        await CloudRepository.upsertProduit(nouveau);
+        await _fileUpsert('produits', _payloadProduit(nouveau));
+        await _syncCatalogueDepuisProduit(nouveau);
+      }
+    }
+    achats[i] = a.copyWith(statut: Achat.statutRecu);
+    notifyListeners();
+    await CloudRepository.upsertAchat(achats[i]);
+    await _fileUpsert('achats', _payloadAchat(achats[i]));
+    return null;
+  }
+
+  /// Paiement total ou partiel : met à jour le payé/restant et enregistre
+  /// une charge « Fournisseurs » (sortie de trésorerie traçable).
+  Future<String?> payerAchat(String id, double montant,
+      {String? mode}) async {
+    if (!peut(Permission.gererAchats)) return 'Réservé (admin, gérant, comptable)';
+    final i = achats.indexWhere((x) => x.id == id);
+    if (i < 0) return 'Achat introuvable';
+    final a = achats[i];
+    if (!a.peutPayer) return 'Aucun montant à payer sur cet achat';
+    if (montant <= 0) return 'Montant > 0 requis';
+    if (montant > a.montantRestant + 0.001) {
+      return 'Montant supérieur au reste dû (${a.montantRestant.toStringAsFixed(0)})';
+    }
+    final paye = (a.montantPaye + montant).clamp(0.0, a.montantTTC);
+    achats[i] = a.copyWith(
+        montantPaye: paye, modePaiement: mode ?? a.modePaiement);
+    final charge = Charge(
+      id: _nid(), boutiqueId: a.boutiqueId, categorie: 'Fournisseurs',
+      libelle: 'Paiement ${a.numero} — ${a.fournisseurNom}',
+      montant: montant, date: DateTime.now(), recurrente: false,
+    );
+    depenses.insert(0, charge);
+    notifyListeners();
+    await CloudRepository.upsertAchat(achats[i]);
+    await _fileUpsert('achats', _payloadAchat(achats[i]));
+    await CloudRepository.upsertCharge(charge);
+    await _fileUpsert('charges', {
+      'id': charge.id, 'boutique_id': charge.boutiqueId,
+      'categorie': charge.categorie, 'libelle': charge.libelle,
+      'montant': charge.montant,
+      'date_charge': charge.date.toIso8601String(),
+      'recurrente': charge.recurrente,
+    });
+    return null;
+  }
+
+  /// Annulation avec motif obligatoire. Si déjà reçu : contre-écriture
+  /// stock (retrait des quantités, plancher 0) — jamais de suppression
+  /// d'écriture, l'historique reste lisible.
+  Future<String?> annulerAchat(String id, String motif) async {
+    if (!peut(Permission.gererAchats)) return 'Réservé (admin, gérant, comptable)';
+    if (motif.trim().length < 3) return 'Motif requis (3 car. min.)';
+    final i = achats.indexWhere((x) => x.id == id);
+    if (i < 0) return 'Achat introuvable';
+    final a = achats[i];
+    if (!a.peutAnnuler) return 'Achat déjà annulé';
+    if (a.statut == Achat.statutRecu) {
+      for (final l in a.lignes) {
+        final pi = produits.indexWhere((p) =>
+            p.boutiqueId == a.boutiqueId &&
+            (l.produitId.isNotEmpty
+                ? p.id == l.produitId
+                : _memeLibelle(p.libelle, l.produitNom)));
+        if (pi >= 0) {
+          final p = produits[pi];
+          final maj = p.copyWith(
+              stock: (p.stock - l.quantite.toInt()).clamp(0, 1 << 30));
+          produits[pi] = maj;
+          await CloudRepository.upsertProduit(maj);
+          await _fileUpsert('produits', _payloadProduit(maj));
+        }
+      }
+    }
+    achats[i] = a.copyWith(
+        statut: Achat.statutAnnule, motifAnnulation: motif.trim());
+    notifyListeners();
+    await CloudRepository.upsertAchat(achats[i]);
+    await _fileUpsert('achats', _payloadAchat(achats[i]));
+    return null;
+  }
+
   // ---------- Sérialisation (persistance locale) ----------
   Map<String, dynamic> toJson() => {
         'version': 1,
@@ -1780,6 +2034,7 @@ class Store extends ChangeNotifier {
              'part_partenaire': p.partPartenaire,
              'part_entreprise': p.partEntreprise},
         ],
+        'achats': [for (final a in achats) a.toJson()],
       };
 
   void _chargerEtat(Map<String, dynamic> data) {
@@ -2030,6 +2285,12 @@ class Store extends ChangeNotifier {
             taux: (p['taux'] as num?)?.toDouble() ?? 0.60,
           ),
       ]);
+    achats
+      ..clear()
+      ..addAll([
+        for (final a in (data['achats'] as List? ?? []))
+          Achat.fromJson(Map<String, dynamic>.from(a as Map)),
+      ]);
     final bt = data['boutique_id_courante']?.toString();
     if (bt != null && boutiques.any((b) => b.id == bt)) {
       _boutiqueId = bt;
@@ -2057,6 +2318,7 @@ class Store extends ChangeNotifier {
       'transactions': data['transactions'] ?? const [],
       'charges': data['charges'] ?? const [],
       'partages': data['partages'] ?? const [],
+      'achats': data['achats'] ?? const [],
     });
   }
 

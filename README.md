@@ -13,6 +13,7 @@ données de démo réalistes — aucune configuration Firebase requise.
 | ➕ Nouvelle opération | Formulaire dynamique par activité : prestation, Mobile Money, crédit, forfait hotspot, matériel |
 | 📒 Journal | Toutes les transactions, filtres par activité, recherche client |
 | 📦 Stock | Inventaire par boutique, alertes de rupture, vente directe (sortie de stock + transaction atomiques) |
+| 🛒 Achats fournisseurs | Demandes, commandes, réception (stock + CUMP), paiements, dettes, annulation avec motif |
 | 🤝 Partenaires | Ventes mensuelles par partenaire, **clôture du mois** avec calcul automatique des parts |
 | 📊 Rapports | CA/marge du mois, détail par activité, **frais Mobile Money par opérateur**, CA par boutique |
 | 🏬 Multi-boutiques | Sélecteur dans l'AppBar, toutes les données filtrées par boutique |

@@ -10,6 +10,7 @@ import '../../widgets/section_header.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/type_chip.dart';
 import '../transaction/nouvelle_transaction_screen.dart';
+import '../achat/achat_list_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -195,6 +196,16 @@ class DashboardScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 22),
+        // ---- Achats fournisseurs (Phase 2) : total mois, en attente,
+        //      reste dû, suggestion si stock bas ----
+        if (store.peut(Permission.gererAchats) ||
+            store.role == Role.vendeur ||
+            store.role == Role.caissier)
+          const _TuileAchats(),
+        if (store.peut(Permission.gererAchats) ||
+            store.role == Role.vendeur ||
+            store.role == Role.caissier)
+          const SizedBox(height: 22),
         SectionHeader(
             titre: 'Nouvelle opération',
             compteur: '${TypeTransaction.values.length}'),
@@ -296,6 +307,111 @@ class _Kpi extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TuileAchats extends StatelessWidget {
+  const _TuileAchats();
+
+  @override
+  Widget build(BuildContext context) {
+    final store = context.watch<Store>();
+    final enAttente = store.achatsEnAttente.length;
+    final alertes = store.alertesStock.length;
+    return SoftCard(
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => const AchatListScreen())),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF6C00).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.shopping_cart_outlined,
+                  size: 20, color: Color(0xFFEF6C00)),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text('Achats fournisseurs',
+                  style:
+                      TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: _MiniAchat(
+                  label: 'Mois',
+                  valeur: MoneyText(store.totalAchatsMois,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w800))),
+            ),
+            Expanded(
+              child: _MiniAchat(
+                  label: 'En attente',
+                  valeur: Text('$enAttente',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: enAttente > 0
+                              ? const Color(0xFFEF6C00)
+                              : Colors.grey.shade600))),
+            ),
+            Expanded(
+              child: _MiniAchat(
+                  label: 'Dû fournisseurs',
+                  valeur: MoneyText(store.duFournisseurs,
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFC62828)))),
+            ),
+          ]),
+          if (alertes > 0) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF4E0),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                  '⚠️ $alertes produit(s) en stock bas — pensez à réapprovisionner',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12.5)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniAchat extends StatelessWidget {
+  final String label;
+  final Widget valeur;
+  const _MiniAchat({required this.label, required this.valeur});
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style:
+                  TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          const SizedBox(height: 2),
+          valeur,
+        ],
+      );
 }
 
 class _ModuleTile extends StatelessWidget {

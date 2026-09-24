@@ -6,6 +6,7 @@ import '../../services/supabase_service.dart';
 import '../login/login_screen.dart';
 import '../../models/enums.dart';
 import '../admin/boutiques_screen.dart';
+import '../achat/achat_list_screen.dart';
 import '../admin/categories_screen.dart';
 import '../admin/listes_dynamiques_screen.dart';
 import '../admin/clients_screen.dart';
@@ -116,6 +117,18 @@ class MenuScreen extends StatelessWidget {
             titre: 'Listes du formulaire de vente',
             sousTitre: 'Opérateurs Mobile Money/Crédit, domaines, durées forfait',
             destination: const ListesDynamiquesScreen(),
+          ),
+        if (store.peut(Permission.gererAchats) ||
+            store.role == Role.vendeur ||
+            store.role == Role.caissier)
+          _Tuille(
+            icone: Icons.shopping_cart_outlined,
+            couleur: const Color(0xFFEF6C00),
+            titre: 'Achats fournisseurs',
+            sousTitre: store.achatsEnAttente.isNotEmpty
+                ? '${store.achatsEnAttente.length} en attente · dû : ${store.duFournisseurs.toStringAsFixed(0)}'
+                : 'Demandes, commandes, réceptions, dettes',
+            destination: const AchatListScreen(),
           ),
         if (store.peut(Permission.gererDepenses) || store.peut(Permission.configurer))
           _Tuille(
