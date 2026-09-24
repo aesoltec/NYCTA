@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -48,6 +49,16 @@ class PmeApp extends StatelessWidget {
         title: 'NYCTA',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
+        // Localisation FR : sans ces délégués, showDatePicker avec
+        // locale fr-FR ne peut pas résoudre ses chaînes et affiche une
+        // page blanche sur certaines plateformes (bug Phase 1).
+        locale: const Locale('fr', 'FR'),
+        supportedLocales: const [Locale('fr', 'FR'), Locale('en', 'US')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
         // ============ GARDE ANTI-OVERFLOW GLOBALE ============
         // La police système (accessibilité) est bornée à 115 % : c'est la
         // cause n°1 de layoutOverflow sur les apps en production.

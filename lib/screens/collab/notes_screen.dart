@@ -4,6 +4,7 @@ import '../../core/validators.dart';
 import '../../data/store.dart';
 import '../../models/enums.dart';
 import '../../models/evenement.dart';
+import '../../widgets/date_picker_field.dart';
 
 /// Notes personnelles avec rappel optionnel (notification le jour J).
 /// Chacun crée/modifie/supprime ses propres notes (cf. policy RLS
@@ -174,38 +175,17 @@ class NotesScreen extends StatelessWidget {
               TextFormField(controller: contenu, maxLines: 4,
                   decoration: const InputDecoration(labelText: 'Contenu')),
               const SizedBox(height: 12),
-              InkWell(
-                onTap: () async {
-                  final d = await showDatePicker(
-                    context: ctx,
-                    initialDate: rappel ?? DateTime.now(),
-                    firstDate: DateTime.now().subtract(const Duration(days: 1)),
-                    lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
-                  );
-                  if (d != null) setSheetState(() => rappel = d);
-                },
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                      labelText: 'Rappel (optionnel)',
-                      prefixIcon: Icon(Icons.notification_add_outlined)),
-                  child: Text(
-                    rappel == null
-                        ? 'Aucun rappel'
-                        : '📅 ${rappel!.day.toString().padLeft(2, '0')}/${rappel!.month.toString().padLeft(2, '0')}/${rappel!.year}'
-                            '${rappel == DateTime.now() ? '' : ''}',
-                    style: TextStyle(
-                        fontWeight: rappel == null ? FontWeight.normal : FontWeight.w600,
-                        color: rappel == null ? Colors.grey.shade500 : null),
-                  ),
-                ),
+              DatePickerField(
+                valeur: rappel,
+                label: 'Rappel (optionnel)',
+                texteVide: 'Aucun rappel',
+                firstDate:
+                    DateTime.now().subtract(const Duration(days: 30)),
+                lastDate:
+                    DateTime.now().add(const Duration(days: 365 * 3)),
+                effacable: true,
+                onChanged: (d) => setSheetState(() => rappel = d),
               ),
-              if (rappel != null)
-                Align(alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      icon: const Icon(Icons.close, size: 16),
-                      label: const Text('Retirer le rappel'),
-                      onPressed: () => setSheetState(() => rappel = null),
-                    )),
               const SizedBox(height: 20),
               SizedBox(width: double.infinity, child: FilledButton(
                 child: const Text('Enregistrer'),

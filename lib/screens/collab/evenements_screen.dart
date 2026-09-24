@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/validators.dart';
 import '../../data/store.dart';
+import '../../widgets/date_picker_field.dart';
 import '../../models/enums.dart';
 import '../../models/evenement.dart';
 
@@ -120,22 +121,15 @@ class EvenementsScreen extends StatelessWidget {
                   labelText: 'Titre', prefixIcon: Icon(Icons.title)),
                   validator: (v) => V.texte(v, 3, 'Titre')),
               const SizedBox(height: 12),
-              InkWell(
-                onTap: () async {
-                  final d = await showDatePicker(
-                    context: ctx, initialDate: date,
-                    firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                    lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
-                  );
+              DatePickerField(
+                valeur: date,
+                label: 'Date',
+                firstDate: DateTime(2020, 1, 1),
+                lastDate:
+                    DateTime.now().add(const Duration(days: 365 * 3)),
+                onChanged: (d) {
                   if (d != null) setSheetState(() => date = d);
                 },
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                      labelText: 'Date', prefixIcon: Icon(Icons.calendar_today_outlined)),
-                  child: Text(
-                      '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}',
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                ),
               ),
               const SizedBox(height: 12),
               TextFormField(controller: heure,

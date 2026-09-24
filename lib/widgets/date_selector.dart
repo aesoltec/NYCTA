@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'date_picker_field.dart';
 
 /// Sélecteur de date de saisie réutilisé par tous les formulaires
 /// (ventes, dépenses, documents, vente stock, espace partenaire).
@@ -35,14 +36,13 @@ class ChampDate extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       onTap: () async {
         final auj = DateTime.now();
-        final choix = await showDatePicker(
-          context: context,
-          initialDate: valeur.isAfter(auj) && !autoriserFutur ? auj : valeur,
+        final choix = await choisirDateRobuste(
+          context,
+          valeur: valeur,
           firstDate: DateTime(2020, 1, 1),
           lastDate: autoriserFutur
               ? DateTime(auj.year + 2, 12, 31)
               : DateTime(auj.year, auj.month, auj.day),
-          locale: const Locale('fr', 'FR'),
         );
         if (choix != null) onChanged(choix);
       },
