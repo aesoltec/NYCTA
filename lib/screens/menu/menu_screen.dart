@@ -38,6 +38,48 @@ class MenuScreen extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF0F172A), Color(0xFF1E3A5F)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.all(Radius.circular(20)),
+          ),
+          child: Row(children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.grid_view_rounded,
+                  color: Color(0xFF6EE7B7), size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Menu',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 2),
+                    Text(
+                        '${store.boutiqueCourante.nom} · ${store.role.label}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 12.5)),
+                  ]),
+            ),
+          ]),
+        ),
         if (store.peut(Permission.gererPartenaires) || store.peut(Permission.cloturerMois))
           _Tuille(
             icone: Icons.handshake_outlined,

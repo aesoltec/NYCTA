@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Design system « pro » NYCTA : charte bleu nuit + vert menthe,
 /// surfaces blanches douces, ombres feutrées, typographie hiérarchisée.
@@ -47,10 +48,11 @@ class AppTheme {
         centerTitle: false,
         elevation: 0,
         scrolledUnderElevation: 1,
-        backgroundColor: Colors.white,
-        foregroundColor: encre,
+        backgroundColor: encre,
+        foregroundColor: Colors.white,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
         titleTextStyle: TextStyle(
-            fontWeight: FontWeight.w800, fontSize: 18, color: encre),
+            fontWeight: FontWeight.w800, fontSize: 18, color: Colors.white),
       ),
       cardTheme: CardThemeData(
         elevation: 0,
