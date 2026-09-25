@@ -24,9 +24,8 @@
 
 ## PDF du détail analytique
 
-Reste à livrer pour solder #26 : le bouton n'exporte qu'en CSV.
-Bouton PDF ajouté dans `analytique_detail_screen.dart` via `_exporterPdf`
-(`printing` + tableau `pdf`) — voir commit.
+✅ Livré : bouton PDF dans `analytique_detail_screen.dart` via `_exporterPdf`
+(`printing` + tableau `pdf`), à côté du CSV.
 
 ## Scores v3
 
