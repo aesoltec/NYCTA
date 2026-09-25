@@ -46,6 +46,8 @@
   l'auteur réel ; défaut serveur `auth.uid()` en garde-fou (plus de 23502).
 - `transactions` : écriture par rôle + boutique ; partenaire : forfaits à son nom.
 - Journal d'audit : triggers sur toutes les tables métier (`journal_activite`).
+- `ecritures` : **insert seul** (aucun update/delete) — corrections par
+  contre-écriture applicative ; lecture boutiques accessibles.
 
 ## Limites assumées
 

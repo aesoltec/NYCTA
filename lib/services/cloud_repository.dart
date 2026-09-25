@@ -14,6 +14,7 @@ import '../models/message.dart';
 import '../models/charge.dart';
 import '../models/company_profile.dart';
 import '../models/document.dart';
+import '../models/ecriture.dart';
 import 'document_service.dart';
 import '../models/enums.dart';
 import '../models/partenaire.dart';
@@ -97,6 +98,9 @@ class CloudRepository {
         // Mouvements de stock (mission 1 §1.3) — idem, en fin de liste.
         c.from('mouvements_stock').select()
             .order('date_mouvement', ascending: false).limit(1000),
+        // Écritures comptables (mission §3.3) — idem, en fin de liste.
+        c.from('ecritures').select()
+            .order('date_ecriture', ascending: false).limit(2000),
       ]);
       final uid = c.auth.currentUser?.id;
       Map<String, dynamic>? monProfil;
@@ -133,6 +137,7 @@ class CloudRepository {
         'mon_profil': monProfil, 'mes_boutiques': mesBoutiques,
         'users': tousUsers, 'user_boutiques': toutesUserBoutiques,
         'achats': results[18], 'mouvements': results[19],
+        'ecritures': results[20],
       };
     } catch (e, st) {
       // Ne jamais avaler cette erreur en silence : c'est la seule piste pour
@@ -585,6 +590,19 @@ class CloudRepository {
           'quantite': m.quantite, 'stock_apres': m.stockApres,
           'motif': m.motif, 'ref_id': m.refId.isEmpty ? null : m.refId,
           'date_mouvement': m.date.toIso8601String(),
+          'created_by': _c!.auth.currentUser?.id,
+        }, onConflict: 'id');
+      });
+
+  /// Écriture comptable : journal immuable (corrections par
+  /// contre-écriture, jamais d'update/delete direct).
+  static Future<void> upsertEcriture(Ecriture e) => _silencieux(() async {
+        await _c!.from('ecritures').upsert({
+          'id': e.id, 'journal': e.journal,
+          'date_ecriture': e.date.toIso8601String(), 'compte': e.compte,
+          'libelle': e.libelle, 'debit': e.debit, 'credit': e.credit,
+          'ref_id': e.refId.isEmpty ? null : e.refId,
+          'boutique_id': e.boutiqueId,
           'created_by': _c!.auth.currentUser?.id,
         }, onConflict: 'id');
       });

@@ -5,6 +5,7 @@ import '../core/validators.dart';
 import '../models/achat.dart';
 import '../models/analytique.dart';
 import '../models/app_user.dart';
+import '../models/ecriture.dart';
 import '../models/mouvement_stock.dart';
 import '../models/boutique.dart';
 import '../models/charge.dart';
@@ -404,6 +405,26 @@ class Store extends ChangeNotifier {
             createdBy: r['created_by']?.toString() ?? '',
           ),
       ]);
+    // Écritures comptables (mission §3.3).
+    ecritures
+      ..clear()
+      ..addAll([
+        for (final r in (data['ecritures'] as List? ?? []))
+          Ecriture(
+            id: r['id'].toString(),
+            journal: r['journal']?.toString() ?? 'OD',
+            date: DateTime.tryParse(
+                    r['date_ecriture']?.toString() ?? '') ??
+                DateTime.now(),
+            compte: r['compte']?.toString() ?? '',
+            libelle: r['libelle']?.toString() ?? '',
+            debit: (r['debit'] as num?)?.toDouble() ?? 0,
+            credit: (r['credit'] as num?)?.toDouble() ?? 0,
+            refId: r['ref_id']?.toString() ?? '',
+            boutiqueId: r['boutique_id']?.toString() ?? '',
+            createdBy: r['created_by']?.toString() ?? '',
+          ),
+      ]);
     // Historique des documents (cloud → reconstruction complète)
     final docRows = data['documents'] as List? ?? [];
     documentsEmis.clear();
@@ -529,6 +550,7 @@ class Store extends ChangeNotifier {
   final documentsEmis = <DocumentBati>[];
   final achats = <Achat>[];                // achats fournisseurs (Phase 2)
   final mouvements = <MouvementStock>[];   // historique des stocks (mission 1)
+  final ecritures = <Ecriture>[];          // journal comptable (mission §3.3)
   CompanyProfile profile = const CompanyProfile();
   int _seq = 0;
   Timer? _persistTimer;
@@ -1154,6 +1176,8 @@ class Store extends ChangeNotifier {
     if (SupabaseService.client != null) {
       await SyncService().mettreEnFile(_payloadTx(tx));
     }
+    // Journal comptable automatique (mission §3.3/§4).
+    await _comptabiliserVente(tx);
     return tx.id;
   }
 
@@ -1211,6 +1235,8 @@ class Store extends ChangeNotifier {
       await SyncService()
           .mettreEnFile({'id': id}, table: 'transactions__delete');
     }
+    // Annulation comptable par contre-écriture (jamais de suppression).
+    await _contrePasser(id, 'vente supprimée');
   }
 
   // ---------- Tableau de bord ----------
@@ -1280,6 +1306,7 @@ class Store extends ChangeNotifier {
       'date_charge': charge.date.toIso8601String(),
       'recurrente': charge.recurrente,
     });
+    await _comptabiliserCharge(charge);
   }
 
   List<Charge> get depensesBoutique =>
@@ -1301,6 +1328,9 @@ class Store extends ChangeNotifier {
       'date_charge': maj.date.toIso8601String(),
       'recurrente': maj.recurrente,
     });
+    // Correction = contre-passation de l'ancienne + nouvelle écriture.
+    await _contrePasser(maj.id, 'correction dépense');
+    await _comptabiliserCharge(maj);
     return null;
   }
 
@@ -1357,6 +1387,7 @@ class Store extends ChangeNotifier {
       );
       depenses.insert(0, charge);
       await CloudRepository.upsertCharge(charge);
+      await _comptabiliserCharge(charge);
     }
     profile = profile.copyWith(moisChargesGenerees: mois);
     notifyListeners();
@@ -1381,6 +1412,146 @@ class Store extends ChangeNotifier {
   }
 
   double get soldeCaisseCourant => soldeCaisse(_boutiqueId);
+
+  // ---------- Comptabilité SYSCOHADA simplifiée (mission §3.3/§4) ----------
+  /// Journal immuable : écritures auto-générées, corrections par
+  /// contre-écriture uniquement (jamais de update/delete).
+  List<Ecriture> get ecrituresBoutique =>
+      ecritures.where((e) => e.boutiqueId == _boutiqueId).toList();
+
+  Future<void> _poster(List<Ecriture> lignes) async {
+    ecritures.insertAll(0, lignes);
+    notifyListeners();
+    for (final e in lignes) {
+      await CloudRepository.upsertEcriture(e);
+      await _fileUpsert('ecritures', {
+        'id': e.id, 'journal': e.journal,
+        'date_ecriture': e.date.toIso8601String(), 'compte': e.compte,
+        'libelle': e.libelle, 'debit': e.debit, 'credit': e.credit,
+        'ref_id': e.refId.isEmpty ? null : e.refId,
+        'boutique_id': e.boutiqueId, 'created_by': e.createdBy,
+      });
+    }
+  }
+
+  Ecriture _ligne(String journal, DateTime date, String compte,
+          String libelle, double debit, double credit, String refId) =>
+      Ecriture(
+        id: _nid(), journal: journal, date: date, compte: compte,
+        libelle: libelle, debit: debit, credit: credit, refId: refId,
+        boutiqueId: _boutiqueId, createdBy: user.id,
+      );
+
+  /// Vente (journal VT) : D 411 / C 70x + C 443 (TVA du profil).
+  /// Mobile Money (journal BQ) : flux caisse ↔ e-float + frais gagnés.
+  Future<void> _comptabiliserVente(Tx tx) async {
+    final tvaTx = profile.tva;
+    if (tx.type == TypeTransaction.mobileMoney) {
+      final op = (tx.details['operation']?.toString() ?? '').toLowerCase();
+      final frais =
+          (tx.details['frais'] as num?)?.toDouble() ?? 0;
+      final lignes = <Ecriture>[
+        if (op.startsWith('retrait'))
+          _ligne('BQ', tx.date, '571', 'Retrait MoMo ${tx.id}', tx.montant,
+              0, tx.id),
+        if (op.startsWith('retrait'))
+          _ligne('BQ', tx.date, '521', 'Retrait MoMo ${tx.id}', 0,
+              tx.montant, tx.id),
+        if (!op.startsWith('retrait'))
+          _ligne('BQ', tx.date, '521', 'Dépôt/Transfert MoMo ${tx.id}',
+              tx.montant, 0, tx.id),
+        if (!op.startsWith('retrait'))
+          _ligne('BQ', tx.date, '571', 'Dépôt/Transfert MoMo ${tx.id}', 0,
+              tx.montant, tx.id),
+        if (frais > 0)
+          _ligne('BQ', tx.date, '571', 'Frais MoMo ${tx.id}', frais, 0,
+              tx.id),
+        if (frais > 0)
+          _ligne('BQ', tx.date, '706', 'Frais MoMo ${tx.id}', 0, frais,
+              tx.id),
+      ];
+      await _poster(lignes);
+      return;
+    }
+    final ht = tvaTx > 0 ? tx.montant / (1 + tvaTx / 100) : tx.montant;
+    final tva = tx.montant - ht;
+    final cptProduit =
+        tx.type == TypeTransaction.venteMateriel ? '701' : '706';
+    await _poster([
+      _ligne('VT', tx.date, '411',
+          'Vente ${tx.id}${tx.clientNom != null ? ' — ${tx.clientNom}' : ''}',
+          tx.montant, 0, tx.id),
+      _ligne('VT', tx.date, cptProduit, 'Vente ${tx.id}', 0, ht, tx.id),
+      if (tva > 0.001)
+        _ligne('VT', tx.date, '443', 'TVA vente ${tx.id}', 0, tva, tx.id),
+    ]);
+  }
+
+  /// Réception achat (journal AC) : D 601 HT + D 445 TVA / C 401 TTC.
+  Future<void> _comptabiliserReception(Achat a) async {
+    await _poster([
+      _ligne('AC', a.date, '601', 'Achat ${a.numero}', a.montantHT, 0,
+          a.id),
+      if (a.montantTVA > 0.001)
+        _ligne('AC', a.date, '445', 'TVA achat ${a.numero}',
+            a.montantTVA, 0, a.id),
+      _ligne('AC', a.date, '401',
+          'Dette ${a.fournisseurNom} ${a.numero}', 0, a.montantTTC, a.id),
+    ]);
+  }
+
+  /// Paiement fournisseur (journal BQ) : D 401 / C 571 (ou 521 virement).
+  Future<void> _comptabiliserPaiementAchat(
+      Achat a, double montant, String mode) async {
+    final caisse = mode == 'virement' ? '521' : '571';
+    await _poster([
+      _ligne('BQ', DateTime.now(), '401',
+          'Paiement ${a.numero} — ${a.fournisseurNom}', montant, 0, a.id),
+      _ligne('BQ', DateTime.now(), caisse, 'Paiement ${a.numero}', 0,
+          montant, a.id),
+    ]);
+  }
+
+  /// Charge (journal OD/CA) : D 6xx / C 571.
+  Future<void> _comptabiliserCharge(Charge c) async {
+    await _poster([
+      _ligne('OD', c.date, PlanComptable.compteCharge(c.categorie),
+          c.libelle, c.montant, 0, c.id),
+      _ligne('OD', c.date, '571', c.libelle, 0, c.montant, c.id),
+    ]);
+  }
+
+  /// Contre-passation : inverse D/C de toutes les écritures liées à
+  /// [refId], avec motif. L'original reste lisible (audit trail).
+  Future<void> _contrePasser(String refId, String motif) async {
+    final origines =
+        ecritures.where((e) => e.refId == refId).toList();
+    if (origines.isEmpty) return;
+    await _poster([
+      for (final o in origines)
+        _ligne(o.journal, DateTime.now(), o.compte,
+            'Contre-passation : $motif', o.credit, o.debit, refId),
+    ]);
+  }
+
+  /// Balance : solde (D − C) par compte, boutique courante.
+  Map<String, double> get balance {
+    final map = <String, double>{};
+    for (final e in ecrituresBoutique) {
+      map[e.compte] = (map[e.compte] ?? 0) + e.solde;
+    }
+    return map;
+  }
+
+  /// Compte de résultat simplifié : produits (classe 7) − charges (6).
+  double get resultatExercice {
+    var produits = 0.0, charges = 0.0;
+    for (final e in balance.entries) {
+      if (e.key.startsWith('7')) produits += -e.value; // C au crédit
+      if (e.key.startsWith('6')) charges += e.value;
+    }
+    return produits - charges;
+  }
 
   // ---------- Documents ----------
   /// [date] = date d'émission réelle (formulaire) : affichée sur le
@@ -2103,6 +2274,7 @@ class Store extends ChangeNotifier {
     notifyListeners();
     await CloudRepository.upsertAchat(achats[i]);
     await _fileUpsert('achats', _payloadAchat(achats[i]));
+    await _comptabiliserReception(a);
     return null;
   }
 
@@ -2139,6 +2311,9 @@ class Store extends ChangeNotifier {
       'date_charge': charge.date.toIso8601String(),
       'recurrente': charge.recurrente,
     });
+    await _comptabiliserCharge(charge);
+    await _comptabiliserPaiementAchat(
+        achats[i], montant, mode ?? a.modePaiement);
     return null;
   }
 
@@ -2179,6 +2354,11 @@ class Store extends ChangeNotifier {
     achats[i] = a.copyWith(
         statut: Achat.statutAnnule, motifAnnulation: motif.trim());
     notifyListeners();
+    // Annulation comptable : contre-passation des écritures liées
+    // (réception AC) — les paiements déjà effectués restent acquis.
+    if (a.statut == Achat.statutRecu) {
+      await _contrePasser(a.id, 'annulation ${a.numero}');
+    }
     await CloudRepository.upsertAchat(achats[i]);
     await _fileUpsert('achats', _payloadAchat(achats[i]));
     return null;
@@ -2304,6 +2484,7 @@ class Store extends ChangeNotifier {
         ],
         'achats': [for (final a in achats) a.toJson()],
         'mouvements': [for (final m in mouvements) m.toJson()],
+        'ecritures': [for (final e in ecritures) e.toJson()],
       };
 
   void _chargerEtat(Map<String, dynamic> data) {
@@ -2566,6 +2747,12 @@ class Store extends ChangeNotifier {
         for (final m in (data['mouvements'] as List? ?? []))
           MouvementStock.fromJson(Map<String, dynamic>.from(m as Map)),
       ]);
+    ecritures
+      ..clear()
+      ..addAll([
+        for (final e in (data['ecritures'] as List? ?? []))
+          Ecriture.fromJson(Map<String, dynamic>.from(e as Map)),
+      ]);
     final bt = data['boutique_id_courante']?.toString();
     if (bt != null && boutiques.any((b) => b.id == bt)) {
       _boutiqueId = bt;
@@ -2595,6 +2782,7 @@ class Store extends ChangeNotifier {
       'partages': data['partages'] ?? const [],
       'achats': data['achats'] ?? const [],
       'mouvements': data['mouvements'] ?? const [],
+      'ecritures': data['ecritures'] ?? const [],
     });
   }
 

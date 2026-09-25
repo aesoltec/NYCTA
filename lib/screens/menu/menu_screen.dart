@@ -20,6 +20,7 @@ import '../config/synchronisation_screen.dart';
 import '../documents/documents_history_screen.dart';
 import '../documents/documents_screen.dart';
 import '../backup/backup_screen.dart';
+import '../compta/compta_screen.dart';
 import '../partenaires/partenaires_screen.dart';
 import '../rapports/analytique_screen.dart';
 import '../rapports/rapports_screen.dart';
@@ -111,6 +112,14 @@ class MenuScreen extends StatelessWidget {
             titre: 'Analytique CA & dépenses',
             sousTitre: '7 jours, mois, années — comparaisons, détail filtrable',
             destination: const AnalytiqueScreen(),
+          ),
+        if (store.peut(Permission.voirRapports))
+          _Tuille(
+            icone: Icons.account_balance_outlined,
+            couleur: const Color(0xFF0D47A1),
+            titre: 'Comptabilité',
+            sousTitre: 'Journal immuable, balance, compte de résultat',
+            destination: const ComptaScreen(),
           ),
         if (store.peut(Permission.voirRapports))
           _Tuille(
