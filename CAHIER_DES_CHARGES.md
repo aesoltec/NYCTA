@@ -3,7 +3,7 @@
 > **Document vivant** — mis à jour à chaque itération. Légende :
 > ✅ Livré · 🟡 Partiel / en cours · ⬜ À faire
 >
-> **Version 1.7.1 PRODUCTION — 2026-09-11**
+> **Version 1.8.0 PRODUCTION — 2026-09-25**
 
 ---
 
@@ -413,6 +413,21 @@ créer votre compte dans Authentication → Add user ; exécuter `supabase_schem
 | **P7 Hors-ligne** | File Hive + détection réseau + auto-sync + retry (max 8 essais, jamais de perte silencieuse) | ✅ |
 | **P8 Comptes partenaires** | Espace dédié : saisie forfaits, ses ventes, sa part — UI ✅ + RLS v1.1 ✅ (forfait à son nom uniquement) | ✅ |
 | **P9 Rapports avancés** | Historique ✅ · devis→facture ✅ · CA par jour ✅ · rapport journalier ✅ · Excel/CSV ✅ · sauvegarde/restauration ✅ — **P9 TERMINÉE** | ✅ |
+| **P10 Missions (v1.8.0)** | Sélecteur de date robuste ✅ · module Achats ✅ · mouvements stock + CUMP + valorisation ✅ · analytique CA/dépenses ✅ · BL sans prix ✅ · pull-to-refresh ✅ · RLS critiques ✅ · reset mdp ✅ · comptabilité SYSCOHADA (journal/balance/résultat) ✅ | ✅ |
+
+## 9. Journal des versions récentes (missions → v1.8.0)
+
+| Version | Contenu |
+|---|---|
+| Audit Phase 0 | `AUDIT_PHASE_0.md` : cartographie 72 fichiers, diagnostic date picker, registres modules |
+| Phase 1 | `DatePickerField` (clamp, saisie JJ/MM/AAAA, tests), délégués FR, `intl` 0.20.3 |
+| Phase 2 | Module Achats (cycle demande→reçu, CUMP, dettes, `Permission.gererAchats`, tuile dashboard, `migration_achats.sql`) |
+| MISSION1 | Mouvements de stock tracés, valorisation, ajustements (`migration_mouvements_stock.sql`) |
+| MISSION3 | Analytique CA/dépenses 7j/mois/années + détail filtrable |
+| UI | AppBar bleu nuit globale, en-tête menu, lisibilité AppBar |
+| MISSION critique | RLS demandes vendeur, défauts `created_by`, verrou archivage, overflow messagerie, reset mdp, `MATRICE_PERMISSIONS.md` |
+| MISSION reste | BL sans prix (aperçu + PDF + signatures), matrice documentaire vendeur, tuiles Dépenses, pull-to-refresh |
+| MISSION compta | Journal SYSCOHADA auto (VT/AC/BQ/OD), balance, compte de résultat (`migration_compta.sql`) |
 
 ## 8. Backlog (idées à prioriser ensemble)
 
