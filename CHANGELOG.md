@@ -17,7 +17,9 @@
 - Validation manager des documents (brouillon→émis), rapprochement bancaire pointé (`migration_rapprochement.sql`)
 - Tests d'intégration (parcours) + matrice TextScaler 1.0–2.0 + CAGR + export CSV analytique
 - UI : AppBar bleu nuit globale, lisibilité AppBar
-- 46 tests verts, `flutter analyze` 0 erreur
+- Validation manager des documents (brouillon→émis), rapprochement bancaire pointé (`migration_rapprochement.sql`)
+- Tests d'intégration (parcours), matrice TextScaler 1.0–2.0, CAGR, export CSV analytique
+- 68 tests verts, `flutter analyze` 0 erreur
 
 ## 1.7.x et antérieur
 - Voir `CAHIER_DES_CHARGES.md` §§6–6ter (production, sauvegardes, durcissement anon, documents cloud, obfuscation, audits sécurité).
