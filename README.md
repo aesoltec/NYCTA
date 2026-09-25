@@ -16,7 +16,7 @@ données de démo réalistes — aucune configuration Firebase requise.
 | 🛒 Achats fournisseurs | Demandes, commandes, réception (stock + CUMP), paiements, dettes, annulation avec motif |
 | 🤝 Partenaires | Ventes mensuelles par partenaire, **clôture du mois** avec calcul automatique des parts |
 | 📊 Rapports | CA/mois, activités, MoMo, boutiques + **Analytique** (7j/mois/années, comparaisons, détail filtrable) |
-| 🧾 Comptabilité | Journal immuable auto (VT/AC/BQ/OD), balance équilibrée, compte de résultat |
+| 🧾 Comptabilité | Journal immuable auto (VT/AC/BQ/OD), balance, résultat, **TVA par mois, balance âgée** |
 | 🏬 Multi-boutiques | Sélecteur dans l'AppBar, toutes les données filtrées par boutique |
 
 ## Règles anti-overflow appliquées (senior)

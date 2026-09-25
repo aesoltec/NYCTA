@@ -22,6 +22,7 @@ import '../documents/documents_screen.dart';
 import '../backup/backup_screen.dart';
 import '../compta/compta_screen.dart';
 import '../partenaires/partenaires_screen.dart';
+import '../relances/relances_screen.dart';
 import '../rapports/analytique_screen.dart';
 import '../rapports/rapports_screen.dart';
 import '../stats/stats_screen.dart';
@@ -199,6 +200,16 @@ class MenuScreen extends StatelessWidget {
             titre: 'Fournisseurs',
             sousTitre: '${store.fournisseurs.length} fournisseur(s)',
             destination: const FournisseursScreen(),
+          ),
+        if (store.peut(Permission.vendre))
+          _Tuille(
+            icone: Icons.notification_important_outlined,
+            couleur: const Color(0xFFC62828),
+            titre: 'Relances clients',
+            sousTitre: store.creances.isEmpty
+                ? 'Aucun impayé'
+                : '${store.creances.length} impayé(s) · ${store.totalCreances.toStringAsFixed(0)} à recouvrer',
+            destination: const RelancesScreen(),
           ),
         if (store.peut(Permission.vendre))
           _Tuille(

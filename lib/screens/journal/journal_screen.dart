@@ -111,6 +111,7 @@ class _JournalScreenState extends State<JournalScreen> {
                     onModifier: () => _modifier(context, txs[i]),
                     onSupprimer: () =>
                         _confirmerSuppression(context, txs[i]),
+                    onEncaisser: () => _encaisser(context, txs[i]),
                   ),
                 ),
         ),
@@ -123,6 +124,16 @@ class _JournalScreenState extends State<JournalScreen> {
       builder: (_) =>
           NouvelleTransactionScreen(type: tx.type, transaction: tx),
     ));
+  }
+
+  Future<void> _encaisser(BuildContext context, Tx tx) async {
+    final store = context.read<Store>();
+    final erreur = await store.encaisserVente(tx.id);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(erreur == null
+            ? '✅ Encaissé'
+            : '⚠️ $erreur')));
   }
 
   Future<void> _confirmerSuppression(BuildContext context, Tx tx) async {
@@ -201,12 +212,14 @@ class _LigneTx extends StatelessWidget {
   final bool peutSupprimer;
   final VoidCallback onModifier;
   final VoidCallback onSupprimer;
+  final VoidCallback onEncaisser;
   const _LigneTx(
       {required this.tx,
       required this.peutModifier,
       required this.peutSupprimer,
       required this.onModifier,
-      required this.onSupprimer});
+      required this.onSupprimer,
+      required this.onEncaisser});
 
   @override
   Widget build(BuildContext context) {
@@ -264,6 +277,21 @@ class _LigneTx extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 12.5, color: Colors.grey.shade600),
               ),
+              if (tx.statut != StatutPaiement.paye)
+                Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFC62828).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text('IMPAYÉ — à relancer',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFC62828))),
+                ),
             ],
           ),
         ),
@@ -291,6 +319,7 @@ class _LigneTx extends StatelessWidget {
             onSelected: (v) {
               if (v == 'modifier') onModifier();
               if (v == 'supprimer') onSupprimer();
+              if (v == 'encaisser') onEncaisser();
             },
             itemBuilder: (_) => [
               if (peutModifier)
@@ -300,6 +329,17 @@ class _LigneTx extends StatelessWidget {
                     Icon(Icons.edit_outlined, size: 18),
                     SizedBox(width: 8),
                     Text('Modifier'),
+                  ]),
+                ),
+              if (peutModifier && tx.statut != StatutPaiement.paye)
+                const PopupMenuItem(
+                  value: 'encaisser',
+                  child: Row(children: [
+                    Icon(Icons.payments_outlined,
+                        size: 18, color: Color(0xFF3E9D8F)),
+                    SizedBox(width: 8),
+                    Text('Encaisser',
+                        style: TextStyle(color: Color(0xFF3E9D8F))),
                   ]),
                 ),
               if (peutSupprimer)

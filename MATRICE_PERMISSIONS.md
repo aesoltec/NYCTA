@@ -7,6 +7,8 @@
 | Capacité | Admin | Gérant | Comptable | Caissier | Vendeur | Stagiaire | Partenaire |
 |---|---|---|---|---|---|---|---|
 | Vendre (toutes activités) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | forfaits à son nom |
+| Ventes à crédit + encaissement | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Relances clients (impayés) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Gérer stock (créer/modifier) | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | Retirer un article du stock | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Voir caisse / trésorerie | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |

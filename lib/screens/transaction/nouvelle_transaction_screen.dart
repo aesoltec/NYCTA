@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../core/validators.dart';
 import '../../data/store.dart';
+import '../../models/enums.dart';
 import '../../models/transaction.dart';
 import '../../widgets/date_selector.dart';
 import '../../widgets/section_header.dart';
@@ -37,6 +38,9 @@ class _State extends State<NouvelleTransactionScreen> {
   // Date de l'opération : aujourd'hui par défaut (création) ou date
   // d'origine (modification), modifiable dans les deux cas.
   late DateTime _date;
+  // Crédit client : une vente peut naître impayée (relances + balance
+  // âgée) puis être encaissée depuis le Journal.
+  late StatutPaiement _statut;
 
   TypeTransaction get type => widget.type;
   bool get estModification => widget.transaction != null;
@@ -51,6 +55,7 @@ class _State extends State<NouvelleTransactionScreen> {
         text: tx == null || tx.cout == 0 ? '' : tx.cout.toStringAsFixed(0));
     _client = TextEditingController(text: tx?.clientNom ?? '');
     _date = tx?.date ?? DateTime.now();
+    _statut = tx?.statut ?? StatutPaiement.paye;
     _partenaireId = tx?.partenaireId;
     if (tx != null) {
       _details.addAll(Map<String, dynamic>.from(tx.details));
@@ -191,6 +196,28 @@ class _State extends State<NouvelleTransactionScreen> {
               onFieldSubmitted: (_) =>
                   _busy ? null : _valider(store),
             ),
+            const SizedBox(height: 12),
+            SegmentedButton<StatutPaiement>(
+              segments: const [
+                ButtonSegment(
+                    value: StatutPaiement.paye, label: Text('Payé')),
+                ButtonSegment(
+                    value: StatutPaiement.impaye, label: Text('Impayé')),
+              ],
+              selected: {_statut == StatutPaiement.partiel
+                  ? StatutPaiement.paye
+                  : _statut},
+              onSelectionChanged: (s) =>
+                  setState(() => _statut = s.first),
+            ),
+            if (_statut != StatutPaiement.paye)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                    'Vente à crédit : nom du client requis, suivi dans Relances.',
+                    style: TextStyle(
+                        fontSize: 12.5, color: Color(0xFFB26A00))),
+              ),
           ],
         ),
       ),
@@ -314,6 +341,14 @@ class _State extends State<NouvelleTransactionScreen> {
     final cout = _cout.text.trim().isEmpty
         ? 0.0
         : V.prixValue(_cout.text);
+    // Crédit sans client nommé = créance orpheline : refusé.
+    if (_statut != StatutPaiement.paye &&
+        _client.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content:
+              Text('⚠️ Nom du client requis pour une vente impayée')));
+      return;
+    }
     if (cout > montant) {
       // INCOHÉRENCE MÉTIER : marge négative — confirmation obligatoire.
       final confirme = await showDialog<bool>(
@@ -347,6 +382,7 @@ class _State extends State<NouvelleTransactionScreen> {
         Tx maj = origine.copyWith(
           montant: montant,
           cout: cout,
+          statut: _statut,
           clientNom: _client.text.trim().isEmpty ? null : _client.text.trim(),
           details: {
             ..._details,
@@ -378,6 +414,7 @@ class _State extends State<NouvelleTransactionScreen> {
           clientNom: _client.text.trim().isEmpty ? null : _client.text.trim(),
           partenaireId: type == TypeTransaction.forfaitHotspot ? _partenaireId : null,
           date: _date,
+          statut: _statut,
           details: {..._details, if (_description.text.isNotEmpty) 'description': _description.text},
         );
         if (!mounted) return;

@@ -1154,6 +1154,9 @@ class Store extends ChangeNotifier {
     // d'avant-hier…) — par défaut l'instant présent. C'est elle qui
     // alimente journal, rapports et synchro (date_transaction).
     DateTime? date,
+    // Crédit client : une vente peut naître impayée (créance suivie
+    // dans Relances + balance âgée) puis être encaissée (encaisserVente).
+    StatutPaiement statut = StatutPaiement.paye,
   }) async {
     final tx = Tx(
       id: _nid(),
@@ -1162,6 +1165,7 @@ class Store extends ChangeNotifier {
       type: type,
       montant: montant,
       cout: cout,
+      statut: statut,
       clientNom: clientNom,
       partenaireId: partenaireId,
       details: details,
@@ -1237,6 +1241,76 @@ class Store extends ChangeNotifier {
     }
     // Annulation comptable par contre-écriture (jamais de suppression).
     await _contrePasser(id, 'vente supprimée');
+  }
+
+  /// Encaissement d'une vente à crédit : impayé/partiel → payé +
+  /// écriture BQ (D 571 / C 411). Retourne null si OK.
+  Future<String?> encaisserVente(String id) async {
+    if (!peut(Permission.vendre)) return 'Encaissement réservé à la vente';
+    final i = transactions.indexWhere((t) => t.id == id);
+    if (i < 0) return 'Vente introuvable';
+    if (transactions[i].statut == StatutPaiement.paye) {
+      return 'Déjà encaissée';
+    }
+    final tx = transactions[i].copyWith(statut: StatutPaiement.paye);
+    transactions[i] = tx;
+    notifyListeners();
+    await CloudRepository.upsertTransaction(tx);
+    await _fileUpsert('transactions', _payloadTx(tx));
+    await _poster([
+      _ligne('BQ', DateTime.now(), '571',
+          'Encaissement ${tx.clientNom ?? tx.id}', tx.montant, 0, tx.id),
+      _ligne('BQ', DateTime.now(), '411',
+          'Encaissement ${tx.clientNom ?? tx.id}', 0, tx.montant, tx.id),
+    ]);
+    return null;
+  }
+
+  /// Créances clients : ventes non soldées (boutique courante, anciennes
+  /// d'abord — priorités de relance).
+  List<Tx> get creances {
+    final l = txBoutique
+        .where((t) => t.statut != StatutPaiement.paye)
+        .toList();
+    l.sort((a, b) => a.date.compareTo(b.date));
+    return l;
+  }
+
+  double get totalCreances =>
+      creances.fold(0.0, (s, t) => s + t.montant);
+
+  /// Balance âgée : encours impayé par tranche d'ancienneté.
+  Map<String, double> get balanceAgee {
+    final map = {'0-30 j': 0.0, '31-60 j': 0.0, '61-90 j': 0.0, '+90 j': 0.0};
+    final now = DateTime.now();
+    for (final t in creances) {
+      final jours = now.difference(t.date).inDays;
+      final cle = jours <= 30
+          ? '0-30 j'
+          : jours <= 60
+              ? '31-60 j'
+              : jours <= 90
+                  ? '61-90 j'
+                  : '+90 j';
+      map[cle] = map[cle]! + t.montant;
+    }
+    return map;
+  }
+
+  /// TVA par mois (année) : collectée (443) − déductible (445), depuis
+  /// le journal (boutique courante).
+  Map<int, (double, double)> tvaParMois(int annee) {
+    final map = <int, (double, double)>{};
+    for (var m = 1; m <= 12; m++) {
+      var collectee = 0.0, deductible = 0.0;
+      for (final e in ecrituresBoutique) {
+        if (e.date.year != annee || e.date.month != m) continue;
+        if (e.compte == '443') collectee += e.credit - e.debit;
+        if (e.compte == '445') deductible += e.debit - e.credit;
+      }
+      map[m] = (collectee, deductible);
+    }
+    return map;
   }
 
   // ---------- Tableau de bord ----------

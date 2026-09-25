@@ -16,20 +16,27 @@ class ComptaScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Comptabilité'),
-          bottom: const TabBar(tabs: [
-            Tab(text: 'Journal', icon: Icon(Icons.book_outlined)),
-            Tab(text: 'Balance', icon: Icon(Icons.balance_outlined)),
-            Tab(text: 'Résultat', icon: Icon(Icons.pie_chart_outline)),
-          ]),
+          bottom: const TabBar(
+            isScrollable: true,
+            tabs: [
+              Tab(text: 'Journal', icon: Icon(Icons.book_outlined)),
+              Tab(text: 'Balance', icon: Icon(Icons.balance_outlined)),
+              Tab(text: 'Résultat', icon: Icon(Icons.pie_chart_outline)),
+              Tab(text: 'TVA', icon: Icon(Icons.receipt_long_outlined)),
+              Tab(text: 'Âgée', icon: Icon(Icons.hourglass_bottom_outlined)),
+            ],
+          ),
         ),
         body: const TabBarView(children: [
           _Journal(),
           _Balance(),
           _Resultat(),
+          _Tva(),
+          _Agee(),
         ]),
       ),
     );
@@ -338,6 +345,190 @@ class _Resultat extends StatelessWidget {
                   label: '  ${l.key} · ${PlanComptable.libelle(l.key)}',
                   valeur: l.value,
                   mineur: true),
+          ]),
+        ),
+      ],
+    );
+  }
+}
+
+class _Tva extends StatefulWidget {
+  const _Tva();
+  @override
+  State<_Tva> createState() => _TvaState();
+}
+
+/// TVA déclarative simplifiée : collectée (443) − déductible (445),
+/// par mois sur l'année choisie, depuis le journal.
+class _TvaState extends State<_Tva> {
+  int? _annee;
+
+  static const _mois = [
+    'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
+    'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final store = context.watch<Store>();
+    final annees = store.anneesDonnees();
+    _annee ??= annees.contains(DateTime.now().year)
+        ? DateTime.now().year
+        : (annees.isNotEmpty ? annees.last : DateTime.now().year);
+    final serie = store.tvaParMois(_annee!);
+    final totC = serie.values.fold(0.0, (s, e) => s + e.$1);
+    final totD = serie.values.fold(0.0, (s, e) => s + e.$2);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: [
+        DropdownButtonFormField<int>(
+          value: _annee,
+          decoration: const InputDecoration(labelText: 'Année'),
+          items: [
+            for (final a in {...annees, _annee!}.toList()..sort())
+              DropdownMenuItem(value: a, child: Text('$a')),
+          ],
+          onChanged: (v) => setState(() => _annee = v!),
+        ),
+        const SizedBox(height: 12),
+        SoftCard(
+          child: Row(children: [
+            Expanded(
+                child: _Chiffre(
+                    label: 'Collectée (443)',
+                    valeur: totC,
+                    couleur: const Color(0xFF0D47A1))),
+            Expanded(
+                child: _Chiffre(
+                    label: 'Déductible (445)',
+                    valeur: totD,
+                    couleur: const Color(0xFF3E9D8F))),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('À reverser',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600)),
+                    MoneyText(totC - totD,
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: totC - totD >= 0
+                                ? const Color(0xFFC62828)
+                                : const Color(0xFF3E9D8F))),
+                  ]),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        SoftCard(
+          child: Column(children: [
+            for (var m = 1; m <= 12; m++)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(children: [
+                  SizedBox(
+                    width: 44,
+                    child: Text(_mois[m - 1],
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade700)),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'C : ${serie[m]!.$1.toStringAsFixed(0)} · D : ${serie[m]!.$2.toStringAsFixed(0)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                  ),
+                  MoneyText(serie[m]!.$1 - serie[m]!.$2,
+                      style: const TextStyle(
+                          fontSize: 12.5, fontWeight: FontWeight.w700)),
+                ]),
+              ),
+          ]),
+        ),
+      ],
+    );
+  }
+}
+
+/// Balance âgée clients : encours impayé par ancienneté.
+class _Agee extends StatelessWidget {
+  const _Agee();
+
+  @override
+  Widget build(BuildContext context) {
+    final store = context.watch<Store>();
+    final tranches = store.balanceAgee;
+    final total = tranches.values.fold(0.0, (s, v) => s + v);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: [
+        SoftCard(
+          child: Row(children: [
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Encours impayé',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600)),
+                    MoneyText(total,
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.w800)),
+                  ]),
+            ),
+            Text('${store.creances.length} créance(s)',
+                style:
+                    TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        SoftCard(
+          child: Column(children: [
+            for (final e in tranches.entries)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 7),
+                child: Row(children: [
+                  SizedBox(
+                    width: 64,
+                    child: Text(e.key,
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            color: Colors.grey.shade700)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: total == 0
+                            ? 0
+                            : (e.value / total).clamp(0.0, 1.0),
+                        minHeight: 14,
+                        backgroundColor:
+                            const Color(0xFFEDF0F5),
+                        valueColor:
+                            const AlwaysStoppedAnimation(
+                                Color(0xFFC62828)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 90,
+                    child: MoneyText(e.value,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                ]),
+              ),
           ]),
         ),
       ],
