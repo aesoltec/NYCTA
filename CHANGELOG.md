@@ -19,7 +19,8 @@
 - UI : AppBar bleu nuit globale, lisibilité AppBar
 - Validation manager des documents (brouillon→émis), rapprochement bancaire pointé (`migration_rapprochement.sql`)
 - Tests d'intégration (parcours), matrice TextScaler 1.0–2.0, CAGR, export CSV analytique
-- 68 tests verts, `flutter analyze` 0 erreur
+- P11 : workflow payé/annulé, Edge Function admin, CAGR mensuel, export PDF, mini-graphe, rapprochement UI, 32 tests TextScaler
+- 98+ tests verts, `flutter analyze` 0 erreur
 
 ## 1.7.x et antérieur
 - Voir `CAHIER_DES_CHARGES.md` §§6–6ter (production, sauvegardes, durcissement anon, documents cloud, obfuscation, audits sécurité).

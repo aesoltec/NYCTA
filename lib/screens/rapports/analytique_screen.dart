@@ -155,6 +155,13 @@ class _PanneauState extends State<_Panneau> {
                   variation: _cagr(serie)!,
                   prefixe: 'CAGR annuel : '),
             ],
+            if (_periode == 1 &&
+                cagrMensuelAnnualise(serie) != null) ...[
+              const SizedBox(height: 8),
+              _Comparaison(
+                  variation: cagrMensuelAnnualise(serie)!,
+                  prefixe: 'CAGR annualisé : '),
+            ],
             if (nonNuls.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
@@ -208,7 +215,8 @@ class _PanneauState extends State<_Panneau> {
     return (pow(ratio, 1 / intervalles) - 1) * 100;
   }
 
-  DateTime _finPeriode(AgregatPeriode e) {    if (_periode == 1) {
+  DateTime _finPeriode(AgregatPeriode e) {
+    if (_periode == 1) {
       final suivant =
           e.debut.month == 12 ? DateTime(e.debut.year + 1) : DateTime(e.debut.year, e.debut.month + 1);
       return suivant.subtract(const Duration(seconds: 1));

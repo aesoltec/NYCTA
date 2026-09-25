@@ -414,6 +414,19 @@ créer votre compte dans Authentication → Add user ; exécuter `supabase_schem
 | **P8 Comptes partenaires** | Espace dédié : saisie forfaits, ses ventes, sa part — UI ✅ + RLS v1.1 ✅ (forfait à son nom uniquement) | ✅ |
 | **P9 Rapports avancés** | Historique ✅ · devis→facture ✅ · CA par jour ✅ · rapport journalier ✅ · Excel/CSV ✅ · sauvegarde/restauration ✅ — **P9 TERMINÉE** | ✅ |
 | **P10 Missions (v1.8.0)** | Sélecteur de date robuste ✅ · module Achats ✅ · mouvements stock + CUMP + valorisation ✅ · analytique CA/dépenses ✅ · BL sans prix ✅ · pull-to-refresh ✅ · RLS critiques ✅ · reset mdp ✅ · comptabilité SYSCOHADA (journal/balance/résultat) ✅ | ✅ |
+| **P11 Clôture v3 (v1.9.0)** | Workflow documents complet ✅ · Edge Function admin ✅ · CAGR mois/dépenses ✅ · export CSV+PDF analytique ✅ · mini-graphe Dépenses ✅ · tests widget/parcours/concurrence ✅ · rapprochement pointé ✅ · TextScaler 4×4 ✅ | ✅ |
+
+## 10. Roadmap modules lourds (jalons formels)
+
+| Module | Périmètre | Charge | Priorité | Dépendances | Acceptation |
+|---|---|---|---|---|---|
+| Lettrage automatique | Rapprocher factures ↔ paiements ↔ avoirs (propositions + validation) | 1 sem. | Haute | Journal, créances | 100 % des paiements lettrables en 2 taps, test dédié |
+| SYSCOHADA complet | Clôture d'exercice, prudence, grand livre, balance générale, bilan | 2 sem. | Haute | Journal, RLS | Balance D=C, résultat = bilan, test d'équilibre |
+| Balance âgée fournisseurs | Tranches 0-30/31-60/61-90/+90 j côté dettes (miroir clients) | 2 j | Moyenne | Achats, paiements | Somme = dû fournisseurs |
+| Paie employés | Bulletins, avances, charges sociales paramétrables | 2 sem. | Moyenne | Users, trésorerie | Bulletin PDF + écritures 661 |
+| Impression thermique | Tickets 58/80 mm (Bluetooth) | 1 sem. | Moyenne | Documents | Ticket testé sur imprimante réelle |
+| Relances auto | Relances programmées impayés (notifications + WhatsApp) | 3 j | Moyenne | Créances, notifications | Relance J+7/J+15/J+30 configurable |
+| TVA déclarative | Registre TVA + état de déclaration exportable | 3 j | Haute | Journal (443/445) | Total = balance TVA |
 
 ## 9. Journal des versions récentes (missions → v1.8.0)
 
@@ -428,6 +441,7 @@ créer votre compte dans Authentication → Add user ; exécuter `supabase_schem
 | MISSION critique | RLS demandes vendeur, défauts `created_by`, verrou archivage, overflow messagerie, reset mdp, `MATRICE_PERMISSIONS.md` |
 | MISSION reste | BL sans prix (aperçu + PDF + signatures), matrice documentaire vendeur, tuiles Dépenses, pull-to-refresh |
 | MISSION compta | Journal SYSCOHADA auto (VT/AC/BQ/OD), balance, compte de résultat (`migration_compta.sql`) |
+| P11 clôture v3 | Workflow documents complet, Edge Function admin, CAGR mois/dépenses, export CSV+PDF, mini-graphe, tests widget/parcours/concurrence, rapprochement (`migration_rapprochement.sql`) |
 
 ## 8. Backlog (idées à prioriser ensemble)
 

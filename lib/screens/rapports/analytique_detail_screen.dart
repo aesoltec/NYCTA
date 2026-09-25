@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/constants.dart';
@@ -124,6 +127,13 @@ class _AnalytiqueDetailScreenState extends State<AnalytiqueDetailScreen> {
             onPressed: lignes.isEmpty
                 ? null
                 : () => _exporterCsv(context, lignes, total),
+          ),
+          IconButton(
+            tooltip: 'Exporter en PDF',
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            onPressed: lignes.isEmpty
+                ? null
+                : () => _exporterPdf(context, lignes, total),
           ),
         ],
       ),
@@ -330,6 +340,57 @@ class _AnalytiqueDetailScreenState extends State<AnalytiqueDetailScreen> {
   }
 
   static String _csv(String s) => '"${s.replaceAll('"', '""')}"';
+
+  /// Export PDF de la vue filtrée (même contenu que le CSV).
+  Future<void> _exporterPdf(
+      BuildContext context, List<_Ligne> lignes, double total) async {
+    try {
+      final pdf = pw.Document();
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          build: (_) => [
+            pw.Text(widget.titre,
+                style: pw.TextStyle(
+                    fontSize: 15, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 4),
+            pw.Text('${lignes.length} opération(s) — Total : '
+                '${total.toStringAsFixed(0)} FCFA'),
+            pw.SizedBox(height: 12),
+            pw.TableHelper.fromTextArray(
+              headerStyle: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold, fontSize: 9),
+              cellStyle: const pw.TextStyle(fontSize: 8.5),
+              columnWidths: {
+                0: const pw.FlexColumnWidth(1.4),
+                1: const pw.FlexColumnWidth(3.4),
+                2: const pw.FlexColumnWidth(3),
+                3: const pw.FlexColumnWidth(2),
+              },
+              headers: const ['Date', 'Libellé', 'Détail', 'Montant'],
+              data: [
+                for (final l in lignes)
+                  [
+                    '${l.date.day.toString().padLeft(2, '0')}/${l.date.month.toString().padLeft(2, '0')}/${l.date.year}',
+                    l.titre,
+                    l.sousTitre,
+                    l.montant.toStringAsFixed(0),
+                  ],
+              ],
+            ),
+          ],
+        ),
+      );
+      final bytes = await pdf.save();
+      await Printing.sharePdf(
+          bytes: bytes, filename: 'analytique_${DateTime.now().millisecondsSinceEpoch}.pdf');
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
+  }
 
   String _libelleType(TypeTransaction t) =>
       C.infosTypes[t]?.$1 ?? t.name;

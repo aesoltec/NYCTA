@@ -65,6 +65,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // 4. Retour dashboard, vente visible au journal (onglet Journal).
+    await tester.scrollUntilVisible(
+        find.text('Nouvelle opération'), 400);
     expect(find.text('Nouvelle opération'), findsOneWidget);
     await tester.tap(find.text('Journal'));
     await tester.pumpAndSettle();

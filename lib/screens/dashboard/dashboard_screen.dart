@@ -91,56 +91,66 @@ class DashboardScreen extends StatelessWidget {
         // ---- Dépenses (mission §2.1) : total mois + 7 jours, détail au tap
         //      vers l'analytique dépenses ----
         Builder(builder: (context) {
-          final dep7j = store
-              .depenses7Jours()
-              .fold(0.0, (s, e) => s + e.montant);
+          final serie = store.depenses7Jours();
+          final dep7j =
+              serie.fold(0.0, (s, e) => s + e.montant);
           return SoftCard(
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) =>
                     const AnalytiqueScreen(ongletInitial: 1))),
             padding: const EdgeInsets.all(14),
-            child: Row(children: [
-              Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEF6C00).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+            child: Column(children: [
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF6C00)
+                        .withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.money_off_outlined,
+                      color: Color(0xFFEF6C00), size: 20),
                 ),
-                child: const Icon(Icons.money_off_outlined,
-                    color: Color(0xFFEF6C00), size: 20),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Text('Dépenses du mois',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600)),
+                        const SizedBox(height: 2),
+                        MoneyText(store.totalDepensesMois,
+                            style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800)),
+                      ]),
+                ),
+                Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('Dépenses du mois',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                      Text('7 derniers j.',
                           style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: Colors.grey.shade600)),
-                      const SizedBox(height: 2),
-                      MoneyText(store.totalDepensesMois,
+                      MoneyText(dep7j,
                           style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800)),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700)),
                     ]),
-              ),
-              Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('7 derniers j.',
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade600)),
-                    MoneyText(dep7j,
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700)),
-                  ]),
-              const SizedBox(width: 4),
-              const Icon(Icons.chevron_right, color: Colors.grey),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right,
+                    color: Colors.grey),
+              ]),
+              const SizedBox(height: 10),
+              // Mini-graphe 7 jours embarqué (mission §32) : tap conservé
+              // vers l'analytique complète.
+              _MiniBarres(
+                  valeurs: [for (final e in serie) e.montant]),
             ]),
           );
         }),
@@ -473,6 +483,42 @@ class _MiniAchat extends StatelessWidget {
           valeur,
         ],
       );
+}
+
+/// Mini-graphe 7 barres (sans dépendance graphique) : hauteurs
+/// normalisées, jamais d'overflow (hauteur fixe 36 + barres flexibles).
+class _MiniBarres extends StatelessWidget {
+  final List<double> valeurs;
+  const _MiniBarres({required this.valeurs});
+
+  @override
+  Widget build(BuildContext context) {
+    final max =
+        valeurs.fold(0.0, (a, b) => a > b ? a : b);
+    return SizedBox(
+      height: 36,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (final v in valeurs)
+            Expanded(
+              child: Container(
+                margin:
+                    const EdgeInsets.symmetric(horizontal: 2),
+                height: max == 0 ? 3 : 3 + 33 * (v / max),
+                decoration: BoxDecoration(
+                  color: v == max && max > 0
+                      ? const Color(0xFFEF6C00)
+                      : const Color(0xFFEF6C00)
+                          .withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ModuleTile extends StatelessWidget {
