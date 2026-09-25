@@ -1518,8 +1518,13 @@ class Store extends ChangeNotifier {
   /// Suppression définitive avec garde-fou : si des transactions existantes
   /// référencent le produit (détail produitId), la suppression est refusée
   /// et l'archivage conseillé (l'historique financier reste cohérent).
+  /// Sécurité (mission §2.6) : seuls admin/gérant retirent un article —
+  /// un vendeur (gererStock) peut créer/modifier/vendre mais pas supprimer.
   /// Retourne null si supprimé/archivé, sinon le motif du refus.
   Future<String?> supprimerProduit(String id, {bool forcerArchive = false}) async {
+    if (role != Role.admin && role != Role.gerant) {
+      return 'Retrait d\'article réservé (admin, gérant)';
+    }
     final i = produits.indexWhere((x) => x.id == id);
     if (i < 0) return 'Produit introuvable';
     final lie = transactions.any((t) {

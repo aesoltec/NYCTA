@@ -174,43 +174,51 @@ class _LigneMessage extends StatelessWidget {
           maxLines: 2, overflow: TextOverflow.ellipsis,
           style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
         ),
-        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(
-            '${message.date.day}/${message.date.month} ${message.date.hour}h${message.date.minute.toString().padLeft(2, '0')}',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-          ),
-          if (peutGerer)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, size: 20),
-              tooltip: 'Modifier / Supprimer',
-              onSelected: (v) {
-                if (v == 'modifier') {
-                  MessagerieScreen._nouveau(context, store, message);
-                }
-                if (v == 'supprimer') _confirmerSuppression(context, store);
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: 'modifier',
-                  child: Row(children: [
-                    Icon(Icons.edit_outlined, size: 18),
-                    SizedBox(width: 8),
-                    Text('Modifier'),
-                  ]),
-                ),
-                PopupMenuItem(
-                  value: 'supprimer',
-                  child: Row(children: [
-                    Icon(Icons.delete_outline,
-                        size: 18, color: Colors.redAccent),
-                    SizedBox(width: 8),
-                    Text('Supprimer',
-                        style: TextStyle(color: Colors.redAccent)),
-                  ]),
-                ),
-              ],
+        trailing: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '${message.date.day}/${message.date.month} ${message.date.hour}h${message.date.minute.toString().padLeft(2, '0')}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style:
+                  TextStyle(fontSize: 11, color: Colors.grey.shade500),
             ),
-        ]),
+            if (peutGerer)
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, size: 20),
+                tooltip: 'Modifier / Supprimer',
+                onSelected: (v) {
+                  if (v == 'modifier') {
+                    MessagerieScreen._nouveau(context, store, message);
+                  }
+                  if (v == 'supprimer') _confirmerSuppression(context, store);
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'modifier',
+                    child: Row(children: [
+                      Icon(Icons.edit_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Modifier'),
+                    ]),
+                  ),
+                  PopupMenuItem(
+                    value: 'supprimer',
+                    child: Row(children: [
+                      Icon(Icons.delete_outline,
+                          size: 18, color: Colors.redAccent),
+                      SizedBox(width: 8),
+                      Text('Supprimer',
+                          style: TextStyle(color: Colors.redAccent)),
+                    ]),
+                  ),
+                ],
+              ),
+          ],
+        ),
         onTap: () async {
           await store.marquerMessageLu(message.id);
           if (!context.mounted) return;

@@ -6,6 +6,7 @@ import '../../core/env.dart';
 import '../../core/validators.dart';
 import '../../models/enums.dart';
 import '../../services/cloud_repository.dart';
+import '../../services/supabase_service.dart';
 
 /// Gestion des utilisateurs : créer des comptes, affecter un rôle
 /// (admin, gérant, comptable, caissier, vendeur, stagiaire) et les
@@ -120,6 +121,7 @@ class _FormUtilisateurState extends State<_FormUtilisateur> {
   late Role _role;
   late Set<String> _boutiqueIds;
   String? _partenaireId;
+  bool _envoiLienEnCours = false;
   bool get _cloud => Env.supabaseConfigured;
 
   @override
@@ -227,6 +229,79 @@ class _FormUtilisateurState extends State<_FormUtilisateur> {
                 ),
             ]),
             const SizedBox(height: 20),
+            // Mot de passe d'un compte EXISTANT (mission §2.5) : la clé
+            // anon ne permet pas de le changer directement — Supabase
+            // envoie un lien de réinitialisation à l'email du compte.
+            if (_cloud && widget.existant != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4F6FA),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Mot de passe du compte',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 13)),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _email,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                            labelText: 'Email du compte',
+                            prefixIcon: Icon(Icons.email_outlined),
+                            helperText:
+                                'Lien de réinitialisation envoyé à cet email'),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: _envoiLienEnCours
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2))
+                              : const Icon(
+                                  Icons.mark_email_read_outlined,
+                                  size: 18),
+                          label: Text(_envoiLienEnCours
+                              ? 'Envoi…'
+                              : 'Envoyer le lien de réinitialisation'),
+                          onPressed: _envoiLienEnCours
+                              ? null
+                              : () async {
+                                  final erreur = V.email(_email.text);
+                                  if (erreur != null) {
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(SnackBar(
+                                            content: Text('⚠️ $erreur')));
+                                    return;
+                                  }
+                                  setState(
+                                      () => _envoiLienEnCours = true);
+                                  final echec = await SupabaseService
+                                      .reinitialiserMotDePasse(
+                                          _email.text);
+                                  if (!context.mounted) return;
+                                  setState(() =>
+                                      _envoiLienEnCours = false);
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(
+                                          content: Text(echec == null
+                                              ? '✅ Lien envoyé à ${_email.text.trim()}'
+                                              : '❌ $echec')));
+                                },
+                        ),
+                      ),
+                    ]),
+              ),
+              const SizedBox(height: 20),
+            ],
             SizedBox(
               width: double.infinity,
               child: FilledButton(

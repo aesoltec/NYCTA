@@ -189,6 +189,8 @@ class CloudRepository {
           'libelle': ch.libelle, 'montant': ch.montant,
           'date_charge': ch.date.toIso8601String(),
           'recurrente': ch.recurrente,
+          // created_by NOT NULL côté Postgres (23502 sinon) : toujours
+          // l'auteur réel, jamais null en production.
           'created_by': _c!.auth.currentUser?.id,
         });
       });

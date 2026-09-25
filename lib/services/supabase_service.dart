@@ -56,6 +56,24 @@ class SupabaseService {
     }
   }
 
+  /// Envoie un lien de réinitialisation du mot de passe à un utilisateur
+  /// (mission §2.5). Limite assumée : avec la clé anon, impossible de
+  /// modifier directement le mot de passe ou l'email d'un AUTRE compte
+  /// (nécessite la clé service admin, jamais embarquée dans l'app) —
+  /// le lien envoyé par Supabase Auth contourne proprement cette limite.
+  /// Retourne null si OK, sinon un message d'erreur.
+  static Future<String?> reinitialiserMotDePasse(String email) async {
+    final c = client;
+    if (c == null) return 'Cloud non configuré';
+    try {
+      await c.auth.resetPasswordForEmail(email.trim());
+      return null;
+    } catch (e) {
+      debugPrint('❌ SupabaseService.reinitialiserMotDePasse : $e');
+      return 'Échec d\'envoi — vérifiez l\'email et la connexion';
+    }
+  }
+
   /// Profil métier de l'utilisateur connecté (rôle, nom).
   static Future<Map<String, dynamic>?> monProfil() async {
     final c = client;

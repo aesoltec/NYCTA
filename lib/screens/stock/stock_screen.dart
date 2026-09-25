@@ -382,7 +382,11 @@ class _FormProduitState extends State<_FormProduit> {
                         : 'Enregistrer les modifications')),
               ),
             ),
-            if (widget.produit != null) ...[
+            // Retrait réservé admin/gérant (mission §2.6) : un vendeur
+            // peut créer/modifier/vendre mais jamais retirer un article.
+            if (widget.produit != null &&
+                (store.role == Role.admin ||
+                    store.role == Role.gerant)) ...[
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
