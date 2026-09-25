@@ -209,7 +209,7 @@ class PartnerShell extends StatelessWidget {
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Espace partenaire'),
           Text(store.partenaires.isNotEmpty ? store.partenaires.first.nom : '',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              style: const TextStyle(fontSize: 12, color: Colors.white70)),
         ]),
       ),
       body: const PartnerHomeScreen(),
