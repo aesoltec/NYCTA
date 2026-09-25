@@ -568,7 +568,7 @@ class CloudRepository {
           'date_doc': (date ?? DateTime.now()).toIso8601String(),
           'client_nom': d.client,
           'total_ht': d.totalHT, 'tva': d.tva, 'total_ttc': d.totalTTC,
-          'statut': 'emis',
+          'statut': d.statut,
           'created_by': _c!.auth.currentUser?.id,
         };
         try {
@@ -638,6 +638,20 @@ class CloudRepository {
             '${Directory.systemTemp.path}/sig_${DateTime.now().millisecondsSinceEpoch}.png');
         await f.writeAsBytes(bytes, flush: true);
         return f.path;
+      });
+
+  /// Validation manager d'un brouillon : `brouillon` → `emis`.
+  /// Utilisé par Store.validerDocument (rôles financiers uniquement).
+  static Future<void> majStatutDocument(
+          {String? id, String? numero, required String statut}) =>
+      _silencieux(() async {
+        var requete =
+            _c!.from('documents').update({'statut': statut});
+        if (id != null) {
+          await requete.eq('id', id);
+        } else {
+          await requete.eq('numero', numero ?? '');
+        }
       });
 
   /// Documents + leurs lignes, pour reconstruction de l'historique.
@@ -710,14 +724,31 @@ class CloudRepository {
   /// Écriture comptable : journal immuable (corrections par
   /// contre-écriture, jamais d'update/delete direct).
   static Future<void> upsertEcriture(Ecriture e) => _silencieux(() async {
-        await _c!.from('ecritures').upsert({
+        final base = <String, dynamic>{
           'id': e.id, 'journal': e.journal,
           'date_ecriture': e.date.toIso8601String(), 'compte': e.compte,
           'libelle': e.libelle, 'debit': e.debit, 'credit': e.credit,
           'ref_id': e.refId.isEmpty ? null : e.refId,
           'boutique_id': e.boutiqueId,
           'created_by': _c!.auth.currentUser?.id,
-        }, onConflict: 'id');
+        };
+        try {
+          await _c!.from('ecritures').upsert(
+              {...base, 'pointee': e.pointee},
+              onConflict: 'id');
+        } catch (_) {
+          // Base non migrée (colonne absente) : repli sans la colonne.
+          await _c!.from('ecritures').upsert(base, onConflict: 'id');
+        }
+      });
+
+  /// Pointage de rapprochement : nécessite la policy UPDATE dédiée
+  /// (migration_rapprochement.sql) — sans elle, refus RLS silencieux.
+  static Future<void> upsertEcriturePointee(String id, bool pointee) =>
+      _silencieux(() async {
+        await _c!
+            .from('ecritures')
+            .update({'pointee': pointee}).eq('id', id);
       });
 
   static Future<void> upsertTarif(Tarif t) => _silencieux(() async {

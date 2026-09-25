@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/constants.dart';
 import '../../core/validators.dart';
 import '../../data/store.dart';
@@ -111,7 +115,18 @@ class _AnalytiqueDetailScreenState extends State<AnalytiqueDetailScreen> {
     final total = lignes.fold(0.0, (s, l) => s + l.montant);
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.titre)),
+      appBar: AppBar(
+        title: Text(widget.titre),
+        actions: [
+          IconButton(
+            tooltip: 'Exporter en CSV (Excel)',
+            icon: const Icon(Icons.table_view_outlined),
+            onPressed: lignes.isEmpty
+                ? null
+                : () => _exporterCsv(context, lignes, total),
+          ),
+        ],
+      ),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -285,6 +300,36 @@ class _AnalytiqueDetailScreenState extends State<AnalytiqueDetailScreen> {
     if (fin != null && d.isAfter(fin)) return false;
     return true;
   }
+
+  /// Export CSV (Excel, séparateur `;`, BOM UTF-8) de la vue filtrée.
+  Future<void> _exporterCsv(
+      BuildContext context, List<_Ligne> lignes, double total) async {
+    final tampon = StringBuffer()
+      ..writeln('﻿Date;Libellé;Détail;Montant')
+      ..writeln('Période;${widget.titre};;');
+    for (final l in lignes) {
+      final date =
+          '${l.date.day.toString().padLeft(2, '0')}/${l.date.month.toString().padLeft(2, '0')}/${l.date.year}';
+      tampon.writeln(
+          '$date;${_csv(l.titre)};${_csv(l.sousTitre)};${l.montant.toStringAsFixed(0)}');
+    }
+    tampon.writeln('TOTAL;;;${total.toStringAsFixed(0)}');
+    try {
+      final dir = await getTemporaryDirectory();
+      final f = File(
+          '${dir.path}/analytique_${DateTime.now().millisecondsSinceEpoch}.csv');
+      await f.writeAsString(tampon.toString(), flush: true);
+      await SharePlus.instance
+          .share(ShareParams(files: [XFile(f.path)], text: widget.titre));
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
+  }
+
+  static String _csv(String s) => '"${s.replaceAll('"', '""')}"';
 
   String _libelleType(TypeTransaction t) =>
       C.infosTypes[t]?.$1 ?? t.name;

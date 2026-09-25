@@ -52,6 +52,7 @@ class _Journal extends StatefulWidget {
 class _JournalState extends State<_Journal> {
   String _journal = 'tous';
   String _recherche = '';
+  bool _nonRapprochees = false;
 
   static const _journaux = [
     ('tous', 'Tous'),
@@ -68,6 +69,9 @@ class _JournalState extends State<_Journal> {
       ..sort((a, b) => b.date.compareTo(a.date));
     if (_journal != 'tous') {
       lignes = lignes.where((e) => e.journal == _journal).toList();
+    }
+    if (_nonRapprochees) {
+      lignes = lignes.where((e) => !e.pointee).toList();
     }
     final rech = _recherche.trim().toLowerCase();
     if (rech.isNotEmpty) {
@@ -92,14 +96,24 @@ class _JournalState extends State<_Journal> {
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: _journaux.length,
+          itemCount: _journaux.length + 1,
           separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (_, i) => ChoiceChip(
-            label: Text(_journaux[i].$2),
-            selected: _journal == _journaux[i].$1,
-            onSelected: (_) =>
-                setState(() => _journal = _journaux[i].$1),
-          ),
+          itemBuilder: (_, i) {
+            if (i >= _journaux.length) {
+              return FilterChip(
+                label: const Text('Non rapprochées'),
+                selected: _nonRapprochees,
+                onSelected: (v) =>
+                    setState(() => _nonRapprochees = v),
+              );
+            }
+            return ChoiceChip(
+              label: Text(_journaux[i].$2),
+              selected: _journal == _journaux[i].$1,
+              onSelected: (_) =>
+                  setState(() => _journal = _journaux[i].$1),
+            );
+          },
         ),
       ),
       const SizedBox(height: 4),
@@ -117,60 +131,84 @@ class _JournalState extends State<_Journal> {
                     const SizedBox(height: 8),
                 itemBuilder: (_, i) {
                   final e = lignes[i];
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: const [
-                        BoxShadow(
-                            color: Color(0x10000000),
-                            blurRadius: 8,
-                            offset: Offset(0, 3))
-                      ],
-                    ),
-                    child: ListTile(
-                      dense: true,
-                      leading: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0D47A1)
-                              .withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(e.journal,
-                            style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF0D47A1))),
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    // Rapprochement bancaire : appui long → pointer /
+                    // dépointer l'écriture (retrouvée sur le relevé ou non).
+                    onLongPress: () =>
+                        _pointer(context, e.id, e.pointee, e.libelle),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: e.pointee
+                            ? Border.all(
+                                color: const Color(0xFF3E9D8F), width: 1.5)
+                            : null,
+                        boxShadow: const [
+                          BoxShadow(
+                              color: Color(0x10000000),
+                              blurRadius: 8,
+                              offset: Offset(0, 3))
+                        ],
                       ),
-                      title: Text(e.libelle,
+                      child: ListTile(
+                        dense: true,
+                        leading: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0D47A1)
+                                .withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(e.journal,
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0D47A1))),
+                        ),
+                        title: Row(children: [
+                          Expanded(
+                            child: Text(e.libelle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13)),
+                          ),
+                          if (e.pointee)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 6),
+                              child: Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 16,
+                                  color: Color(0xFF3E9D8F)),
+                            ),
+                        ]),
+                        subtitle: Text(
+                          '${e.compte} · ${PlanComptable.libelle(e.compte)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13)),
-                      subtitle: Text(
-                        '${e.compte} · ${PlanComptable.libelle(e.compte)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 11.5,
-                            color: Colors.grey.shade600),
-                      ),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          if (e.debit > 0)
-                            MoneyText(e.debit,
-                                style: const TextStyle(fontSize: 13)),
-                          if (e.credit > 0)
-                            MoneyText(e.credit,
-                                style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Color(0xFF3E9D8F))),
-                        ],
+                          style: TextStyle(
+                              fontSize: 11.5,
+                              color: Colors.grey.shade600),
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (e.debit > 0)
+                              MoneyText(e.debit,
+                                  style:
+                                      const TextStyle(fontSize: 13)),
+                            if (e.credit > 0)
+                              MoneyText(e.credit,
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFF3E9D8F))),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -179,14 +217,49 @@ class _JournalState extends State<_Journal> {
       ),
     ]);
   }
+
+  /// Dialogue de rapprochement : pointe/dépointe l'écriture (rôles
+  /// financiers). Ne modifie aucun montant — seul le suivi évolue.
+  Future<void> _pointer(
+      BuildContext context, String id, bool pointee, String libelle) async {
+    final store = context.read<Store>();
+    if (!store.peut(Permission.gererDepenses) &&
+        !store.peut(Permission.voirCaisse)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('🔒 Rapprochement réservé aux rôles financiers')));
+      return;
+    }
+    final confirme = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(pointee ? 'Dépointer ?' : 'Pointer comme rapprochée ?'),
+        content: Text(
+            '« $libelle »\n\n${pointee ? 'L\'écriture repassera en non rapprochée.' : 'Confirme que cette écriture figure sur le relevé bancaire / de caisse.'}'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Confirmer')),
+        ],
+      ),
+    );
+    if (confirme != true || !context.mounted) return;
+    await store.pointerEcriture(id, !pointee);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(pointee
+              ? 'Écriture dépointée'
+              : '✅ Écriture rapprochée')));
+    }
+  }
 }
 
 class _Balance extends StatelessWidget {
   const _Balance();
-
   @override
-  Widget build(BuildContext context) {
-    final store = context.watch<Store>();
+  Widget build(BuildContext context) {    final store = context.watch<Store>();
     final entrees = store.balance.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
     final totalD = entrees

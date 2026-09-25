@@ -140,8 +140,16 @@ class _LigneProduit extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 8, offset: Offset(0, 3))],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Material(
+        // Ancêtre Material transparent : l'encre du ListTile reste
+        // visible (assertion debug) sans changer le visuel (fond blanc
+        // porté par le Container parent).
+        type: MaterialType.transparency,
+        borderRadius: BorderRadius.circular(16),
+        child: ListTile(
+          tileColor: Colors.white.withValues(alpha: 0),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         // Photo produit (fallback : icône catégorie / alerte)
         leading: AppImage(
           produit.imagePath,
@@ -162,23 +170,33 @@ class _LigneProduit extends StatelessWidget {
         subtitle: Text(produit.categorie,
             maxLines: 1, overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            MoneyText(produit.prixVente, style: const TextStyle(fontSize: 14)),
-            Text('Stock : ${produit.stock}${produit.alerte ? ' ⚠️' : ''}',
-                style: TextStyle(
-                    fontSize: 12,
-                    color: produit.alerte ? const Color(0xFFD97706) : Colors.grey.shade600,
-                    fontWeight: FontWeight.w600)),
-          ],
+        trailing: FittedBox(
+          // Anti-overflow TextScaler 2.0x : la colonne prix/stock se
+          // réduit au lieu de déborder de la tuile (56 px max).
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              MoneyText(produit.prixVente,
+                  style: const TextStyle(fontSize: 14)),
+              Text(
+                  'Stock : ${produit.stock}${produit.alerte ? ' ⚠️' : ''}',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: produit.alerte
+                          ? const Color(0xFFD97706)
+                          : Colors.grey.shade600,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
         ),
         // Tap = modifier la fiche (admin/gérant/vendeur)
         onTap: peutGererStock ? () => StockScreen.formProduit(context, store, produit) : null,
         onLongPress: peutVendre && produit.stock > 0
             ? () => _vendre(context, store)
             : null,
+        ),
       ),
     );
   }

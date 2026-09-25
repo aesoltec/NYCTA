@@ -15,6 +15,9 @@ class Ecriture {
   final String refId; // id vente/achat/charge d'origine
   final String boutiqueId;
   final String createdBy;
+  /// Rapprochement bancaire : coché quand l'écriture est retrouvée sur
+  /// le relevé (mission §3.3). Modifiable (pas une correction comptable).
+  final bool pointee;
 
   const Ecriture({
     required this.id,
@@ -27,6 +30,7 @@ class Ecriture {
     this.refId = '',
     required this.boutiqueId,
     required this.createdBy,
+    this.pointee = false,
   });
 
   double get solde => debit - credit;
@@ -35,7 +39,7 @@ class Ecriture {
         'id': id, 'journal': journal, 'date': date.toIso8601String(),
         'compte': compte, 'libelle': libelle, 'debit': debit,
         'credit': credit, 'ref_id': refId, 'boutique_id': boutiqueId,
-        'created_by': createdBy,
+        'created_by': createdBy, 'pointee': pointee,
       };
 
   factory Ecriture.fromJson(Map<String, dynamic> j) => Ecriture(
@@ -49,6 +53,14 @@ class Ecriture {
         refId: j['ref_id']?.toString() ?? '',
         boutiqueId: j['boutique_id']?.toString() ?? '',
         createdBy: j['created_by']?.toString() ?? '',
+        pointee: j['pointee'] == true,
+      );
+
+  Ecriture copyWith({bool? pointee}) => Ecriture(
+        id: id, journal: journal, date: date, compte: compte,
+        libelle: libelle, debit: debit, credit: credit, refId: refId,
+        boutiqueId: boutiqueId, createdBy: createdBy,
+        pointee: pointee ?? this.pointee,
       );
 }
 

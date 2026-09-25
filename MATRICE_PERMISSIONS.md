@@ -18,6 +18,8 @@
 | Gérer achats (CRUD, valider, recevoir, payer, annuler) | ✅ | ✅ | ✅ | 📝 | 📝 | ❌ | ❌ |
 | Créer demande d'achat | ✅ | ✅ | ✅ | 📝 | 📝 | ❌ | ❌ |
 | Gérer documents | ✅ | ✅ | ✅ | ✅ | ciblé* | ❌ | ❌ |
+| Valider documents (brouillon→émis) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Pointer écritures (rapprochement) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Gérer utilisateurs | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Configurer (entreprise, listes) | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 

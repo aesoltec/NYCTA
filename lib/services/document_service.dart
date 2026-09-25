@@ -15,6 +15,10 @@ class DocumentBati {
   final double tva;
   final double totalTTC;
   final String devise;
+  /// Statut de validation : `brouillon` (émis par un vendeur, en attente
+  /// de validation manager) ou `emis` (définitif). Les rôles financiers
+  /// émettent directement en `emis`.
+  final String statut;
   /// Signature manuscrite du client/réceptionnaire capturée à l'émission
   /// (chemin local, ou fichier re-téléchargé du cloud après rechargement).
   final String? signatureClientPath;
@@ -24,13 +28,14 @@ class DocumentBati {
     required this.type, required this.numero, required this.date,
     required this.client, required this.lignes,
     required this.totalHT, required this.tva, required this.totalTTC,
-    required this.devise, this.signatureClientPath,
+    required this.devise, this.statut = 'emis', this.signatureClientPath,
   });
 
-  DocumentBati copyWith({String? signatureClientPath}) => DocumentBati(
+  DocumentBati copyWith({String? signatureClientPath, String? statut}) =>
+      DocumentBati(
         id: id, type: type, numero: numero, date: date, client: client,
         lignes: lignes, totalHT: totalHT, tva: tva, totalTTC: totalTTC,
-        devise: devise,
+        devise: devise, statut: statut ?? this.statut,
         signatureClientPath:
             signatureClientPath ?? this.signatureClientPath,
       );

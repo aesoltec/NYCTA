@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/store.dart';
 import '../../models/document.dart';
+import '../../models/enums.dart';
 import '../../services/document_service.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
@@ -41,6 +42,7 @@ class _LigneDocument extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final store = context.read<Store>();
     final couleur = switch (doc.type) {
       TypeDocument.facture => const Color(0xFF3D6FB4),
       TypeDocument.devisProforma => const Color(0xFF7E57C2),
@@ -48,6 +50,11 @@ class _LigneDocument extends StatelessWidget {
       TypeDocument.ticketCaisse => const Color(0xFF00897B),
       TypeDocument.bonLivraison => const Color(0xFF3E9D8F),
     };
+    // Validation manager : un brouillon vendeur attend sa validation.
+    final aValider = doc.statut != 'emis' &&
+        (store.role == Role.admin ||
+            store.role == Role.gerant ||
+            store.role == Role.comptable);
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -62,9 +69,27 @@ class _LigneDocument extends StatelessWidget {
               color: couleur.withValues(alpha: 0.12), shape: BoxShape.circle),
           child: Icon(Icons.description_outlined, color: couleur, size: 20),
         ),
-        title: Text(doc.numero,
-            maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+        title: Row(children: [
+          Expanded(
+            child: Text(doc.numero,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+          ),
+          if (doc.statut != 'emis')
+            Container(
+              margin: const EdgeInsets.only(left: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFD97706).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text('BROUILLON',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFB26A00))),
+            ),
+        ]),
         subtitle: Text(
           '${doc.type.titre} · ${doc.client}${doc.type == TypeDocument.devisProforma ? ' · → facture possible' : ''}',
           maxLines: 2, overflow: TextOverflow.ellipsis,
@@ -87,6 +112,26 @@ class _LigneDocument extends StatelessWidget {
                         color: Theme.of(context).colorScheme.primary)),
               ),
             ),
+            if (aValider)
+              InkWell(
+                onTap: () async {
+                  final erreur =
+                      await store.validerDocument(doc.numero);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(erreur == null
+                              ? '✅ Document validé'
+                              : '⚠️ $erreur')));
+                },
+                child: const Padding(
+                  padding: EdgeInsets.only(top: 2),
+                  child: Text('Valider ✓',
+                      style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w800,
+                          color: Color(0xFF3E9D8F))),
+                ),
+              ),
           ],
         ),
         onTap: () => Navigator.of(context).push(MaterialPageRoute(

@@ -43,6 +43,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
   flutter_lints: ^3.0.0
   # Génère l'icône de l'application (Android/iOS/Web) à partir d'une seule
   # image source — voir la section flutter_launcher_icons ci-dessous.

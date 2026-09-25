@@ -1,3 +1,5 @@
+import 'dart:math' show pow;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/store.dart';
@@ -147,6 +149,12 @@ class _PanneauState extends State<_Panneau> {
               const SizedBox(height: 8),
               _Comparaison(variation: varPct),
             ],
+            if (_periode == 2 && _cagr(serie) != null) ...[
+              const SizedBox(height: 8),
+              _Comparaison(
+                  variation: _cagr(serie)!,
+                  prefixe: 'CAGR annuel : '),
+            ],
             if (nonNuls.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
@@ -184,8 +192,23 @@ class _PanneauState extends State<_Panneau> {
     );
   }
 
-  DateTime _finPeriode(AgregatPeriode e) {
-    if (_periode == 1) {
+  /// Croissance annuelle moyenne (CAGR) sur la série d'années :
+  /// (dernier/premier)^(1/nombre d'intervalles) − 1. Null si incalculable.
+  double? _cagr(List<AgregatPeriode> serie) {
+    final utils =
+        serie.where((e) => e.montant > 0).toList();
+    if (utils.length < 2) return null;
+    final premier = utils.first.montant;
+    final dernier = utils.last.montant;
+    final intervalles =
+        utils.last.debut.year - utils.first.debut.year;
+    if (premier <= 0 || intervalles <= 0) return null;
+    final ratio = dernier / premier;
+    if (ratio <= 0) return null;
+    return (pow(ratio, 1 / intervalles) - 1) * 100;
+  }
+
+  DateTime _finPeriode(AgregatPeriode e) {    if (_periode == 1) {
       final suivant =
           e.debut.month == 12 ? DateTime(e.debut.year + 1) : DateTime(e.debut.year, e.debut.month + 1);
       return suivant.subtract(const Duration(seconds: 1));
@@ -220,7 +243,8 @@ class _Indicateur extends StatelessWidget {
 
 class _Comparaison extends StatelessWidget {
   final double variation;
-  const _Comparaison({required this.variation});
+  final String prefixe;
+  const _Comparaison({required this.variation, this.prefixe = ''});
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +259,7 @@ class _Comparaison extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        '${positive ? '+' : ''}${variation.toStringAsFixed(1)} % vs période précédente',
+        '$prefixe${positive ? '+' : ''}${variation.toStringAsFixed(1)} %${prefixe.isEmpty ? ' vs période précédente' : ''}',
         style: TextStyle(
             fontSize: 12.5,
             fontWeight: FontWeight.w700,

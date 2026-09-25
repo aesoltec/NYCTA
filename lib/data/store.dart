@@ -423,6 +423,7 @@ class Store extends ChangeNotifier {
             refId: r['ref_id']?.toString() ?? '',
             boutiqueId: r['boutique_id']?.toString() ?? '',
             createdBy: r['created_by']?.toString() ?? '',
+            pointee: r['pointee'] == true,
           ),
       ]);
     // Historique des documents (cloud → reconstruction complète)
@@ -453,6 +454,7 @@ class Store extends ChangeNotifier {
             tva: (r['tva'] as num?)?.toDouble() ?? 0,
             totalTTC: (r['total_ttc'] as num?)?.toDouble() ?? 0,
             devise: profile.devise,
+            statut: r['statut']?.toString() ?? 'emis',
             signatureClientPath:
                 await _signatureLocaleDepuisCloud(
                     r['signature_client_path']?.toString()),
@@ -1501,15 +1503,17 @@ class Store extends ChangeNotifier {
     notifyListeners();
     for (final e in lignes) {
       await CloudRepository.upsertEcriture(e);
-      await _fileUpsert('ecritures', {
+      await _fileUpsert('ecritures', _payloadEcriture(e));
+    }
+  }
+
+  Map<String, dynamic> _payloadEcriture(Ecriture e) => {
         'id': e.id, 'journal': e.journal,
         'date_ecriture': e.date.toIso8601String(), 'compte': e.compte,
         'libelle': e.libelle, 'debit': e.debit, 'credit': e.credit,
         'ref_id': e.refId.isEmpty ? null : e.refId,
-        'boutique_id': e.boutiqueId, 'created_by': e.createdBy,
-      });
-    }
-  }
+        'boutique_id': e.boutiqueId, 'pointee': e.pointee,
+      };
 
   Ecriture _ligne(String journal, DateTime date, String compte,
           String libelle, double debit, double credit, String refId) =>
@@ -1611,6 +1615,25 @@ class Store extends ChangeNotifier {
     ]);
   }
 
+  /// Rapprochement bancaire : pointe/dépointe une écriture (retrouvée
+  /// sur le relevé ou non). Ce n'est pas une correction comptable :
+  /// aucun montant ne change, seul le suivi de rapprochement évolue.
+  Future<void> pointerEcriture(String id, bool pointee) async {
+    final i = ecritures.indexWhere((e) => e.id == id);
+    if (i < 0) return;
+    ecritures[i] = ecritures[i].copyWith(pointee: pointee);
+    notifyListeners();
+    await CloudRepository.upsertEcriturePointee(id, pointee);
+    // Rejeu offline : payload COMPLET (l'upsert exige toutes les colonnes
+    // NOT NULL — un partiel {id, pointee} serait rejeté).
+    await _fileUpsert('ecritures', _payloadEcriture(ecritures[i]));
+  }
+
+  /// Écritures non rapprochées (journal BQ : banque/caisse).
+  List<Ecriture> get ecrituresARapprocher => ecrituresBoutique
+      .where((e) => (e.journal == 'BQ' || e.journal == 'CA') && !e.pointee)
+      .toList();
+
   /// Balance : solde (D − C) par compte, boutique courante.
   Map<String, double> get balance {
     final map = <String, double>{};
@@ -1634,18 +1657,43 @@ class Store extends ChangeNotifier {
   /// [date] = date d'émission réelle (formulaire) : affichée sur le
   /// document, conservée dans l'historique local ET dans la base cloud
   /// (date_doc) pour que le rechargement ne la remette pas à aujourd'hui.
+  /// Validation manager : un document créé par un vendeur naît `brouillon`
+  /// (à valider par admin/gérant/comptable) ; les rôles financiers
+  /// émettent directement en `emis`.
   /// Retourne l'identifiant cloud (pour rattacher la signature client).
   Future<String?> enregistrerDocument(DocumentBati d,
       {DateTime? date}) async {
-    documentsEmis.insert(0, d);
+    final doc = user.role == Role.vendeur
+        ? d.copyWith(statut: 'brouillon')
+        : d.copyWith(statut: 'emis');
+    documentsEmis.insert(0, doc);
     notifyListeners();
     // Copie cloud fidèle (en-tête + lignes) — ré-exploitable à volonté.
     // La liaison signature se fait par `numero` (unique), voir
     // joindreSignatureClient — pas besoin de conserver l'id cloud ici.
     if (CloudRepository.actif) {
-      return CloudRepository.enregistrerDocument(d, _boutiqueId,
+      return CloudRepository.enregistrerDocument(doc, _boutiqueId,
           date: date);
     }
+    return null;
+  }
+
+  /// Validation manager d'un brouillon vendeur : `brouillon` → `emis`,
+  /// local + cloud. Réservé admin/gérant/comptable.
+  Future<String?> validerDocument(String numero) async {
+    if (!peut(Permission.gererDocuments) || role == Role.vendeur) {
+      return 'Validation réservée (admin, gérant, comptable)';
+    }
+    final i = documentsEmis.indexWhere((e) => e.numero == numero);
+    if (i < 0) return 'Document introuvable';
+    if (documentsEmis[i].statut == 'emis') return 'Déjà validé';
+    documentsEmis[i] = documentsEmis[i].copyWith(statut: 'emis');
+    notifyListeners();
+    await CloudRepository.majStatutDocument(
+      id: documentsEmis[i].id,
+      numero: numero,
+      statut: 'emis',
+    );
     return null;
   }
 

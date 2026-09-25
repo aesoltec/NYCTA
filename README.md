@@ -18,7 +18,7 @@ données de démo réalistes — aucune configuration Firebase requise.
 | ✍️ Signature client | Capture manuscrite par document (facture, devis, ticket, BC, BL), aperçu + PDF + cloud |
 | 🤝 Partenaires | Ventes mensuelles par partenaire, **clôture du mois** avec calcul automatique des parts |
 | 📊 Rapports | CA/mois, activités, MoMo, boutiques + **Analytique** (7j/mois/années, comparaisons, détail filtrable) |
-| 🧾 Comptabilité | Journal immuable auto (VT/AC/BQ/OD), balance, résultat, **TVA par mois, balance âgée** |
+| 🧾 Comptabilité | Journal immuable auto (VT/AC/BQ/OD), balance, résultat, **TVA par mois, balance âgée, rapprochement pointé** |
 | 🏬 Multi-boutiques | Sélecteur dans l'AppBar, toutes les données filtrées par boutique |
 
 ## Règles anti-overflow appliquées (senior)

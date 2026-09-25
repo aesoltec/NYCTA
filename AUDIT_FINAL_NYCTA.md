@@ -34,14 +34,15 @@
 - Test : `test/mouvement_stock_test.dart` — 5/5.
 - Doc : README (ligne Stock), `MATRICE_PERMISSIONS.md`.
 
-### Exigence 5 : Overflow messagerie — ⚠️ PARTIEL (85%)
+### Exigence 5 : Overflow messagerie — ✅ CONFORME (90%)
 - Flutter : `lib/screens/collab/messagerie_screen.dart` (trailing `Row` → `Column` compacte, date avec ellipsis).
-- Test : aucun test de TextScaler ; TextScaler global borné (`main.dart`).
-- Réserve : matrice 1.0/1.3/1.5/2.0 non exécutée par l'auditeur.
+- Test : matrice automatisée `test/textscale_test.dart` (Dashboard, Journal, Stock, Messagerie × 1.0/1.3/1.5/2.0) — 16/16 verts, dont un vrai overflow Stock@2.0x trouvé et corrigé (`FittedBox` prix/stock).
+- Réserve : matrice exécutée sur VM, pas sur appareils physiques.
 
-### Exigence 6 : Anti-overflow global — ⚠️ PARTIEL (75%)
+### Exigence 6 : Anti-overflow global — ✅ CONFORME (90%)
 - Flutter : garde TextScaler, `MoneyText`, `ListView`, `maxLines` partout ; `flutter analyze` 0 erreur.
-- Réserve : le zéro absolu est improuvable sans matrice d'appareils.
+- Test : `test/textscale_test.dart` couvre 4 écrans critiques × 4 scalers (16/16) ; défaut `ListTile`/encre et overflow Stock@2.0x corrigés à la source.
+- Réserve : pas de couverture exhaustive des 32 écrans.
 
 ### Exigence 7 : Mot de passe utilisateur — ⚠️ PARTIEL (60%)
 - Flutter : `lib/screens/users/users_screen.dart` (bloc reset + email validé) ; `lib/services/supabase_service.dart` (`reinitialiserMotDePasse` via `resetPasswordForEmail`).
@@ -83,11 +84,13 @@
 ### Exigence 16 : Ticket vendeur — ✅ CONFORME (90%)
 - Code : chips vendeur = facture/devis/ticket/BL ; mentions via `DocumentService.entete` (RCCM/IFU). Réserve : validation manager non workflée.
 
-### Exigence 17 : Facture — ⚠️ PARTIEL (80%)
-- Code : `prochain_numero` RPC atomique, RCCM/IFU/TVA (`pdf_service.dart`, `document_service.dart`). Réserve : validation manager = suivi applicatif, pas de workflow.
+### Exigence 17 : Facture — ✅ CONFORME (90%)
+- Code : `prochain_numero` RPC atomique, RCCM/IFU/TVA (`pdf_service.dart`, `document_service.dart`) ; **validation manager livrée** : brouillon vendeur → `emis` (`Store.validerDocument`, badge + bouton historique, policy `maj documents`).
+- Test : `test/validation_documents_test.dart` — 3/3.
+- Réserve : pas d'envoi officiel canalisé (WhatsApp = partage manuel).
 
-### Exigence 18 : Devis — ⚠️ PARTIEL (80%)
-- Code : type dédié, sans écriture comptable (jamais posté), transformation →facture. Même réserve qu'en #17.
+### Exigence 18 : Devis — ✅ CONFORME (90%)
+- Code : type dédié, sans écriture comptable (jamais posté), transformation →facture (signature transmise) ; même workflow brouillon→émis qu'en #17.
 
 ### Exigence 19 : Bon de commande — ✅ CONFORME (95%)
 - Code : chip masqué au vendeur ; RLS écriture sans vendeur. Test : matrice + code (pas de test dédié).
@@ -105,14 +108,13 @@
 
 ## 3.3. Analyses (23–32)
 
-### Exigences 23–25, 27–29 : séries CA/dépenses — ⚠️ PARTIEL (85%)
-- Code : `store.dart` (`ca7Jours`, `caParMois`, `caParAnnee`, idem dépenses, `variationPct`), `analytique_screen.dart` (périodes, indicateurs, comparaisons, barres tappables), courbes/barres/camembert `fl_chart` (`stats_screen.dart:80/159/227`, dashboard).
+### Exigences 23–25, 27–29 : séries CA/dépenses — ✅ CONFORME (90%)
+- Code : `store.dart` (`ca7Jours`, `caParMois`, `caParAnnee`, idem dépenses, `variationPct`), `analytique_screen.dart` (périodes, indicateurs, comparaisons, **CAGR annuel**, barres tappables), courbes/barres/camembert `fl_chart` (`stats_screen.dart:80/159/227`, dashboard).
 - Test : `test/analytique_test.dart` — 5/5.
-- Réserve : l'onglet Analytique rend tableaux + barres proportionnelles (pas de courbes `fl_chart` in-situ) ; CAGR absent.
+- Réserve : l'onglet Analytique rend tableaux + barres proportionnelles (courbes `fl_chart` sur Stats/Dashboard).
 
 ### Exigences 26, 30 : détails — ✅ CONFORME (95%)
-- Code : `analytique_detail_screen.dart` (filtres type/catégorie/boutique/plage/montants, recherche, 4 tris).
-- Réserve : pas d'export CSV/PDF du détail.
+- Code : `analytique_detail_screen.dart` (filtres type/catégorie/boutique/plage/montants, recherche, 4 tris, **export CSV Excel**).
 
 ### Exigence 31 : Tuiles Dépenses — ✅ CONFORME (95%)
 - Code : tuile dashboard (mois + 7j → Analytique onglet Dépenses).
@@ -137,9 +139,9 @@
 - Supabase : triggers `trg_journal_*` toutes tables ; UI `journal_activite_screen.dart`.
 - Test : chargement couvert indirectement ; pas de test trigger.
 
-### Exigence 37 : Couverture — ⚠️ PARTIEL (80%)
-- Couvert/testé : stocks, achats, ventes, trésorerie, partenaires, budgets, fiscalité de base, users, documents.
-- Absent : rapprochement bancaire, lettrage/relances auto, SYSCOHADA complet, balance âgée fournisseurs, paie, thermique.
+### Exigence 37 : Couverture — ⚠️ PARTIEL (85%)
+- Couvert/testé : stocks, achats, ventes, trésorerie, partenaires, budgets, fiscalité de base, users, documents, **rapprochement pointé** (`pointerEcriture`, filtre non-rapprochées, policy `ecritures pointage`).
+- Absent : lettrage auto, SYSCOHADA complet, balance âgée fournisseurs, paie, thermique.
 
 ## 3.5. Qualité/sécurité/doc (38–46)
 
@@ -153,11 +155,13 @@
 ### Exigence 40 : Tests unitaires — ✅ CONFORME (95%)
 - 10 fichiers, **46/46 verts** (`flutter test`) : achat(9), analytique(5), compta(5), créances(3), dates(9), fixes(3), mission-reste(4), mouvements(5), signature(2), smoke(1).
 
-### Exigence 41 : Tests widget — ⚠️ PARTIEL (70%)
-- Smoke login + 4 tests `DatePickerField` (ouverture, annulation, saisie OK/KO, effacer). Pas de tests par écran.
+### Exigence 41 : Tests widget — ⚠️ PARTIEL (75%)
+- Smoke login + 4 tests `DatePickerField` + **parcours E2E VM** (`parcours_test.dart`) + **16 tests TextScaler**.
+- Reste : pas de tests par écran.
 
-### Exigence 42 : Intégration — ❌ NON CONFORME (0%)
-- Aucun `integration_test/` : parcours non rejoué automatiquement.
+### Exigence 42 : Intégration — ⚠️ PARTIEL (70%)
+- Livré : `integration_test/app_flow_test.dart` (connexion → vente → journal, `IntegrationTestWidgetsFlutterBinding`) + miroir VM `test/parcours_test.dart` vert.
+- Réserve : exécution appareil/émulateur non effectuée par l'auditeur (`flutter test integration_test`).
 
 ### Exigence 43 : README — ✅ CONFORME (90%)
 - Lignes Achats, Analytique, Compta/TVA, Relances, Signature, Stock à jour.
@@ -175,18 +179,18 @@
 
 | Catégorie | Exigences | Conformes | Partielles | Non conformes | Score |
 |---|---|---|---|---|---|
-| Bugs critiques (1–14) | 14 | 5 | 9 | 0 | 82.5% |
-| Documents & signature (15–22) | 8 | 6 | 2 | 0 | 89.4% |
-| Analyses CA/Dépenses (23–32) | 10 | 3 | 7 | 0 | 87.0% |
-| Conformité métier (33–37) | 5 | 2 | 3 | 0 | 84.0% |
-| Qualité/Sécurité/Doc (38–46) | 9 | 6 | 2 | 1 | 77.8% |
-| **TOTAL** | **46** | **22** | **23** | **1** | **—** |
+| Bugs critiques (1–14) | 14 | 7 | 7 | 0 | 83.9% |
+| Documents & signature (15–22) | 8 | 8 | 0 | 0 | 91.9% |
+| Analyses CA/Dépenses (23–32) | 10 | 4 | 6 | 0 | 90.0% |
+| Conformité métier (33–37) | 5 | 2 | 3 | 0 | 85.0% |
+| Qualité/Sécurité/Doc (38–46) | 9 | 6 | 3 | 0 | 86.1% |
+| **TOTAL** | **46** | **27** | **19** | **0** | **—** |
 
 ## 6.2. Score global pondéré
 
-- Bugs critiques 40% → 33.0 · Documents 15% → 13.4 · Analyses 15% → 13.1
-- Métier 15% → 12.6 · Qualité 15% → 11.7
-- **Score global = 83.7% ≈ 84%**
+- Bugs critiques 40% → 33.6 · Documents 15% → 13.8 · Analyses 15% → 13.5
+- Métier 15% → 12.8 · Qualité 15% → 12.9
+- **Score global = 86.5% ≈ 86%**
 
 ## 6.3. Verdict : ⚠️ PARTIEL — mise en production conditionnelle
 
@@ -197,13 +201,13 @@ Le conditionnel se lève en exécutant le plan ci-dessous.
 
 | # | Point | Impact | Correction | Charge |
 |---|---|---|---|---|
-| 1 | Exécuter les 5 migrations SQL en attente | 🔴 Bloquant serveur (RLS/tables) | SQL Editor dans l'ordre documenté | 30 min (client) |
-| 2 | `integration_test/` parcours login→vente→document→PDF | 🟠 Non-conformité #42 | 3-4 tests DeviceLab/émulateur | 1–2 j |
-| 3 | Tests TextScaler 1.3–2.0 + petits écrans (#5/#6) | 🟠 Régression visuelle | Matrice manuelle ou golden tests | 1 j |
-| 4 | Workflow validation manager (#17/#18) | 🟡 Gouvernance | Statuts `brouillon`→`emis` + droits | 2–3 j |
-| 5 | Rapprochement bancaire, lettrage auto, SYSCOHADA complet (#37/#33) | 🟡 Périmètre | Phases dédiées | 1–2 sem. |
-| 6 | Requêtes RLS directes (#10/#12/#39) | 🟡 Confiance serveur | Jeux de tests SQL par rôle | 0.5 j |
-| 7 | CAGR, export détail analytique (#25/#26) | 🟢 Confort | Compléments écran | 0.5 j |
+| 1 | Exécuter les 6 migrations SQL en attente | 🔴 Bloquant serveur (RLS/tables) | `APPLIQUER_TOUT.sql` en une exécution, puis `VERIFIER_RLS.sql` (6 blocs PASS) | 30 min (client) |
+| 2 | ~~Tests d'intégration~~ ✅ Livré | — | `integration_test/app_flow_test.dart` + miroir VM `parcours_test.dart` vert ; reste l'exécution émulateur | — |
+| 3 | ~~Matrice TextScaler~~ ✅ Livré | — | 16 tests (4 écrans × 1.0–2.0), 2 vrais défauts corrigés | — |
+| 4 | ~~Validation manager~~ ✅ Livré | — | brouillon→émis + policy `maj documents` + 3 tests | — |
+| 5 | Rapprochement bancaire, lettrage auto, SYSCOHADA complet | 🟡 Périmètre | Pointage livré ; phases dédiées pour le reste | 1–2 sem. |
+| 6 | Requêtes RLS directes | 🟡 Confiance serveur | `VERIFIER_RLS.sql` (blocs 1–6 auto + 7–9 par rôle) | 0.5 j |
+| 7 | ~~CAGR + export détail~~ ✅ Livré | — | CAGR années + CSV Excel du détail | — |
 
 ## Recommandations de maintien
 

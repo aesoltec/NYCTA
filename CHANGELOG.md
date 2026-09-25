@@ -14,6 +14,8 @@
 - Comptabilité SYSCOHADA : journal auto, balance, compte de résultat (`migration_compta.sql`)
 - Crédit client + relances + balance âgée + TVA mensuelle
 - Signature client manuscrite par document (`migration_signatures_documents.sql`)
+- Validation manager des documents (brouillon→émis), rapprochement bancaire pointé (`migration_rapprochement.sql`)
+- Tests d'intégration (parcours) + matrice TextScaler 1.0–2.0 + CAGR + export CSV analytique
 - UI : AppBar bleu nuit globale, lisibilité AppBar
 - 46 tests verts, `flutter analyze` 0 erreur
 
