@@ -52,55 +52,108 @@ class CloudRepository {
   };
 
   // ---------- Chargement initial après connexion ----------
+  /// Une table manquante ou illisible (migration SQL non exécutée côté
+  /// Supabase) ne doit JAMAIS faire échouer tout le chargement : avant ce
+  /// correctif, un seul `Future.wait` global transformait l'absence d'UNE
+  /// table (ex. `achats`, `mouvements_stock`, `ecritures`) en échec total —
+  /// l'app basculait hors-ligne en permanence alors que le réseau et le
+  /// reste de la base fonctionnaient. Chaque table est donc chargée
+  /// isolément : échec = liste vide + log nommé, le reste passe.
+  static Future<List> _fetch(
+      Future<dynamic> Function() requete, String table) async {
+    try {
+      return (await requete()) as List;
+    } catch (e) {
+      // Piste d'action immédiate : exécutez la migration SQL créant
+      // cette table (voir database/migration_*.sql), puis Reconnecter.
+      debugPrint('⚠️ CloudRepository.chargerTout() : table '
+          '« $table » illisible — ignorée ($e)');
+      return [];
+    }
+  }
+
   static Future<Map<String, dynamic>?> chargerTout() async {
     final c = _c;
     if (c == null) return null;
     try {
       final results = await Future.wait([
-        c.from('company_profile').select().limit(1),
-        c.from('boutiques').select().eq('actif', true),
-        c.from('produits').select().eq('actif', true),
-        c.from('partenaires').select().eq('actif', true),
-        c.from('transactions').select()
-            .order('date_transaction', ascending: false).limit(2000),
-        c.from('charges').select()
-            .order('date_charge', ascending: false).limit(1000),
-        c.from('budgets_mensuels').select(),
-        c.from('fonds_roulement').select(),
-        c.from('categories').select(),
-        c.from('fournisseurs').select(),
-        c.from('messages').select()
-            .order('created_at', ascending: false).limit(300),
-        c.from('evenements').select()
-            .gte('date', DateTime.now().subtract(const Duration(days: 30)).toIso8601String())
-            .order('date', ascending: true).limit(200),
-        c.from('notes').select()
-            .order('created_at', ascending: false).limit(300),
-        c.from('feedbacks').select()
-            .order('created_at', ascending: false).limit(300),
-        c.from('tarifs').select().eq('actif', true)
-            .order('libelle', ascending: true).limit(500),
-        c.from('documents').select()
-            .order('date_doc', ascending: false).limit(300),
+        _fetch(() => c.from('company_profile').select().limit(1),
+            'company_profile'),
+        _fetch(
+            () => c.from('boutiques').select().eq('actif', true),
+            'boutiques'),
+        _fetch(
+            () => c.from('produits').select().eq('actif', true),
+            'produits'),
+        _fetch(
+            () => c.from('partenaires').select().eq('actif', true),
+            'partenaires'),
+        _fetch(
+            () => c.from('transactions').select().order('date_transaction',
+                ascending: false).limit(2000),
+            'transactions'),
+        _fetch(
+            () => c.from('charges').select().order('date_charge',
+                ascending: false).limit(1000),
+            'charges'),
+        _fetch(() => c.from('budgets_mensuels').select(),
+            'budgets_mensuels'),
+        _fetch(
+            () => c.from('fonds_roulement').select(), 'fonds_roulement'),
+        _fetch(() => c.from('categories').select(), 'categories'),
+        _fetch(() => c.from('fournisseurs').select(), 'fournisseurs'),
+        _fetch(
+            () => c.from('messages').select().order('created_at',
+                ascending: false).limit(300),
+            'messages'),
+        _fetch(
+            () => c.from('evenements').select().gte('date',
+                DateTime.now().subtract(const Duration(days: 30)).toIso8601String()).order('date',
+                ascending: true).limit(200),
+            'evenements'),
+        _fetch(
+            () => c.from('notes').select().order('created_at',
+                ascending: false).limit(300),
+            'notes'),
+        _fetch(
+            () => c.from('feedbacks').select().order('created_at',
+                ascending: false).limit(300),
+            'feedbacks'),
+        _fetch(
+            () => c.from('tarifs').select().eq('actif', true).order(
+                'libelle',
+                ascending: true).limit(500),
+            'tarifs'),
+        _fetch(
+            () => c.from('documents').select().order('date_doc',
+                ascending: false).limit(300),
+            'documents'),
         // Tous les comptes actifs (écran Utilisateurs, réservé admin) :
         // RLS "lecture users" = using(true), donc sans risque à charger ici.
         // Sans ce chargement, Store.users restait vide à chaque
         // redémarrage — l'admin ne pouvait plus voir ni gérer les
         // comptes existants après avoir quitté puis rouvert l'app.
-        c.from('users').select().eq('actif', true),
+        _fetch(() => c.from('users').select().eq('actif', true), 'users'),
         // "user_boutiques select" (RLS) ne renvoie que sa propre ligne
         // pour un rôle non admin/gerant — sans danger de tout demander ici.
-        c.from('user_boutiques').select(),
+        _fetch(() => c.from('user_boutiques').select(), 'user_boutiques'),
         // Achats fournisseurs (Phase 2) — en fin de liste pour ne pas
         // décaler les indices results[16]/[17] existants.
-        c.from('achats').select()
-            .order('date_achat', ascending: false).limit(500),
+        _fetch(
+            () => c.from('achats').select().order('date_achat',
+                ascending: false).limit(500),
+            'achats'),
         // Mouvements de stock (mission 1 §1.3) — idem, en fin de liste.
-        c.from('mouvements_stock').select()
-            .order('date_mouvement', ascending: false).limit(1000),
+        _fetch(
+            () => c.from('mouvements_stock').select().order(
+                'date_mouvement',
+                ascending: false).limit(1000),
+            'mouvements_stock'),
         // Écritures comptables (mission §3.3) — idem, en fin de liste.
-        c.from('ecritures').select()
-            .order('date_ecriture', ascending: false).limit(2000),
+        _fetch(
+            () => c.from('ecritures').select().order('date_ecriture',
+                ascending: false).limit(2000),
+            'ecritures'),
       ]);
       final uid = c.auth.currentUser?.id;
       Map<String, dynamic>? monProfil;

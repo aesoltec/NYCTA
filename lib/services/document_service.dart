@@ -15,14 +15,25 @@ class DocumentBati {
   final double tva;
   final double totalTTC;
   final String devise;
+  /// Signature manuscrite du client/réceptionnaire capturée à l'émission
+  /// (chemin local, ou fichier re-téléchargé du cloud après rechargement).
+  final String? signatureClientPath;
 
   const DocumentBati({
     this.id,
     required this.type, required this.numero, required this.date,
     required this.client, required this.lignes,
     required this.totalHT, required this.tva, required this.totalTTC,
-    required this.devise,
+    required this.devise, this.signatureClientPath,
   });
+
+  DocumentBati copyWith({String? signatureClientPath}) => DocumentBati(
+        id: id, type: type, numero: numero, date: date, client: client,
+        lignes: lignes, totalHT: totalHT, tva: tva, totalTTC: totalTTC,
+        devise: devise,
+        signatureClientPath:
+            signatureClientPath ?? this.signatureClientPath,
+      );
 }
 
 class DocumentService {
