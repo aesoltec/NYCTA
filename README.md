@@ -14,6 +14,8 @@ données de démo réalistes — aucune configuration Firebase requise.
 | 📒 Journal | Toutes les transactions, filtres par activité, recherche client |
 | 📦 Stock | Inventaire + valorisation, alertes, vente directe atomique, **mouvements tracés** (entrées/sorties/ajustements), ajustements avec motif |
 | 🛒 Achats fournisseurs | Demandes, commandes, réception (stock + CUMP), paiements, dettes, annulation avec motif |
+| 🧾 Relances clients | Ventes à crédit, impayés, relance WhatsApp, encaissement, balance âgée |
+| ✍️ Signature client | Capture manuscrite par document (facture, devis, ticket, BC, BL), aperçu + PDF + cloud |
 | 🤝 Partenaires | Ventes mensuelles par partenaire, **clôture du mois** avec calcul automatique des parts |
 | 📊 Rapports | CA/mois, activités, MoMo, boutiques + **Analytique** (7j/mois/années, comparaisons, détail filtrable) |
 | 🧾 Comptabilité | Journal immuable auto (VT/AC/BQ/OD), balance, résultat, **TVA par mois, balance âgée** |
