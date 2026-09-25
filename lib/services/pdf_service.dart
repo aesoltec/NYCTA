@@ -87,6 +87,7 @@ class PdfService {
             ),
             pw.SizedBox(height: 16),
             // ---------- Tableau des lignes ----------
+            // BL : quantités + désignations uniquement, JAMAIS de prix.
             pw.TableHelper.fromTextArray(
               headerStyle: pw.TextStyle(
                   fontWeight: pw.FontWeight.bold,
@@ -94,42 +95,94 @@ class PdfService {
               headerDecoration:
                   pw.BoxDecoration(color: PdfColor.fromHex('#E8F0FB')),
               cellStyle: const pw.TextStyle(fontSize: 9),
-              columnWidths: {
-                0: const pw.FlexColumnWidth(5),
-                1: const pw.FlexColumnWidth(1.5),
-                2: const pw.FlexColumnWidth(2.5),
-                3: const pw.FlexColumnWidth(2.5),
-              },
-              headers: ['Article', 'Qté', 'P.U.', 'Total'],
+              columnWidths: doc.type.sansPrix
+                  ? {
+                      0: const pw.FlexColumnWidth(5),
+                      1: const pw.FlexColumnWidth(1.5),
+                    }
+                  : {
+                      0: const pw.FlexColumnWidth(5),
+                      1: const pw.FlexColumnWidth(1.5),
+                      2: const pw.FlexColumnWidth(2.5),
+                      3: const pw.FlexColumnWidth(2.5),
+                    },
+              headers: doc.type.sansPrix
+                  ? ['Article', 'Qté']
+                  : ['Article', 'Qté', 'P.U.', 'Total'],
               data: [
                 for (final l in doc.lignes)
-                  [l.libelle, '${l.quantite}',
-                   C.money(l.prixUnitaire, doc.devise),
-                   C.money(l.total, doc.devise)],
+                  if (doc.type.sansPrix)
+                    [l.libelle, '${l.quantite}']
+                  else
+                    [l.libelle, '${l.quantite}',
+                     C.money(l.prixUnitaire, doc.devise),
+                     C.money(l.total, doc.devise)],
               ],
             ),
             pw.SizedBox(height: 12),
-            // ---------- Totaux ----------
-            pw.Align(
-              alignment: pw.Alignment.centerRight,
-              child: pw.Container(
-                width: 220,
-                child: pw.Column(children: [
-                  _total('Total HT', doc.totalHT, doc.devise),
-                  _total('TVA (${profile.tva} %)', doc.tva, doc.devise),
-                  pw.Divider(height: 6),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('TOTAL',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                      pw.Text(C.money(doc.totalTTC, doc.devise),
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    ],
+            // ---------- Totaux (jamais sur un BL) ----------
+            if (doc.type.sansPrix)
+              pw.Row(children: [
+                pw.Expanded(
+                  child: pw.Container(
+                    height: 70,
+                    padding: const pw.EdgeInsets.all(6),
+                    decoration: pw.BoxDecoration(
+                        border: pw.Border.all(
+                            color: PdfColor.fromHex('#999999'))),
+                    child: pw.Column(
+                      crossAxisAlignment:
+                          pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Livreur (nom + signature + date)',
+                            style: const pw.TextStyle(fontSize: 8)),
+                      ],
+                    ),
                   ),
-                ]),
+                ),
+                pw.SizedBox(width: 12),
+                pw.Expanded(
+                  child: pw.Container(
+                    height: 70,
+                    padding: const pw.EdgeInsets.all(6),
+                    decoration: pw.BoxDecoration(
+                        border: pw.Border.all(
+                            color: PdfColor.fromHex('#999999'))),
+                    child: pw.Column(
+                      crossAxisAlignment:
+                          pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Réceptionnaire (nom + signature + date)',
+                            style: const pw.TextStyle(fontSize: 8)),
+                      ],
+                    ),
+                  ),
+                ),
+              ])
+            else
+              pw.Align(
+                alignment: pw.Alignment.centerRight,
+                child: pw.Container(
+                  width: 220,
+                  child: pw.Column(children: [
+                    _total('Total HT', doc.totalHT, doc.devise),
+                    _total('TVA (${profile.tva} %)', doc.tva, doc.devise),
+                    pw.Divider(height: 6),
+                    pw.Row(
+                      mainAxisAlignment:
+                          pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('TOTAL',
+                            style: pw.TextStyle(
+                                fontWeight: pw.FontWeight.bold)),
+                        pw.Text(C.money(doc.totalTTC, doc.devise),
+                            style: pw.TextStyle(
+                                fontWeight: pw.FontWeight.bold)),
+                      ],
+                    ),
+                  ]),
+                ),
               ),
-            ),
             pw.Spacer(),
             // ---------- Signature & cachet ----------
             pw.Row(

@@ -26,15 +26,26 @@ class MessagerieScreen extends StatelessWidget {
             ),
         ],
       ),
-      body: msgs.isEmpty
-          ? const Center(child: Text('Aucun message',
-              style: TextStyle(color: Colors.grey)))
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-              itemCount: msgs.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) => _LigneMessage(message: msgs[i]),
-            ),
+      body: RefreshIndicator(
+        onRefresh: store.rafraichir,
+        child: msgs.isEmpty
+            ? ListView(children: const [
+                Padding(
+                  padding: EdgeInsets.only(top: 64),
+                  child: Center(
+                      child: Text('Aucun message',
+                          style: TextStyle(color: Colors.grey))),
+                ),
+              ])
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                itemCount: msgs.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (_, i) =>
+                    _LigneMessage(message: msgs[i]),
+              ),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _nouveau(context, store),
         icon: const Icon(Icons.send_outlined),

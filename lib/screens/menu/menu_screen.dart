@@ -129,7 +129,8 @@ class MenuScreen extends StatelessWidget {
                 'factures et devis',
             destination: const TarifsScreen(),
           ),
-        if (store.peut(Permission.gererDocuments))
+        if (store.peut(Permission.gererDocuments) ||
+            store.role == Role.vendeur)
           _Tuille(
             icone: Icons.description_outlined,
             couleur: const Color(0xFFEF6C00),
@@ -137,7 +138,8 @@ class MenuScreen extends StatelessWidget {
             sousTitre: 'Factures, devis proforma, bons de commande, tickets',
             destination: const DocumentsScreen(),
           ),
-        if (store.peut(Permission.gererDocuments))
+        if (store.peut(Permission.gererDocuments) ||
+            store.role == Role.vendeur)
           _Tuille(
             icone: Icons.folder_outlined,
             couleur: const Color(0xFF455A64),

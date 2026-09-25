@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import '../core/constants.dart';
 import '../core/validators.dart';
 import '../models/achat.dart';
-import '../models/achat.dart';
 import '../models/analytique.dart';
 import '../models/app_user.dart';
 import '../models/mouvement_stock.dart';
@@ -486,6 +485,17 @@ class Store extends ChangeNotifier {
       notifyListeners();
     }
     return ok;
+  }
+
+  /// Pull-to-refresh (mission §2.8) : recharge depuis Supabase si le
+  /// cloud est configuré (jamais le cache local seul), sinon simple
+  /// reconstruction. Utilisé par les RefreshIndicator des listes.
+  Future<void> rafraichir() async {
+    if (CloudRepository.actif) {
+      await chargerDuCloud();
+    } else {
+      notifyListeners();
+    }
   }
 
   // ---------- Données ----------

@@ -30,17 +30,29 @@ class ChargesScreen extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: depenses.isEmpty
-              ? const EmptyView(
-                  icon: Icons.money_off_outlined,
-                  message: 'Aucune dépense enregistrée',
-                  hint: 'Loyers, salaires, fournisseurs, taxes…')
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
-                  itemCount: depenses.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, i) => _LigneCharge(charge: depenses[i]),
-                ),
+          child: RefreshIndicator(
+            onRefresh: store.rafraichir,
+            child: depenses.isEmpty
+                ? ListView(children: const [
+                    Padding(
+                      padding: EdgeInsets.only(top: 64),
+                      child: EmptyView(
+                          icon: Icons.money_off_outlined,
+                          message: 'Aucune dépense enregistrée',
+                          hint:
+                              'Loyers, salaires, fournisseurs, taxes…'),
+                    ),
+                  ])
+                : ListView.separated(
+                    padding:
+                        const EdgeInsets.fromLTRB(16, 8, 16, 90),
+                    itemCount: depenses.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: 8),
+                    itemBuilder: (_, i) =>
+                        _LigneCharge(charge: depenses[i]),
+                  ),
+          ),
         ),
       ]),
       floatingActionButton: store.peut(Permission.gererDepenses)

@@ -86,23 +86,34 @@ class _JournalScreenState extends State<JournalScreen> {
         ),
       ),
       Expanded(
-        child: txs.isEmpty
-            ? const EmptyView(
-                icon: Icons.receipt_long_outlined,
-                message: 'Aucune transaction',
-                hint: 'Les ventes que vous enregistrez apparaîtront ici')
-            : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                itemCount: txs.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (_, i) => _LigneTx(
-                  tx: txs[i],
-                  peutModifier: peutModifier,
-                  peutSupprimer: peutSupprimer,
-                  onModifier: () => _modifier(context, txs[i]),
-                  onSupprimer: () => _confirmerSuppression(context, txs[i]),
+        child: RefreshIndicator(
+          onRefresh: store.rafraichir,
+          child: txs.isEmpty
+              ? ListView(children: const [
+                  Padding(
+                    padding: EdgeInsets.only(top: 64),
+                    child: EmptyView(
+                        icon: Icons.receipt_long_outlined,
+                        message: 'Aucune transaction',
+                        hint:
+                            'Les ventes que vous enregistrez apparaîtront ici'),
+                  ),
+                ])
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  itemCount: txs.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(height: 8),
+                  itemBuilder: (_, i) => _LigneTx(
+                    tx: txs[i],
+                    peutModifier: peutModifier,
+                    peutSupprimer: peutSupprimer,
+                    onModifier: () => _modifier(context, txs[i]),
+                    onSupprimer: () =>
+                        _confirmerSuppression(context, txs[i]),
+                  ),
                 ),
-              ),
+        ),
       ),
     ]);
   }

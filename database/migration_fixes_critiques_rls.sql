@@ -54,4 +54,17 @@ drop trigger if exists trg_verrou_archivage_produit on public.produits;
 create trigger trg_verrou_archivage_produit
   before update on public.produits
   for each row execute function public.verrouiller_archivage_produit();
+
+-- ---------------------------------------------------------------------------
+-- 4. Documents : les vendeurs émettent ticket/BL/facture/devis (mission
+--    §2.9) mais JAMAIS de bon de commande (filtré côté app). Ajout du rôle
+--    à la policy d'écriture (boutique accessible requise, inchangée).
+-- ---------------------------------------------------------------------------
+drop policy if exists "ecriture documents" on public.documents;
+create policy "ecriture documents" on public.documents
+  for insert to authenticated
+  with check (
+    public.user_role() in ('admin','gerant','comptable','caissier','vendeur')
+    and public.accede_boutique(boutique_id)
+  );
 -- ============================================================================

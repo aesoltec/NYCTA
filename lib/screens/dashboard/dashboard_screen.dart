@@ -11,6 +11,7 @@ import '../../widgets/soft_card.dart';
 import '../../widgets/type_chip.dart';
 import '../transaction/nouvelle_transaction_screen.dart';
 import '../achat/achat_list_screen.dart';
+import '../rapports/analytique_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -21,7 +22,9 @@ class DashboardScreen extends StatelessWidget {
     final caParType = store.caParType;
     final totalMois = caParType.values.fold(0.0, (a, b) => a + b);
 
-    return ListView(
+    return RefreshIndicator(
+      onRefresh: store.rafraichir,
+      child: ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: [
         // ---- Bandeau héro : dégradé encre, CA du jour + marge ----
@@ -85,6 +88,63 @@ class DashboardScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
+        // ---- Dépenses (mission §2.1) : total mois + 7 jours, détail au tap
+        //      vers l'analytique dépenses ----
+        Builder(builder: (context) {
+          final dep7j = store
+              .depenses7Jours()
+              .fold(0.0, (s, e) => s + e.montant);
+          return SoftCard(
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) =>
+                    const AnalytiqueScreen(ongletInitial: 1))),
+            padding: const EdgeInsets.all(14),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF6C00).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.money_off_outlined,
+                    color: Color(0xFFEF6C00), size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Dépenses du mois',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600)),
+                      const SizedBox(height: 2),
+                      MoneyText(store.totalDepensesMois,
+                          style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800)),
+                    ]),
+              ),
+              Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('7 derniers j.',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600)),
+                    MoneyText(dep7j,
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700)),
+                  ]),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, color: Colors.grey),
+            ]),
+          );
+        }),
+        const SizedBox(height: 22),
         Row(children: [
           Expanded(
             child: _Kpi(
@@ -259,6 +319,7 @@ class DashboardScreen extends StatelessWidget {
             ),
           ),
       ],
+      ),
     );
   }
 }

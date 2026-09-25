@@ -42,23 +42,26 @@ class PartenairesScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Partenaires hotspot')),
       backgroundColor: const Color(0xFFD5F0F0),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-        children: [
-          for (final p in store.partenaires.where((p) => p.actif))
-            _CartePartenaire(partenaire: p, mois: mois),
-          if (store.partenaires.any((p) => !p.actif))
-            ExpansionTile(
-              title: Text(
-                  'Inactifs (${store.partenaires.where((p) => !p.actif).length})',
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600)),
-              children: [
-                for (final p in store.partenaires.where((p) => !p.actif))
-                  _CartePartenaire(partenaire: p, mois: mois),
-              ],
-            ),
-        ],
+      body: RefreshIndicator(
+        onRefresh: store.rafraichir,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+          children: [
+            for (final p in store.partenaires.where((p) => p.actif))
+              _CartePartenaire(partenaire: p, mois: mois),
+            if (store.partenaires.any((p) => !p.actif))
+              ExpansionTile(
+                title: Text(
+                    'Inactifs (${store.partenaires.where((p) => !p.actif).length})',
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600)),
+                children: [
+                  for (final p in store.partenaires.where((p) => !p.actif))
+                    _CartePartenaire(partenaire: p, mois: mois),
+                ],
+              ),
+          ],
+        ),
       ),
       floatingActionButton: store.peut(Permission.gererPartenaires)
           ? FloatingActionButton.extended(

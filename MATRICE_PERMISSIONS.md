@@ -15,9 +15,24 @@
 | Gérer dépenses | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Gérer achats (CRUD, valider, recevoir, payer, annuler) | ✅ | ✅ | ✅ | 📝 | 📝 | ❌ | ❌ |
 | Créer demande d'achat | ✅ | ✅ | ✅ | 📝 | 📝 | ❌ | ❌ |
-| Gérer documents | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Gérer documents | ✅ | ✅ | ✅ | ✅ | ciblé* | ❌ | ❌ |
 | Gérer utilisateurs | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Configurer (entreprise, listes) | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+\* Matrice documentaire (mission §2.9, normes internationales) :
+
+| Document | Admin | Gérant | Comptable | Caissier | Vendeur |
+|---|---|---|---|---|---|
+| Ticket de caisse (preuve immédiate) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Facture simple (mentions RCCM/IFU/TVA, n° unique) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Devis proforma (offre, sans valeur comptable) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Bordereau de livraison (**sans prix**, quantités + signatures livreur/réceptionnaire) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Bon de commande fournisseur (engagement d'achat) | ✅ | ✅ | ✅ | ❌ | ❌ |
+
+> Validation comptable formelle et envoi officiel : rôles supérieurs
+> (comptable, manager) — suivi applicatif à venir (statuts `brouillon`→`emis`).
+> Signature à main levée : `SignaturePad` → profil entreprise → apposée sur
+> l'aperçu et intégrée au PDF (base64 via `printing`/`pdf`).
 
 ## Règles serveur (RLS Supabase, défense en profondeur)
 

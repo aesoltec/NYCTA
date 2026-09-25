@@ -66,22 +66,31 @@ class StockScreen extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: produits.isEmpty
-              ? const EmptyView(
-                  icon: Icons.inventory_2_outlined,
-                  message: 'Aucun produit dans cette boutique',
-                  hint: 'Ajoutez votre premier produit avec le bouton +')
-              : ListView.separated(
-                  padding: EdgeInsets.fromLTRB(
-                      16, 8, 16, peutGererStock ? 90 : 24),
-                  itemCount: produits.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: 8),
-                  itemBuilder: (_, i) => _LigneProduit(
-                      produit: produits[i],
-                      peutVendre: peutVendre,
-                      peutGererStock: peutGererStock),
-                ),
+          child: RefreshIndicator(
+            onRefresh: store.rafraichir,
+            child: produits.isEmpty
+                ? ListView(children: const [
+                    Padding(
+                      padding: EdgeInsets.only(top: 64),
+                      child: EmptyView(
+                          icon: Icons.inventory_2_outlined,
+                          message: 'Aucun produit dans cette boutique',
+                          hint:
+                              'Ajoutez votre premier produit avec le bouton +'),
+                    ),
+                  ])
+                : ListView.separated(
+                    padding: EdgeInsets.fromLTRB(
+                        16, 8, 16, peutGererStock ? 90 : 24),
+                    itemCount: produits.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: 8),
+                    itemBuilder: (_, i) => _LigneProduit(
+                        produit: produits[i],
+                        peutVendre: peutVendre,
+                        peutGererStock: peutGererStock),
+                  ),
+          ),
         ),
       ]),
       floatingActionButton: peutGererStock

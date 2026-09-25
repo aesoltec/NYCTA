@@ -10,12 +10,15 @@ import 'analytique_detail_screen.dart';
 /// mois de l'année, années — indicateurs, comparaison période précédente,
 /// détail filtrable au tap.
 class AnalytiqueScreen extends StatelessWidget {
-  const AnalytiqueScreen({super.key});
+  /// Onglet initial : 0 = CA, 1 = Dépenses (tuile dashboard).
+  final int ongletInitial;
+  const AnalytiqueScreen({super.key, this.ongletInitial = 0});
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
+      initialIndex: ongletInitial.clamp(0, 1),
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Analytique'),

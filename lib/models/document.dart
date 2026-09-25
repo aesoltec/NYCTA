@@ -47,6 +47,11 @@ extension TypeDocumentX on TypeDocument {
       this == TypeDocument.facture ||
       this == TypeDocument.ticketCaisse ||
       this == TypeDocument.bonLivraison;
+
+  /// Norme internationale : le bordereau de livraison ne contient AUCUN
+  /// prix (quantités + désignations + signatures uniquement) — document
+  /// de transport/réception, pas document commercial.
+  bool get sansPrix => this == TypeDocument.bonLivraison;
 }
 
 /// Reconstruit un [TypeDocument] depuis la valeur snake_case Postgres

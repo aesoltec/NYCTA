@@ -148,12 +148,18 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
             ),
             padding: const EdgeInsets.all(16),
             child: Column(children: [
-              const Row(children: [
-                Expanded(flex: 5, child: _EnteteColonne('Article')),
-                Expanded(flex: 2, child: _EnteteColonne('Qté', droite: true)),
-                Expanded(flex: 3, child: _EnteteColonne('P.U.', droite: true)),
-                Expanded(flex: 3, child: _EnteteColonne('Total', droite: true)),
-              ]),
+              if (doc.type.sansPrix)
+                const Row(children: [
+                  Expanded(flex: 5, child: _EnteteColonne('Article')),
+                  Expanded(flex: 2, child: _EnteteColonne('Qté', droite: true)),
+                ])
+              else
+                const Row(children: [
+                  Expanded(flex: 5, child: _EnteteColonne('Article')),
+                  Expanded(flex: 2, child: _EnteteColonne('Qté', droite: true)),
+                  Expanded(flex: 3, child: _EnteteColonne('P.U.', droite: true)),
+                  Expanded(flex: 3, child: _EnteteColonne('Total', droite: true)),
+                ]),
               const Divider(height: 20),
               for (final l in doc.lignes)
                 Padding(
@@ -166,39 +172,58 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
                     Expanded(flex: 2,
                         child: Text('${l.quantite}',
                             textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
-                    Expanded(flex: 3,
-                        child: Text(C.money(l.prixUnitaire, doc.devise),
-                            textAlign: TextAlign.right,
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12))),
-                    Expanded(flex: 3,
-                        child: Text(C.money(l.total, doc.devise),
-                            textAlign: TextAlign.right,
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+                    if (!doc.type.sansPrix) ...[
+                      Expanded(flex: 3,
+                          child: Text(C.money(l.prixUnitaire, doc.devise),
+                              textAlign: TextAlign.right,
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12))),
+                      Expanded(flex: 3,
+                          child: Text(C.money(l.total, doc.devise),
+                              textAlign: TextAlign.right,
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+                    ],
                   ]),
                 ),
-              const Divider(height: 24),
-              _LigneTotal(label: 'Total HT', valeur: doc.totalHT, devise: doc.devise),
-              _LigneTotal(label: 'TVA (${store.profile.tva} %)', valeur: doc.tva, devise: doc.devise),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(children: [
-                  const Expanded(
-                      child: Text('TOTAL À PAYER',
-                          style: TextStyle(fontWeight: FontWeight.w800))),
-                  Flexible(
-                    child: Text(C.money(doc.totalTTC, doc.devise),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                  ),
+              // Bordereau : aucun prix ni total (norme internationale) —
+              // signatures livreur + réceptionnaire à la place.
+              if (doc.type.sansPrix) ...[
+                const Divider(height: 24),
+                const Row(children: [
+                  Expanded(child: _EnteteColonne('Livreur')),
+                  Expanded(child: _EnteteColonne('Réceptionnaire (client)')),
                 ]),
-              ),
+                const SizedBox(height: 8),
+                const Row(children: [
+                  Expanded(child: Text('Nom + signature + date',
+                      style: TextStyle(fontSize: 12, color: Colors.grey))),
+                  Expanded(child: Text('Nom + signature + date',
+                      style: TextStyle(fontSize: 12, color: Colors.grey))),
+                ]),
+              ] else ...[
+                const Divider(height: 24),
+                _LigneTotal(label: 'Total HT', valeur: doc.totalHT, devise: doc.devise),
+                _LigneTotal(label: 'TVA (${store.profile.tva} %)', valeur: doc.tva, devise: doc.devise),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(children: [
+                    const Expanded(
+                        child: Text('TOTAL À PAYER',
+                            style: TextStyle(fontWeight: FontWeight.w800))),
+                    Flexible(
+                      child: Text(C.money(doc.totalTTC, doc.devise),
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                    ),
+                  ]),
+                ),
+              ],
             ]),
           ),
           const SizedBox(height: 12),
