@@ -453,6 +453,9 @@ class Store extends ChangeNotifier {
             tva: (r['tva'] as num?)?.toDouble() ?? 0,
             totalTTC: (r['total_ttc'] as num?)?.toDouble() ?? 0,
             devise: profile.devise,
+            signatureClientPath:
+                await _signatureLocaleDepuisCloud(
+                    r['signature_client_path']?.toString()),
           ),
       ]);
     }
@@ -1631,13 +1634,47 @@ class Store extends ChangeNotifier {
   /// [date] = date d'émission réelle (formulaire) : affichée sur le
   /// document, conservée dans l'historique local ET dans la base cloud
   /// (date_doc) pour que le rechargement ne la remette pas à aujourd'hui.
-  Future<void> enregistrerDocument(DocumentBati d, {DateTime? date}) async {
+  /// Retourne l'identifiant cloud (pour rattacher la signature client).
+  Future<String?> enregistrerDocument(DocumentBati d,
+      {DateTime? date}) async {
     documentsEmis.insert(0, d);
     notifyListeners();
     // Copie cloud fidèle (en-tête + lignes) — ré-exploitable à volonté.
+    // La liaison signature se fait par `numero` (unique), voir
+    // joindreSignatureClient — pas besoin de conserver l'id cloud ici.
     if (CloudRepository.actif) {
-      await CloudRepository.enregistrerDocument(d, _boutiqueId, date: date);
+      return CloudRepository.enregistrerDocument(d, _boutiqueId,
+          date: date);
     }
+    return null;
+  }
+
+  /// Joint la signature manuscrite du client à un document déjà émis :
+  /// mise à jour locale immédiate + upload et rattachement cloud.
+  Future<void> joindreSignatureClient(
+      String numero, String cheminLocal) async {
+    final i = documentsEmis.indexWhere((e) => e.numero == numero);
+    if (i < 0) return;
+    documentsEmis[i] =
+        documentsEmis[i].copyWith(signatureClientPath: cheminLocal);
+    notifyListeners();
+    if (CloudRepository.actif) {
+      await CloudRepository.majSignatureDocument(
+        id: documentsEmis[i].id,
+        numero: numero,
+        cheminLocal: cheminLocal,
+      );
+    }
+  }
+
+  /// Re-télécharge une signature client (chemin storage → fichier
+  /// temporaire local) pour l'aperçu et la régénération PDF après
+  /// rechargement. Retourne null si absente ou inaccessible — l'original
+  /// reste visible sur l'appareil émetteur.
+  Future<String?> _signatureLocaleDepuisCloud(String? chemin) async {
+    if (chemin == null || chemin.isEmpty) return null;
+    if (!CloudRepository.actif) return null;
+    return CloudRepository.telechargerSignature(chemin);
   }
 
   Future<DocumentBati> transformerDevisEnFacture(DocumentBati devis) async {
@@ -1647,6 +1684,8 @@ class Store extends ChangeNotifier {
       date: devis.date, client: devis.client, lignes: devis.lignes,
       totalHT: devis.totalHT, tva: devis.tva,
       totalTTC: devis.totalTTC, devise: devis.devise,
+      // La signature du client accompagne la transformation.
+      signatureClientPath: devis.signatureClientPath,
     );
     documentsEmis.insert(0, facture);
     notifyListeners();

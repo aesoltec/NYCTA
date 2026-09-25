@@ -7,6 +7,7 @@ import '../../services/document_service.dart';
 import '../../services/media_service.dart';
 import '../../services/pdf_service.dart';
 import '../../widgets/app_image.dart';
+import '../../widgets/signature_pad.dart';
 
 /// Aperçu d'un document. Deux modes :
 /// - construction : [type] + [client] + [lignes] → numéro généré, puis sauvegardé
@@ -260,6 +261,10 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
               ),
             ),
           const SizedBox(height: 12),
+          // Signature manuscrite du client (tous types : facture, devis,
+          // ticket, bon de commande, BL = réceptionnaire).
+          _SignatureClient(doc: doc),
+          const SizedBox(height: 12),
           if (store.profile.messagePied.isNotEmpty || store.profile.banque.isNotEmpty)
             _Bloc(
               titre: 'Informations',
@@ -306,6 +311,70 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Signature manuscrite du client : capture à l'émission (doigt/stylet),
+/// persistée en local + rattachée cloud, réutilisée dans le PDF.
+class _SignatureClient extends StatelessWidget {
+  final DocumentBati doc;
+  const _SignatureClient({required this.doc});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = context.read<Store>();
+    final libelle = doc.type == TypeDocument.bonLivraison
+        ? 'Réceptionnaire'
+        : 'Signature du client';
+    final existe = MediaService.existe(doc.signatureClientPath);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x10000000),
+              blurRadius: 8, offset: Offset(0, 3))
+        ],
+      ),
+      child: Column(children: [
+        if (existe)
+          AppImage(doc.signatureClientPath,
+              width: 160, height: 80, size: 80),
+        if (existe) const SizedBox(height: 4),
+        Text(existe ? libelle : 'Aucune signature — $libelle',
+            style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.draw_outlined, size: 18),
+            label: Text(existe ? 'Refaire signer' : 'Faire signer'),
+            onPressed: () => SignaturePad.ouvrir(context, (bytes) async {
+              if (bytes == null || bytes.isEmpty) return;
+              final chemin = await MediaService.savePng(bytes,
+                  'sig_${doc.numero.replaceAll('/', '-')}');
+              await store.joindreSignatureClient(doc.numero, chemin);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('✅ Signature enregistrée')));
+                // Recharge l'aperçu avec la signature.
+                Navigator.of(context).pushReplacement(MaterialPageRoute(
+                    builder: (_) => DocumentPreviewScreen(
+                        docExistant: doc.copyWith(
+                            signatureClientPath: chemin))));
+              }
+            }),
+          ),
+        ),
+      ]),
     );
   }
 }

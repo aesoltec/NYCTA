@@ -16,7 +16,7 @@ import '../services/document_service.dart';
 class PdfService {
   static Future<Uint8List> generer(DocumentBati doc, CompanyProfile profile) async {
     final pdf = pw.Document();
-    pw.MemoryImage? logo, signature, cachet;
+    pw.MemoryImage? logo, signature, cachet, signatureClient;
     try {
       if (mediaServiceExiste(profile.logoPath)) {
         logo = pw.MemoryImage(File(profile.logoPath!).readAsBytesSync());
@@ -26,6 +26,11 @@ class PdfService {
       }
       if (mediaServiceExiste(profile.cachetPath)) {
         cachet = pw.MemoryImage(File(profile.cachetPath!).readAsBytesSync());
+      }
+      // Signature manuscrite du client capturée à l'émission.
+      if (mediaServiceExiste(doc.signatureClientPath)) {
+        signatureClient = pw.MemoryImage(
+            File(doc.signatureClientPath!).readAsBytesSync());
       }
     } catch (_) {/* images illisibles : le PDF reste généré sans elles */}
 
@@ -184,7 +189,7 @@ class PdfService {
                 ),
               ),
             pw.Spacer(),
-            // ---------- Signature & cachet ----------
+            // ---------- Signatures : entreprise + client ----------
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
@@ -193,6 +198,17 @@ class PdfService {
                     pw.Container(width: 110, height: 50,
                         child: pw.Image(signature, fit: pw.BoxFit.contain)),
                     pw.Text('Signature',
+                        style: const pw.TextStyle(fontSize: 8)),
+                  ]),
+                if (signatureClient != null)
+                  pw.Column(children: [
+                    pw.Container(width: 110, height: 50,
+                        child: pw.Image(signatureClient,
+                            fit: pw.BoxFit.contain)),
+                    pw.Text(
+                        doc.type == TypeDocument.bonLivraison
+                            ? 'Réceptionnaire'
+                            : 'Signature du client',
                         style: const pw.TextStyle(fontSize: 8)),
                   ]),
                 if (cachet != null)

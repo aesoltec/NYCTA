@@ -560,7 +560,7 @@ class CloudRepository {
   static Future<String?> enregistrerDocument(
       DocumentBati d, String boutiqueId, {DateTime? date}) => _silencieuxRetour(() async {
         final id = uuid();
-        await _c!.from('documents').insert({
+        final base = <String, dynamic>{
           'id': id, 'boutique_id': boutiqueId, 'type': d.type.dbValue,
           'numero': d.numero,
           // Date d'émission réelle (formulaire) — pas l'instant d'envoi :
@@ -570,7 +570,20 @@ class CloudRepository {
           'total_ht': d.totalHT, 'tva': d.tva, 'total_ttc': d.totalTTC,
           'statut': 'emis',
           'created_by': _c!.auth.currentUser?.id,
-        });
+        };
+        try {
+          // Colonne ajoutée par migration_signatures_documents.sql ; les
+          // bases non migrées la rejettent → repli sans la colonne.
+          await _c!.from('documents').insert({
+            ...base,
+            'signature_client_path': d.signatureClientPath == null
+                ? null
+                : await uploaderSignature(
+                    d.signatureClientPath!, d.numero),
+          });
+        } catch (_) {
+          await _c!.from('documents').insert(base);
+        }
         for (final l in d.lignes) {
           await _c!.from('document_lignes').insert({
             'id': uuid(), 'document_id': id, 'libelle': l.libelle,
@@ -578,6 +591,53 @@ class CloudRepository {
           });
         }
         return id;
+      });
+
+  /// Upload d'une signature client (PNG local) vers le bucket privé
+  /// `documents/signatures/`. Retourne le chemin storage, null si échec.
+  static Future<String?> uploaderSignature(
+      String cheminLocal, String numero) => _silencieuxRetour(() async {
+        final fichier = File(cheminLocal);
+        if (!fichier.existsSync()) return null;
+        final nom =
+            'signatures/${numero.replaceAll('/', '-')}.png';
+        await _c!.storage.from('documents').uploadBinary(
+            nom, await fichier.readAsBytes(),
+            fileOptions: const FileOptions(upsert: true));
+        return nom;
+      });
+
+  /// Rattache (ou remplace) la signature client d'un document déjà émis :
+  /// upload du PNG local puis mise à jour de la colonne avec le chemin
+  /// storage. Sans effet en mode local (le fichier local suffit).
+  static Future<void> majSignatureDocument(
+          {String? id, String? numero, required String cheminLocal}) =>
+      _silencieux(() async {
+        final nom = 'signatures/${DateTime.now().millisecondsSinceEpoch}.png';
+        await _c!.storage.from('documents').uploadBinary(
+            nom, await File(cheminLocal).readAsBytes(),
+            fileOptions: const FileOptions(upsert: true));
+        var requete = _c!
+            .from('documents')
+            .update({'signature_client_path': nom});
+        if (id != null) {
+          await requete.eq('id', id);
+        } else {
+          await requete.eq('numero', numero ?? '');
+        }
+      });
+
+  /// Télécharge une signature du bucket vers un fichier temporaire local
+  /// (prévisualisation + régénération PDF après rechargement).
+  static Future<String?> telechargerSignature(String cheminStorage) =>
+      _silencieuxRetour(() async {
+        final bytes = await _c!.storage
+            .from('documents')
+            .download(cheminStorage);
+        final f = File(
+            '${Directory.systemTemp.path}/sig_${DateTime.now().millisecondsSinceEpoch}.png');
+        await f.writeAsBytes(bytes, flush: true);
+        return f.path;
       });
 
   /// Documents + leurs lignes, pour reconstruction de l'historique.
