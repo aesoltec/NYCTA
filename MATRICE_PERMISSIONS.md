@@ -10,6 +10,9 @@
 | Ventes à crédit + encaissement | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Relances clients (impayés) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Gérer stock (créer/modifier) | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+> Décision documentée (exigences #9/#10) : le vendeur modifie les fiches
+> (autonomie terrain : prix, photo, seuil) mais ne retire jamais d'article
+> (bouton masqué + garde `Store.supprimerProduit` + trigger serveur).
 | Retirer un article du stock | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Voir caisse / trésorerie | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Voir rapports / analytique | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |

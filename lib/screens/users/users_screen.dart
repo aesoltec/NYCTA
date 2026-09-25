@@ -243,7 +243,7 @@ class _FormUtilisateurState extends State<_FormUtilisateur> {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Mot de passe du compte',
+                      const Text('Identifiants de connexion',
                           style: TextStyle(
                               fontWeight: FontWeight.w700, fontSize: 13)),
                       const SizedBox(height: 8),
@@ -254,7 +254,21 @@ class _FormUtilisateurState extends State<_FormUtilisateur> {
                             labelText: 'Email du compte',
                             prefixIcon: Icon(Icons.email_outlined),
                             helperText:
-                                'Lien de réinitialisation envoyé à cet email'),
+                                'Vide = inchangé. Appliqué via Edge Function.'),
+                        validator: (v) => V.emailOpt(v),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _mdp,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                            labelText: 'Nouveau mot de passe (optionnel)',
+                            prefixIcon: Icon(Icons.lock_outline),
+                            helperText: 'Vide = inchangé. 6 caractères min.'),
+                        validator: (v) {
+                          if ((v ?? '').isEmpty) return null;
+                          return v!.length < 6 ? '6 caractères min.' : null;
+                        },
                       ),
                       const SizedBox(height: 8),
                       SizedBox(
@@ -266,24 +280,73 @@ class _FormUtilisateurState extends State<_FormUtilisateur> {
                                   width: 18,
                                   child: CircularProgressIndicator(
                                       strokeWidth: 2))
-                              : const Icon(
-                                  Icons.mark_email_read_outlined,
-                                  size: 18),
+                              : const Icon(Icons.key_rounded, size: 18),
                           label: Text(_envoiLienEnCours
                               ? 'Envoi…'
-                              : 'Envoyer le lien de réinitialisation'),
+                              : 'Appliquer (Edge Function)'),
                           onPressed: _envoiLienEnCours
                               ? null
                               : () async {
-                                  final erreur = V.email(_email.text);
+                                  if (!_formKey.currentState!
+                                      .validate()) {
+                                    return;
+                                  }
+                                  final email =
+                                      _email.text.trim().isEmpty
+                                          ? null
+                                          : _email.text.trim();
+                                  final mdp = _mdp.text.isEmpty
+                                      ? null
+                                      : _mdp.text;
+                                  if (email == null && mdp == null) {
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(const SnackBar(
+                                            content: Text(
+                                                '⚠️ Renseignez un email ou un mot de passe')));
+                                    return;
+                                  }
+                                  setState(() =>
+                                      _envoiLienEnCours = true);
+                                  final echec = await SupabaseService
+                                      .modifierCompteUtilisateur(
+                                    userId: widget.existant!.id,
+                                    email: email,
+                                    nouveauMotDePasse: mdp,
+                                  );
+                                  if (!context.mounted) return;
+                                  setState(() =>
+                                      _envoiLienEnCours = false);
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(
+                                          content: Text(echec == null
+                                              ? '✅ Identifiants mis à jour (journalisé)'
+                                              : '❌ $echec')));
+                                },
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton.icon(
+                          icon: const Icon(
+                              Icons.mark_email_read_outlined,
+                              size: 18),
+                          label: const Text(
+                              'Ou envoyer un lien de réinitialisation'),
+                          onPressed: _envoiLienEnCours
+                              ? null
+                              : () async {
+                                  final erreur =
+                                      V.email(_email.text);
                                   if (erreur != null) {
                                     ScaffoldMessenger.of(context)
                                         .showSnackBar(SnackBar(
-                                            content: Text('⚠️ $erreur')));
+                                            content:
+                                                Text('⚠️ $erreur')));
                                     return;
                                   }
-                                  setState(
-                                      () => _envoiLienEnCours = true);
+                                  setState(() =>
+                                      _envoiLienEnCours = true);
                                   final echec = await SupabaseService
                                       .reinitialiserMotDePasse(
                                           _email.text);

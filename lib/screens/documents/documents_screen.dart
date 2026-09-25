@@ -71,17 +71,35 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           ),
           const SizedBox(height: 20),
           Row(children: [
-            Text('Articles', style: Theme.of(context).textTheme.titleMedium),
-            const Spacer(),
-            TextButton.icon(
-              icon: const Icon(Icons.storefront_outlined, size: 18),
-              label: const Text('Catalogue'),
-              onPressed: () => _pickCatalogue(
-                  context, (l) => setState(() => _lignes.add(l))),
+            Flexible(
+              child: Text('Articles',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: const Icon(Icons.storefront_outlined, size: 18),
+                label: const Text('Catalogue',
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                onPressed: () => _pickCatalogue(
+                    context, (l) => setState(() => _lignes.add(l))),
+              ),
             ),
             TextButton.icon(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                visualDensity: VisualDensity.compact,
+              ),
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Ajouter'),
+              label: const Text('Ajouter',
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
               onPressed: () => setState(() => _lignes.add(
                   const LigneDoc(libelle: '', quantite: 1, prixUnitaire: 0))),
             ),

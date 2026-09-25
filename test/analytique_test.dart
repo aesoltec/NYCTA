@@ -48,6 +48,24 @@ void main() {
       expect(variationPct(50, 100), -50);
     });
 
+    test('cagrMensuelAnnualise : doublement en 12 mois = +100 %', () {
+      final serie = [
+        AgregatPeriode(
+            label: '01/26',
+            debut: DateTime(2026, 1),
+            montant: 1000,
+            nb: 1),
+        AgregatPeriode(
+            label: '01/27',
+            debut: DateTime(2027, 1),
+            montant: 2000,
+            nb: 1),
+      ];
+      expect(cagrMensuelAnnualise(serie), closeTo(100, 0.01));
+      expect(cagrMensuelAnnualise([serie.first]), isNull);
+      expect(cagrMensuelAnnualise([]), isNull);
+    });
+
     test('anneesDonnees triées', () {
       final s = store();
       final a = s.anneesDonnees();

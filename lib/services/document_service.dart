@@ -22,6 +22,8 @@ class DocumentBati {
   /// Signature manuscrite du client/réceptionnaire capturée à l'émission
   /// (chemin local, ou fichier re-téléchargé du cloud après rechargement).
   final String? signatureClientPath;
+  /// Motif d'annulation (`annule` uniquement) — traçabilité.
+  final String? motifAnnulation;
 
   const DocumentBati({
     this.id,
@@ -29,15 +31,20 @@ class DocumentBati {
     required this.client, required this.lignes,
     required this.totalHT, required this.tva, required this.totalTTC,
     required this.devise, this.statut = 'emis', this.signatureClientPath,
+    this.motifAnnulation,
   });
 
-  DocumentBati copyWith({String? signatureClientPath, String? statut}) =>
+  DocumentBati copyWith(
+          {String? signatureClientPath,
+          String? statut,
+          String? motifAnnulation}) =>
       DocumentBati(
         id: id, type: type, numero: numero, date: date, client: client,
         lignes: lignes, totalHT: totalHT, tva: tva, totalTTC: totalTTC,
         devise: devise, statut: statut ?? this.statut,
         signatureClientPath:
             signatureClientPath ?? this.signatureClientPath,
+        motifAnnulation: motifAnnulation ?? this.motifAnnulation,
       );
 }
 

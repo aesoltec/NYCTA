@@ -1697,6 +1697,49 @@ class Store extends ChangeNotifier {
     return null;
   }
 
+  /// Encaissement d'un document émis : `emis` → `paye` (comptabilité :
+  /// aucune écriture auto ici — l'encaissement passe par une vente).
+  /// Réservé aux détenteurs de gererDocuments (vendeur exclu).
+  Future<String?> payerDocument(String numero) async {
+    if (!peut(Permission.gererDocuments) || role == Role.vendeur) {
+      return 'Réservé (admin, gérant, comptable, caissier)';
+    }
+    final i = documentsEmis.indexWhere((e) => e.numero == numero);
+    if (i < 0) return 'Document introuvable';
+    if (documentsEmis[i].statut != 'emis') {
+      return 'Seul un document émis peut être marqué payé';
+    }
+    documentsEmis[i] = documentsEmis[i].copyWith(statut: 'paye');
+    notifyListeners();
+    await CloudRepository.majStatutDocument(
+      id: documentsEmis[i].id,
+      numero: numero,
+      statut: 'paye',
+    );
+    return null;
+  }
+
+  /// Annulation avec motif : `brouillon`/`emis` → `annule` (admin/gérant).
+  /// Le document reste lisible (audit trail), jamais supprimé.
+  Future<String?> annulerDocument(String numero, String motif) async {
+    if (role != Role.admin && role != Role.gerant) {
+      return 'Annulation réservée (admin, gérant)';
+    }
+    if (motif.trim().length < 3) return 'Motif requis (3 car. min.)';
+    final i = documentsEmis.indexWhere((e) => e.numero == numero);
+    if (i < 0) return 'Document introuvable';
+    if (documentsEmis[i].statut == 'annule') return 'Déjà annulé';
+    documentsEmis[i] = documentsEmis[i].copyWith(
+        statut: 'annule', motifAnnulation: motif.trim());
+    notifyListeners();
+    await CloudRepository.majStatutDocument(
+      id: documentsEmis[i].id,
+      numero: numero,
+      statut: 'annule',
+    );
+    return null;
+  }
+
   /// Joint la signature manuscrite du client à un document déjà émis :
   /// mise à jour locale immédiate + upload et rattachement cloud.
   Future<void> joindreSignatureClient(

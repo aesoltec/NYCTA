@@ -44,8 +44,7 @@ class SupabaseService {
   /// dans la console). Le try/catch restaure le contrat `Future<bool>` :
   /// false = échec de connexion, quelle qu'en soit la cause (identifiants
   /// invalides, réseau, projet Supabase injoignable).
-  static Future<bool> connexion(String email, String mdp) async {
-    final c = client;
+  static Future<bool> connexion(String email, String mdp) async {    final c = client;
     if (c == null) return false;
     try {
       final res = await c.auth.signInWithPassword(email: email, password: mdp);
@@ -71,6 +70,38 @@ class SupabaseService {
     } catch (e) {
       debugPrint('❌ SupabaseService.reinitialiserMotDePasse : $e');
       return 'Échec d\'envoi — vérifiez l\'email et la connexion';
+    }
+  }
+
+  /// Modification email / mot de passe d'un compte via l'Edge Function
+  /// `admin-update-user` (mission §2.5/§7, exigences #7/#8). La service_role
+  /// reste côté serveur ; l'app n'envoie que l'UID + les champs à changer.
+  /// Retourne null si OK, sinon un message d'erreur.
+  static Future<String?> modifierCompteUtilisateur({
+    required String userId,
+    String? email,
+    String? nouveauMotDePasse,
+  }) async {
+    final c = client;
+    if (c == null) return 'Cloud non configuré';
+    try {
+      final res = await c.functions.invoke(
+        'admin-update-user',
+        body: {
+          'userId': userId,
+          if (email != null) 'email': email,
+          if (nouveauMotDePasse != null) 'password': nouveauMotDePasse,
+        },
+      );
+      final data = res.data;
+      if (data is Map && data['ok'] == true) return null;
+      final erreur = data is Map
+          ? data['erreur']?.toString()
+          : 'Réponse inattendue (${res.status})';
+      return erreur ?? 'Échec de la mise à jour';
+    } catch (e) {
+      debugPrint('❌ SupabaseService.modifierCompteUtilisateur : $e');
+      return 'Échec — fonction non déployée ou hors-ligne ?';
     }
   }
 

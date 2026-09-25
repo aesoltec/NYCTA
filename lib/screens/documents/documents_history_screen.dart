@@ -40,6 +40,57 @@ class _LigneDocument extends StatelessWidget {
   final DocumentBati doc;
   const _LigneDocument({required this.doc});
 
+  static String _libelleStatut(String statut) => switch (statut) {
+        'brouillon' => 'BROUILLON',
+        'paye' => 'PAYÉ',
+        'annule' => 'ANNULÉ',
+        _ => statut.toUpperCase(),
+      };
+
+  static Color _couleurStatut(String statut) => switch (statut) {
+        'paye' => const Color(0xFF3E9D8F),
+        'annule' => const Color(0xFFC62828),
+        _ => const Color(0xFFB26A00),
+      };
+
+  static Future<void> _annuler(
+      BuildContext context, Store store, String numero) async {
+    final ctrl = TextEditingController();
+    final motif = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        scrollable: true,
+        title: const Text('Annuler ce document ?'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLines: 2,
+          decoration: const InputDecoration(
+              labelText: 'Motif (obligatoire)',
+              helperText: 'Le document reste lisible avec son motif'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Retour')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(
+                ctx, ctrl.text.trim().isEmpty ? null : ctrl.text.trim()),
+            child: const Text('Annuler le document'),
+          ),
+        ],
+      ),
+    );
+    if (motif == null || !context.mounted) return;
+    final erreur = await store.annulerDocument(numero, motif);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            erreur == null ? 'Document annulé' : '⚠️ $erreur')));
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = context.read<Store>();
@@ -50,11 +101,15 @@ class _LigneDocument extends StatelessWidget {
       TypeDocument.ticketCaisse => const Color(0xFF00897B),
       TypeDocument.bonLivraison => const Color(0xFF3E9D8F),
     };
-    // Validation manager : un brouillon vendeur attend sa validation.
-    final aValider = doc.statut != 'emis' &&
+    // Workflow de validation (mission §2.9) : brouillon → émis →
+    // payé, annulation motivée. Qui fait quoi : voir MATRICE_PERMISSIONS.
+    final aValider = doc.statut == 'brouillon' &&
         (store.role == Role.admin ||
             store.role == Role.gerant ||
             store.role == Role.comptable);
+    final aPayer = doc.statut == 'emis' && store.peut(Permission.gererDocuments);
+    final aAnnuler = (doc.statut == 'brouillon' || doc.statut == 'emis') &&
+        (store.role == Role.admin || store.role == Role.gerant);
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -80,14 +135,14 @@ class _LigneDocument extends StatelessWidget {
               margin: const EdgeInsets.only(left: 6),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: const Color(0xFFD97706).withValues(alpha: 0.12),
+                color: _couleurStatut(doc.statut).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Text('BROUILLON',
+              child: Text(_libelleStatut(doc.statut),
                   style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFFB26A00))),
+                      color: _couleurStatut(doc.statut))),
             ),
         ]),
         subtitle: Text(
@@ -130,6 +185,37 @@ class _LigneDocument extends StatelessWidget {
                       style: TextStyle(
                           fontSize: 11, fontWeight: FontWeight.w800,
                           color: Color(0xFF3E9D8F))),
+                ),
+              ),
+            if (aPayer)
+              InkWell(
+                onTap: () async {
+                  final erreur =
+                      await store.payerDocument(doc.numero);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(erreur == null
+                              ? '✅ Marqué payé'
+                              : '⚠️ $erreur')));
+                },
+                child: const Padding(
+                  padding: EdgeInsets.only(top: 2),
+                  child: Text('Marquer payé',
+                      style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w800,
+                          color: Color(0xFF3D6FB4))),
+                ),
+              ),
+            if (aAnnuler)
+              InkWell(
+                onTap: () => _annuler(context, store, doc.numero),
+                child: const Padding(
+                  padding: EdgeInsets.only(top: 2),
+                  child: Text('Annuler',
+                      style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w800,
+                          color: Colors.redAccent)),
                 ),
               ),
           ],
