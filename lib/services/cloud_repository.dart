@@ -793,10 +793,22 @@ class CloudRepository {
       });
 
   static Future<void> upsertTarif(Tarif t) => _silencieux(() async {
-        await _c!.from('tarifs').upsert({
+        final base = <String, dynamic>{
           'id': t.id, 'libelle': t.libelle, 'categorie': t.categorie,
           'prix': t.prix, 'description': t.description, 'actif': t.actif,
-        });
+        };
+        try {
+          await _c!.from('tarifs').upsert({
+            ...base,
+            // Galerie articles (point 36) : base non migrée → repli.
+            'images': [
+              for (final chemin in t.images.take(Tarif.maxImages))
+                await _urlProduits(chemin),
+            ],
+          });
+        } catch (_) {
+          await _c!.from('tarifs').upsert(base);
+        }
       });
 
   /// Achat fournisseur : en-tête + lignes JSONB (même pattern que les

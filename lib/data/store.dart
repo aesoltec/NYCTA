@@ -362,6 +362,10 @@ class Store extends ChangeNotifier {
             prix: (r['prix'] as num?)?.toDouble() ?? 0,
             description: r['description']?.toString() ?? '',
             actif: r['actif'] != false,
+            images: [
+              for (final u in (r['images'] as List? ?? const []))
+                u.toString(),
+            ],
           ),
       ]);
     // Achats fournisseurs (Phase 2) — lignes stockées en JSONB.
@@ -647,8 +651,11 @@ class Store extends ChangeNotifier {
     final n = nom.trim();
     if (n.length < 2) return 'Nom trop court (2 caractères min.)';
     final liste = produit ? catsProduit : catsCharge;
-    if (liste.any((c) => c.toLowerCase() == n.toLowerCase())) {
-      return 'Cette catégorie existe déjà';
+    // Anti-doublon insensible casse + accents (point 35) : « Électricité »
+    // existe déjà si « electricite » est saisie — on garde le canonique.
+    final existant = liste.where((c) => memeCategorie(c, n)).firstOrNull;
+    if (existant != null) {
+      return 'Cette catégorie existe déjà (« $existant »)';
     }
     liste.add(n);
     notifyListeners();
@@ -661,7 +668,7 @@ class Store extends ChangeNotifier {
     final liste = produit ? catsProduit : catsCharge;
     final n = nouveau.trim();
     if (n.length < 2) return 'Nom trop court';
-    if (liste.any((c) => c != ancien && c.toLowerCase() == n.toLowerCase())) {
+    if (liste.any((c) => c != ancien && memeCategorie(c, n))) {
       return 'Cette catégorie existe déjà';
     }
     final i = liste.indexOf(ancien);
@@ -974,12 +981,13 @@ class Store extends ChangeNotifier {
     if (e != null) return e;
     if (t.prix <= 0) return 'Le prix doit être > 0';
     if (catalogue.any((x) =>
-        x.actif && x.libelle.toLowerCase() == t.libelle.trim().toLowerCase())) {
+        x.actif && memeCategorie(x.libelle, t.libelle.trim()))) {
       return 'Un article du même nom existe déjà';
     }
     final tarif = Tarif(
       id: _nid(), libelle: t.libelle, categorie: t.categorie,
       prix: t.prix, description: t.description, actif: t.actif,
+      images: t.images,
     );
     catalogue.add(tarif);
     notifyListeners();
@@ -1844,6 +1852,31 @@ class Store extends ChangeNotifier {
   bool _memeLibelle(String a, String b) =>
       a.trim().toLowerCase() == b.trim().toLowerCase();
 
+  /// Normalisation anti-doublon (point 35) : casse + accents
+  /// (É=E, è=e, ç=c…) — les catégories « Électricité » et
+  /// « electricite » sont le même doublon.
+  static const _accents = {
+    'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a',
+    'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
+    'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i',
+    'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
+    'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
+    'ý': 'y', 'ÿ': 'y', 'ç': 'c', 'ñ': 'n',
+    'À': 'A', 'Á': 'A', 'Â': 'A', 'Ã': 'A', 'Ä': 'A', 'Å': 'A',
+    'È': 'E', 'É': 'E', 'Ê': 'E', 'Ë': 'E',
+    'Ì': 'I', 'Í': 'I', 'Î': 'I', 'Ï': 'I',
+    'Ò': 'O', 'Ó': 'O', 'Ô': 'O', 'Õ': 'O', 'Ö': 'O',
+    'Ù': 'U', 'Ú': 'U', 'Û': 'U', 'Ü': 'U',
+    'Ý': 'Y', 'Ÿ': 'Y', 'Ç': 'C', 'Ñ': 'N',
+  };
+
+  static String sansAccents(String s) =>
+      s.split('').map((c) => _accents[c] ?? c).join();
+
+  static bool memeCategorie(String a, String b) =>
+      sansAccents(a.trim().toLowerCase()) ==
+      sansAccents(b.trim().toLowerCase());
+
   /// Ajout produit : retourne un message d'erreur si doublon (même libellé
   /// dans la même boutique), null si OK. L'appelant n'ajoute RIEN tant que
   /// l'erreur est non-nulle — c'est ce qui empêchait les doublons lors des
@@ -1972,6 +2005,7 @@ class Store extends ChangeNotifier {
   Map<String, dynamic> _payloadTarif(Tarif t) => {
         'id': t.id, 'libelle': t.libelle, 'categorie': t.categorie,
         'prix': t.prix, 'description': t.description, 'actif': t.actif,
+        'images': t.images,
       };
 
   /// Décrémente le stock pour chaque ligne dont le libellé correspond à un
@@ -2661,7 +2695,8 @@ class Store extends ChangeNotifier {
         'catalogue': [
           for (final t in catalogue)
             {'id': t.id, 'libelle': t.libelle, 'categorie': t.categorie,
-             'prix': t.prix, 'description': t.description, 'actif': t.actif},
+             'prix': t.prix, 'description': t.description, 'actif': t.actif,
+             'images': t.images},
         ],
         'feedbacks': [
           for (final f in feedbacks)
@@ -2870,6 +2905,10 @@ class Store extends ChangeNotifier {
             prix: (t['prix'] as num?)?.toDouble() ?? 0,
             description: t['description']?.toString() ?? '',
             actif: t['actif'] != false,
+            images: [
+              for (final u in (t['images'] as List? ?? const []))
+                u.toString(),
+            ],
           ),
       ]);
     feedbacks

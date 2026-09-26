@@ -39,7 +39,7 @@
 | 31 | Export + filtres Comptabilité | ✅ | compta_screen.dart sur FiltrePanel (journal + recherche + période) + exports journal/balance PDF/Excel/CSV ; ecrans_test | 2026-09-26 |
 | 32 | Filtres Statistiques & graphiques | ✅ | stats_screen.dart sur FiltrePanel (activité + période, seaux jour/semaine/mois) ; stats_test.dart 3/3 | 2026-09-26 |
 | 33 | Export PDF/Excel Statistiques | ✅ | Menu export vue filtrée (série + par activité + total, PDF/Excel/CSV) | 2026-09-26 |
-| 34 | Filtres Tarifs & catégories | ⬜ | — | — |
-| 35 | Formulaire catégorie connecté + anti-doublon | ⬜ | — | — |
-| 36 | Multi-images articles (max 05) | ⬜ | — | — |
+| 34 | Filtres Tarifs & catégories | ✅ | tarifs_screen.dart sur FiltrePanel (recherche + dropdown catégories catalogue) ; tarifs_test.dart | 2026-09-26 |
+| 35 | Formulaire catégorie connecté + anti-doublon | ✅ | Autocomplete (module ∪ catalogue, casse+accents via Store.sansAccents/memeCategorie) + création auto transactionnelle ; tarifs_test.dart 7/7 | 2026-09-26 |
+| 36 | Multi-images articles (max 05) | ✅ | Tarif.images + galerie formulaire + vignette liste + cloud bucket `produits` (repli) + SQL tarifs.images + roundtrip test | 2026-09-26 |
 | 37 | Réorganiser menu onglet Plus | ⬜ | — | — |

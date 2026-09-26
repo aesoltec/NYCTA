@@ -426,6 +426,7 @@ create table if not exists public.tarifs (
   prix        numeric(15,2) not null check (prix >= 0),
   description text default '',
   actif       boolean not null default true,
+  images      jsonb not null default '[]'::jsonb, -- galerie (max 05)
   created_at  timestamptz not null default now()
 );
 

@@ -181,4 +181,12 @@ alter table public.clients
 alter table public.clients
   add column if not exists logo_path text;
 
+-- ---------------------------------------------------------------------------
+-- Galerie articles catalogue (point 36) : colonne JSON (bucket
+-- « produits » partagé avec les produits — mêmes policies).
+-- Idempotent : rejouable sur base existante.
+-- ---------------------------------------------------------------------------
+alter table public.tarifs
+  add column if not exists images jsonb not null default '[]'::jsonb;
+
 -- FIN DE LA MIGRATION — suite : supabase_fonctions_rls.sql

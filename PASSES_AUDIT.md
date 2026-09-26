@@ -233,3 +233,15 @@ Décisions SYSCOHADA (ADR) : documents commerciaux ne postent PAS (évite double
 8. Analyze ✅ — 0 erreur, 0 warning nouveau.
 9. Tests ✅ — `stats_test.dart` 3/3 (filtre, seaux, écran) ; suite 141/141.
 10. Contre-expertise finale ✅ — période vide → graphiques « Pas de données » + totaux à 0, pas de crash (division protégée).
+
+### Point 34/35/36 — Tarifs & articles (tarif.dart, store.dart, cloud_repository.dart, tarifs_screen.dart, SQL)
+1. Fonctionnelle ✅ — FiltrePanel (recherche + catégorie), Autocomplete connecté, création auto, galerie max 05 + vignette.
+2. Métier ✅ — anti-doublon casse+accents (`sansAccents`/`memeCategorie`) sur catégories ET libellés articles ; canonique conservé ; création catégorie APRÈS succès article (jamais d'orpheline).
+3. Contre-expertise ✅ — `_memeLibelle` (produits/partenaires) inchangé (hors périmètre) ; `majTarif` conserve images via formulaire ; upsert avec repli base non migrée.
+4. Sécurité ✅ — bucket `produits` partagé (policies existantes) ; aucune RLS touchée.
+5. Overflow ✅ — panel + `Autocomplete` overlay + galerie horizontale 76px.
+6. Cycle de vie ✅ — contrôleurs disposés ; `mounted` après awaits ; `pickImages` max restant.
+7. Persistance ✅ — modèle + payload + toJson + 2 loaders + cloud + SQL idempotent + `apply_all` régénéré.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — `tarifs_test.dart` 7/7 (accents, dedup, roundtrip, liste, formulaire+Autocomplete) ; suite 148/148.
+10. Contre-expertise finale ✅ — table parallel-strings remplacée par `Map` explicite après échec test (`Alectricite`) : le test a fait son travail.
