@@ -4,8 +4,8 @@
 |---|-------|--------|--------|------|
 | 1 | Regrouper SQL en supabase_schema.sql + supabase_migration.sql + supabase_fonctions_rls.sql | ✅ | database/ (582+148+944 lignes) + supabase_apply_all.sql (1540, généré) + supabase_verify.sql ; tests/analyze verts | 2026-09-26 |
 | 2 | Supprimer fichiers de migration obsolètes | ✅ | 13 fichiers supprimés (git) ; database/ = 6 fichiers utiles | 2026-09-26 |
-| 3 | Déplacer bouton Journal → onglet Plus | ⬜ | — | — |
-| 4 | Remplacer place Journal par bouton Achat | ⬜ | — | — |
+| 3 | Déplacer bouton Journal → onglet Plus | ✅ | app_shell.dart:85-91 (AchatListScreen) + menu_screen.dart:43-50 (tuile Journal) ; parcours_test vert | 2026-09-26 |
+| 4 | Remplacer place Journal par bouton Achat | ✅ | app_shell.dart:244-248 (destination Achats) ; tuile dashboard existante | 2026-09-26 |
 | 5 | Export PDF/Excel/CSV onglet Achat | ⬜ | — | — |
 | 6 | Filtres période/intervalle/catégorie/sous-catégorie Journal | ⬜ | — | — |
 | 7 | Corriger bug impression/export PDF vide | ⬜ | — | — |

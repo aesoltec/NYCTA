@@ -61,11 +61,15 @@ void main() {
     await tester.tap(find.text('Valider la vente'));
     await tester.pumpAndSettle();
 
-    // 4. Retour dashboard, vente visible au journal (onglet Journal).
+    // 4. Retour dashboard, vente visible via Plus → Journal des ventes.
     await tester.scrollUntilVisible(
         find.text('Nouvelle opération'), 400);
     expect(find.text('Nouvelle opération'), findsOneWidget);
-    await tester.tap(find.text('Journal'));
+    await tester.tap(find.text('Plus'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+        find.text('Journal des ventes'), 400);
+    await tester.tap(find.text('Journal des ventes'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Test intégration'), findsOneWidget);
   });

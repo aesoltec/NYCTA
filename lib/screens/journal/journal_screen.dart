@@ -43,7 +43,13 @@ class _JournalScreenState extends State<JournalScreen> {
               (t.clientNom ?? '').toLowerCase().contains(_recherche.toLowerCase()))
           .toList();
     }
-    return Column(children: [
+    return Scaffold(
+      // Scaffold propre : cet écran est affiché à la fois comme onglet
+      // (corps sous le Scaffold d'AppShell) et comme route poussée depuis
+      // le menu « Plus » — sans Scaffold propre, TextField/ListTile n'ont
+      // aucun ancêtre Material en mode route (assertion debug).
+      appBar: AppBar(title: const Text('Journal des ventes')),
+      body: Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
         child: TextField(
@@ -114,9 +120,10 @@ class _JournalScreenState extends State<JournalScreen> {
                     onEncaisser: () => _encaisser(context, txs[i]),
                   ),
                 ),
+          ),
         ),
-      ),
-    ]);
+      ]),
+    );
   }
 
   void _modifier(BuildContext context, Tx tx) {

@@ -21,6 +21,7 @@ import '../documents/documents_history_screen.dart';
 import '../documents/documents_screen.dart';
 import '../backup/backup_screen.dart';
 import '../compta/compta_screen.dart';
+import '../journal/journal_screen.dart';
 import '../partenaires/partenaires_screen.dart';
 import '../relances/relances_screen.dart';
 import '../rapports/analytique_screen.dart';
@@ -82,6 +83,15 @@ class MenuScreen extends StatelessWidget {
             ),
           ]),
         ),
+        if (store.role != Role.partenaire)
+          _Tuille(
+            icone: Icons.receipt_long_outlined,
+            couleur: const Color(0xFF37474F),
+            titre: 'Journal des ventes',
+            sousTitre:
+                '${store.txBoutique.length} opération(s) · filtres, recherche, corrections',
+            destination: const JournalScreen(),
+          ),
         if (store.peut(Permission.gererPartenaires) || store.peut(Permission.cloturerMois))
           _Tuille(
             icone: Icons.handshake_outlined,
@@ -334,14 +344,16 @@ class _Tuille extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
+    // Material (et non Container coloré) : l'encre du ListTile a besoin
+    // d'un ancêtre Material, sinon assertion debug + splash invisible.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 10, offset: Offset(0, 4))],
-      ),
-      child: ListTile(
+        elevation: 2,
+        shadowColor: const Color(0x10000000),
+        child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         leading: Container(
           padding: const EdgeInsets.all(10),
@@ -357,6 +369,7 @@ class _Tuille extends StatelessWidget {
         trailing: const Icon(Icons.chevron_right),
         onTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => destination)),
+        ),
       ),
     );
   }

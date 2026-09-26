@@ -6,7 +6,7 @@ import '../../services/sync_service.dart';
 import '../config/synchronisation_screen.dart';
 import '../charges/charges_screen.dart';
 import '../dashboard/dashboard_screen.dart';
-import '../journal/journal_screen.dart';
+import '../achat/achat_list_screen.dart';
 import '../menu/menu_screen.dart';
 import '../stock/stock_screen.dart';
 import '../config/config_screen.dart';
@@ -14,8 +14,8 @@ import '../../models/enums.dart';
 import '../partenaire/partner_home_screen.dart';
 
 /// Coquille : NavigationBar 5 onglets + sélecteur multi-boutiques.
-/// Les modules secondaires (Partenaires, Trésorerie, Rapports,
-/// Documents, Configuration) sont dans l'onglet « Plus ».
+/// Accueil, Achats, Stock, Dépenses en accès direct ; le Journal et les
+/// modules secondaires sont dans l'onglet « Plus ».
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
   @override
@@ -84,7 +84,7 @@ class _AppShellState extends State<AppShell> {
 
   static const _pages = [
     DashboardScreen(),
-    JournalScreen(),
+    AchatListScreen(),
     StockScreen(),
     ChargesScreen(),
     MenuScreen(),
@@ -244,8 +244,8 @@ class _AppShellState extends State<AppShell> {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined),
               selectedIcon: Icon(Icons.home_rounded), label: 'Accueil'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_outlined),
-              selectedIcon: Icon(Icons.receipt_long_rounded), label: 'Journal'),
+          NavigationDestination(icon: Icon(Icons.shopping_cart_outlined),
+              selectedIcon: Icon(Icons.shopping_cart_rounded), label: 'Achats'),
           NavigationDestination(icon: Icon(Icons.inventory_2_outlined),
               selectedIcon: Icon(Icons.inventory_2_rounded), label: 'Stock'),
           NavigationDestination(icon: Icon(Icons.money_off_outlined),
