@@ -123,6 +123,10 @@ class Store extends ChangeNotifier {
             stock: (r['quantite_stock'] as num?)?.toInt() ?? 0,
             seuil: (r['seuil_alerte'] as num?)?.toInt() ?? 3,
             imagePath: r['image_path']?.toString(),
+            images: [
+              for (final u in (r['images'] as List? ?? const []))
+                u.toString(),
+            ],
           ),
       ]);
     partenaires
@@ -668,6 +672,7 @@ class Store extends ChangeNotifier {
             id: p.id, boutiqueId: p.boutiqueId, libelle: p.libelle,
             categorie: n, prixAchat: p.prixAchat, prixVente: p.prixVente,
             stock: p.stock, seuil: p.seuil, imagePath: p.imagePath,
+            images: p.images,
           );
         }
       }
@@ -1845,6 +1850,7 @@ class Store extends ChangeNotifier {
       id: _nid(), boutiqueId: p.boutiqueId, libelle: p.libelle.trim(),
       categorie: p.categorie, prixAchat: p.prixAchat, prixVente: p.prixVente,
       stock: p.stock, seuil: p.seuil, imagePath: p.imagePath,
+      images: p.images,
     );
     produits.add(produit);
     notifyListeners();
@@ -2659,7 +2665,7 @@ class Store extends ChangeNotifier {
             {'id': p.id, 'boutique_id': p.boutiqueId, 'libelle': p.libelle,
              'categorie': p.categorie, 'prix_achat': p.prixAchat,
              'prix_vente': p.prixVente, 'stock': p.stock, 'seuil': p.seuil,
-             'image_path': p.imagePath},
+             'image_path': p.imagePath, 'images': p.images},
         ],
         'partenaires': [
           for (final p in partenaires)
@@ -2886,6 +2892,10 @@ class Store extends ChangeNotifier {
             stock: (p['stock'] as num?)?.toInt() ?? 0,
             seuil: (p['seuil'] as num?)?.toInt() ?? 3,
             imagePath: p['image_path']?.toString(),
+            images: [
+              for (final u in (p['images'] as List? ?? const []))
+                u.toString(),
+            ],
           ),
       ]);
     partenaires

@@ -204,7 +204,7 @@ class CloudRepository {
 
   // ---------- Écritures en direct ----------
   static Future<void> upsertProduit(Produit p) => _silencieux(() async {
-        await _c!.from('produits').upsert({
+        final base = <String, dynamic>{
           'id': p.id, 'boutique_id': p.boutiqueId, 'libelle': p.libelle,
           'categorie': p.categorie, 'prix_achat': p.prixAchat,
           'prix_vente': p.prixVente, 'quantite_stock': p.stock,
@@ -212,7 +212,21 @@ class CloudRepository {
           // En production : l'image locale est uploadée vers Supabase
           // Storage — le chemin local ne serait visible que sur cet appareil.
           'image_path': await _urlMedia(p.imagePath), 'actif': true,
-        });
+        };
+        try {
+          await _c!.from('produits').upsert({
+            ...base,
+            // Galerie multi-images (bucket « produits », max 05) : URLs
+            // publiques, rechargées au démarrage (persistance garantie).
+            'images': [
+              for (final chemin in p.images.take(Produit.maxImages))
+                await _urlProduits(chemin),
+            ],
+          });
+        } catch (_) {
+          // Base non migrée (colonne absente) : repli sans la colonne.
+          await _c!.from('produits').upsert(base);
+        }
       });
 
   /// Archivage (soft delete) : chargerTout() ne recharge que les produits
@@ -226,6 +240,23 @@ class CloudRepository {
         // Soft delete : l'historique (transactions, partages) reste lisible.
         await _c!.from('partenaires').update({'actif': false}).eq('id', id);
       });
+
+  /// Convertit un chemin local en URL publique du bucket « produits »
+  /// (photos catalogue, galerie max 05 — voir guide de déploiement).
+  /// Chemins déjà distants (http) renvoyés tels quels.
+  static Future<String?> _urlProduits(String? cheminLocal) async {
+    if (cheminLocal == null || cheminLocal.startsWith('http')) {
+      return cheminLocal;
+    }
+    if (!actif || !File(cheminLocal).existsSync()) return cheminLocal;
+    try {
+      final nom = 'produits/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      await _c!.storage.from('produits').upload(nom, File(cheminLocal));
+      return _c!.storage.from('produits').getPublicUrl(nom);
+    } catch (_) {
+      return cheminLocal; // upload impossible : on garde le chemin local
+    }
+  }
 
   /// Convertit un chemin local en URL publique Supabase Storage
   /// (bucket « media », à créer — voir guide de déploiement).

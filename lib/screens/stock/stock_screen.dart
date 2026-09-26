@@ -395,7 +395,9 @@ class _FormProduitState extends State<_FormProduit> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _libelle, _pa, _pv, _stock, _seuil;
   late String _categorie;
-  String? _imagePath;
+  // Galerie (max 05) : _imagePath historique = première image.
+  final List<String> _images = [];
+  String? get _imagePath => _images.isEmpty ? null : _images.first;
   bool _sauvegardeEnCours = false;
 
   @override
@@ -411,7 +413,16 @@ class _FormProduitState extends State<_FormProduit> {
     // fiche — toute correction repartait de zéro et favorisait les doublons.
     _seuil = TextEditingController(text: p == null ? '' : '${p.seuil}');
     _categorie = p?.categorie ?? ''; // ajusté dans build selon la liste dynamique
-    _imagePath = p?.imagePath;
+    if (p != null) {
+      // Fusionne l'ancienne photo unique + la galerie (dédupliquées).
+      final vus = <String>{};
+      for (final u in [p.imagePath, ...p.images]) {
+        if (u != null && u.isNotEmpty && vus.add(u)) {
+          _images.add(u);
+        }
+        if (_images.length >= Produit.maxImages) break;
+      }
+    }
   }
 
   @override
@@ -439,32 +450,91 @@ class _FormProduitState extends State<_FormProduit> {
         Text(widget.produit == null ? 'Nouveau produit' : 'Modifier le produit',
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 16),
+        // Galerie (max 05, optionnelle) : ajout, aperçu, ordre (tap =
+        // photo principale), suppression. Stockée dans Supabase Storage
+        // (bucket « produits ») + colonne JSON — survit au redémarrage.
+        if (_images.isNotEmpty)
+          SizedBox(
+            height: 76,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _images.length,
+              separatorBuilder: (_, __) =>
+                  const SizedBox(width: 8),
+              itemBuilder: (_, i) => Stack(children: [
+                GestureDetector(
+                  onTap: () => setState(() {
+                    final u = _images.removeAt(i);
+                    _images.insert(0, u);
+                  }),
+                  child: AppImage(_images[i],
+                      size: 68,
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: GestureDetector(
+                    onTap: () =>
+                        setState(() => _images.removeAt(i)),
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: Colors.redAccent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close,
+                          size: 14, color: Colors.white),
+                    ),
+                  ),
+                ),
+                if (i == 0)
+                  const Positioned(
+                    left: 4,
+                    bottom: 4,
+                    child: Icon(Icons.star_rounded,
+                        size: 16, color: Colors.amber),
+                  ),
+              ]),
+            ),
+          ),
+        if (_images.isNotEmpty) const SizedBox(height: 8),
         Row(children: [
-          AppImage(_imagePath, size: 64, borderRadius: BorderRadius.circular(14)),
-          const SizedBox(width: 12),
           Expanded(
             child: Wrap(spacing: 8, runSpacing: 8, children: [
               OutlinedButton.icon(
                 icon: const Icon(Icons.photo_library_outlined, size: 18),
-                label: const Text('Galerie'),
-                onPressed: () async {
-                  final p = await MediaService.pickImage();
-                  if (p != null) setState(() => _imagePath = p);
-                },
+                label: Text(
+                    'Galerie (${_images.length}/${Produit.maxImages})'),
+                onPressed: _images.length >= Produit.maxImages
+                    ? null
+                    : () async {
+                        final ajouts =
+                            await MediaService.pickImages(
+                                max: Produit.maxImages -
+                                    _images.length);
+                        if (ajouts.isNotEmpty) {
+                          setState(() => _images.addAll(ajouts));
+                        }
+                      },
               ),
               OutlinedButton.icon(
                 icon: const Icon(Icons.photo_camera_outlined, size: 18),
                 label: const Text('Photo'),
                 onPressed: () async {
                   final p = await MediaService.pickImage(camera: true);
-                  if (p != null) setState(() => _imagePath = p);
+                  if (p != null &&
+                      _images.length < Produit.maxImages) {
+                    setState(() => _images.add(p));
+                  }
                 },
               ),
-              if ((_imagePath ?? '').isNotEmpty)
+              if (_images.isNotEmpty)
                 TextButton.icon(
                   icon: const Icon(Icons.close, size: 18),
-                  label: const Text('Retirer'),
-                  onPressed: () => setState(() => _imagePath = null),
+                  label: const Text('Tout retirer'),
+                  onPressed: () =>
+                      setState(() => _images.clear()),
                 ),
             ]),
           ),
@@ -731,7 +801,8 @@ class _FormProduitState extends State<_FormProduit> {
         prixVente: pv,
         stock: int.parse(_stock.text.trim()),
         seuil: seuil,
-        imagePath: (_imagePath ?? '').isEmpty ? null : _imagePath,
+        imagePath: _imagePath,
+        images: [..._images],
       );
       final String? erreur;
       if (widget.produit == null) {

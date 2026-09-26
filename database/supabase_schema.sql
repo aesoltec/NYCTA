@@ -161,6 +161,7 @@ create table if not exists public.produits (
   quantite_stock  integer not null default 0,
   seuil_alerte    integer not null default 3,
   image_path      text,                        -- URL bucket « media »
+  images          jsonb not null default '[]'::jsonb, -- galerie (max 05)
   actif           boolean not null default true,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()

@@ -26,6 +26,24 @@ class MediaService {
     }
   }
 
+  /// Galerie multi-images (max 05, mission §3.2) : sélection galerie
+  /// uniquement (caméra = une seule photo), copie stable dans l'app.
+  static Future<List<String>> pickImages({int max = 5}) async {
+    try {
+      final xs = await _picker.pickMultiImage(
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 82,
+      );
+      final chemins = <String>[];
+      for (final x in xs.take(max)) {
+        chemins.add(await copierDansApp(File(x.path)));
+      }
+      return chemins;
+    } catch (_) {
+      return const []; // permission refusée : rien, pas d'erreur
+    }
+  }
   /// Copie un fichier image vers <docs>/images/ — chemin stable, persistant.
   static Future<String> copierDansApp(File source) async {
     final dir = await getApplicationDocumentsDirectory();

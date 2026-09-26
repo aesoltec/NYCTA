@@ -145,4 +145,27 @@ alter table public.charges
 alter table public.documents
   alter column created_by set default auth.uid();
 
+-- ---------------------------------------------------------------------------
+-- Galerie produits (mission §3.2) : colonne JSON + bucket public.
+-- Idempotent : rejouable sur base existante.
+-- ---------------------------------------------------------------------------
+alter table public.produits
+  add column if not exists images jsonb not null default '[]'::jsonb;
+
+insert into storage.buckets (id, name, public)
+values ('produits', 'produits', true)
+on conflict (id) do nothing;
+
+drop policy if exists "produits lecture publique" on storage.objects;
+create policy "produits lecture publique" on storage.objects
+  for select to public using (bucket_id = 'produits');
+drop policy if exists "produits ecriture" on storage.objects;
+create policy "produits ecriture" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'produits');
+drop policy if exists "produits suppression" on storage.objects;
+create policy "produits suppression" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'produits' and public.user_role() in ('admin','gerant'));
+
 -- FIN DE LA MIGRATION — suite : supabase_fonctions_rls.sql
