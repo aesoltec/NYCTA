@@ -29,9 +29,9 @@
 | 23 | Filtre + recherche Catégories | ✅ | categories_screen.dart (recherche nom par onglet, type = onglets Produits/Charges ; statut/parent/code absents du modèle, non inventés) ; ecrans_test 14/14 + suite 118/118 | 2026-09-26 |
 | 23bis | Modèle catégories String → table dédiée | ⬜ (🟢, dette fonctionnelle, avant v1.10.0) | Bloqué : modèle actuel = listes de `String` (pas de statut/parent/code) ; migration vers table SQL + RLS à planifier hors mission | — |
 | 24 | Audit formulaire vente | ✅ | nouvelle_transaction_screen.dart (remise + mode paiement ajoutés, net = brut − remise, garde mounted) + journal suffixes ; vente_form_test.dart 6/6 + suite 124/124 | 2026-09-26 |
-| 25 | Filtres + export Achat et fournisseurs | ⬜ | — | — |
-| 25bis | Extraction FiltrePanel commun | ⬜ (🟠, À FAIRE AU point 25, pas après — engagement) | Bloqué : spéc en PASSES_AUDIT (Décisions) ; cible points 25-36 | — |
-| 26 | Filtre spécialité + recherche + export Fournisseurs | ⬜ | — | — |
+| 25 | Filtres + export Achat et fournisseurs | ✅ | achat_list_screen.dart sur FiltrePanel (statuts + recherche + NOUVEAU filtre période Début/Fin) ; export point 5 inchangé ; suite 128/128 | 2026-09-26 |
+| 25bis | Extraction FiltrePanel commun | ✅ | widgets/filtre_panel.dart (recherche, chips, dropdown, dates, min/max, LayoutBuilder) ; filtre_panel_test.dart 3/3 ; migrés : Achat, Boutique, Catégories | 2026-09-26 |
+| 26 | Filtre spécialité + recherche + export Fournisseurs | ✅ | fournisseurs_screen.dart sur FiltrePanel (recherche nom/tél/spé + dropdown spécialités) + menu export PDF/Excel/CSV ; ecrans_test | 2026-09-26 |
 | 27 | Recherche + filtre Clients | ⬜ | — | — |
 | 28 | Champs clients étendus (RIB, RCCM, logo, coordonnées) | ⬜ | — | — |
 | 29 | Export Clients | ⬜ | — | — |

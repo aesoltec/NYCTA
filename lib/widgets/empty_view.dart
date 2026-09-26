@@ -16,9 +16,13 @@ class EmptyView extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        // Scroll plutôt qu'overflow : quand la zone disponible rétrécit
+        // (gros TextScaler + en-tête de filtres haut), le contenu défile
+        // au lieu de lever « RenderFlex overflowed ».
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             Icon(icon, size: 56, color: Colors.grey.shade400),
             const SizedBox(height: 12),
             Text(message,
@@ -32,7 +36,8 @@ class EmptyView extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
             ],
-          ],
+            ],
+          ),
         ),
       ),
     );

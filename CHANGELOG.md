@@ -20,7 +20,8 @@
 - Point 22 : Boutique — recherche nom/adresse + filtres statut/siège, fermées en lecture seule ; dettes 22bis (réouverture, 🟡) et 22ter (champs étendus, 🟢) tracées en MISSION_STATUS + CDC §8bis
 - Point 23 : Catégories — recherche nom par onglet (type = onglets) ; statut/parent/code hors modèle, non inventés
 - Point 24 : audit vente — remise (net = brut − remise) + mode de paiement, garde `mounted`, suffixes journal/export ; `vente_form_test.dart` 6/6
-- Tests : suite complète 124/124 verts ; `flutter analyze` 0 erreur
+- Batch 1 : FiltrePanel commun (25bis, testé 3/3, migré Achat/Boutique/Catégories) + filtre période Achat (25) + Fournisseurs recherche/spécialité/exports (26) + `EmptyView` scrollable (fix textscale 320@1.5x)
+- Tests : suite complète 128/128 verts ; `flutter analyze` 0 erreur
 
 ### Dette warnings `flutter analyze` (justification, 2026-09-26)
 Total 111 = 0 erreur + 69 warnings + 42 infos, aucun introduit comme nouvelle famille par le lot :

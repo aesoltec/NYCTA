@@ -4,23 +4,100 @@ import '../../core/validators.dart';
 import '../../data/store.dart';
 import '../../models/fournisseur.dart';
 
-class FournisseursScreen extends StatelessWidget {
+import '../../core/validators.dart';
+import '../../data/store.dart';
+import '../../models/fournisseur.dart';
+import '../../services/export_service.dart';
+import '../../widgets/filtre_panel.dart';
+
+/// Fournisseurs : recherche (nom, téléphone), filtre spécialité, exports.
+class FournisseursScreen extends StatefulWidget {
   const FournisseursScreen({super.key});
+
+  @override
+  State<FournisseursScreen> createState() => _FournisseursScreenState();
+}
+
+class _FournisseursScreenState extends State<FournisseursScreen> {
+  Map<String, dynamic> _filtres = const {};
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
+    // Spécialités existantes (distinctes, non vides) pour le dropdown.
+    final specialites = {
+      for (final f in store.fournisseurs)
+        if (f.specialite.trim().isNotEmpty) f.specialite.trim(),
+    }.toList()
+      ..sort();
+    var liste = store.fournisseurs.toList();
+    final spe = (_filtres['spe'] as String?) ?? '';
+    if (spe.isNotEmpty) {
+      liste = liste.where((f) => f.specialite.trim() == spe).toList();
+    }
+    final rech = ((_filtres['q'] as String?) ?? '').trim().toLowerCase();
+    if (rech.isNotEmpty) {
+      liste = liste
+          .where((f) =>
+              f.nom.toLowerCase().contains(rech) ||
+              f.telephone.toLowerCase().contains(rech) ||
+              f.specialite.toLowerCase().contains(rech))
+          .toList();
+    }
     return Scaffold(
-      appBar: AppBar(title: const Text('Fournisseurs')),
-      body: store.fournisseurs.isEmpty
-          ? const Center(child: Text('Aucun fournisseur enregistré',
-              style: TextStyle(color: Colors.grey)))
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-              itemCount: store.fournisseurs.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final f = store.fournisseurs[i];
+      appBar: AppBar(
+        title: const Text('Fournisseurs'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Exporter la vue filtrée',
+            icon: const Icon(Icons.ios_share_outlined),
+            onSelected: (f) => _exporter(context, store, liste, f),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                  value: 'pdf', child: Text('PDF (partage)')),
+              PopupMenuItem(
+                  value: 'xlsx', child: Text('Excel (.xlsx)')),
+              PopupMenuItem(
+                  value: 'csv', child: Text('CSV (Excel)')),
+            ],
+          ),
+        ],
+      ),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: FiltrePanel(
+            filtres: [
+              const FiltreConfig(
+                  cle: 'q',
+                  kind: FiltreKind.recherche,
+                  label: 'Rechercher (nom, téléphone)…'),
+              FiltreConfig(
+                  cle: 'spe',
+                  kind: FiltreKind.dropdown,
+                  label: 'Spécialité',
+                  options: [
+                    for (final s in specialites) (s, s),
+                  ]),
+            ],
+            valeurs: _filtres,
+            onFiltreChange: (m) => setState(() => _filtres = m),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Expanded(
+          child: liste.isEmpty
+              ? const Center(
+                  child: Text('Aucun fournisseur (filtre sans résultat)',
+                      style: TextStyle(color: Colors.grey)))
+              : ListView.separated(
+                  padding:
+                      const EdgeInsets.fromLTRB(16, 8, 16, 90),
+                  itemCount: liste.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(height: 8),
+                  itemBuilder: (_, i) {
+                    final f = liste[i];
                 return Container(
                   decoration: BoxDecoration(
                     color: Colors.white, borderRadius: BorderRadius.circular(14),
@@ -53,12 +130,53 @@ class FournisseursScreen extends StatelessWidget {
                 );
               },
             ),
+        ),
+      ]),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _form(context, store, null),
         icon: const Icon(Icons.add),
         label: const Text('Fournisseur'),
       ),
     );
+  }
+
+  Future<void> _exporter(BuildContext context, Store store,
+      List<Fournisseur> liste, String format) async {
+    const entetes = [
+      'Nom', 'Spécialité', 'Téléphone', 'Email', 'Adresse', 'Notes'
+    ];
+    final lignes = [
+      for (final f in liste)
+        [
+          f.nom,
+          f.specialite,
+          f.telephone,
+          f.email,
+          f.adresse,
+          f.notes,
+        ],
+    ];
+    final nom = 'fournisseurs_${liste.length}';
+    try {
+      switch (format) {
+        case 'pdf':
+          await ExportService.partagerPdf(nom,
+              titre: 'Fournisseurs',
+              sousTitre: '${liste.length} fournisseur(s)',
+              entetes: entetes,
+              lignes: lignes);
+        case 'xlsx':
+          await ExportService.partagerExcel(
+              nom, 'Fournisseurs', entetes, lignes);
+        default:
+          await ExportService.partagerCsv(nom, entetes, lignes);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
   }
 
   void _form(BuildContext context, Store store, Fournisseur? existant) {

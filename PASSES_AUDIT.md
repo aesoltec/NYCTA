@@ -142,3 +142,39 @@ Conformes sans changement : montant > 0 + dropdowns requis (`V.prix`, validateur
 - **ExportService non générique** : refus du refactor `<T>` en pleine mission (risque de régression sur 8 modules verts > gain nul côté métier). Le service actuel (PDF/Excel/CSV, BOM/`;`, vue filtrée/Tous) couvre le besoin. Décision validée.
 - **FiltrePanel commun** : extraction prévue AU point 25 (engagement tracé en MISSION_STATUS 25bis). Les écrans verts existants ne seront pas réécrits ; le panel servira aux points 25-36.
 - **Onglets Catégories mutuellement exclusifs** : Produits OU Charges (jamais les deux) — le filtre par type est l'onglet lui-même, la recherche s'applique à l'onglet actif uniquement.
+
+### Point 25bis — FiltrePanel commun (widgets/filtre_panel.dart)
+1. Fonctionnelle ✅ — 5 kinds (recherche, chips, dropdown, dates, min/max), map émise à chaque changement, valeurs initiales.
+2. Métier ✅ — aucune règle métier (pur UI), clés dates/minMax préfixées.
+3. Contre-expertise ✅ — `_emettre` envoie une copie (pas l'état interne) ; `dispose()` des contrôleurs.
+4. Sécurité ✅ — aucun accès données, aucune policy.
+5. Overflow ✅ — dates empilées < 560px (`LayoutBuilder`), chips en scroll horizontal, test 360px.
+6. Cycle de vie ✅ — `initState` copie les valeurs, `setState`+émission atomiques.
+7. Persistance ✅ — état éphémère volontaire.
+8. Analyze ✅ — 0 erreur, 0 warning.
+9. Tests ✅ — `filtre_panel_test.dart` 3/3 (callbacks, 360px, clés préfixées).
+10. Contre-expertise finale ✅ — valeurs parent non resynchronisées après init : acceptable (le panel est la source qui émet).
+
+### Point 25 — Filtres Achat (achat_list_screen.dart)
+1. Fonctionnelle ✅ — période Début/Fin ajoutée (pièce manquante du §3.13) ; statut+recherche conservés via panel.
+2. Métier ✅ — fin inclusive (23:59:59) ; export point 5 réutilise la même `liste` filtrée.
+3. Contre-expertise ✅ — migration vers panel sans changer libellés/options (tests inchangés verts).
+4. Sécurité ✅ — inchangée (lecture boutique, écriture rôles achats).
+5. Overflow ✅ — panel responsive ; régression textscale 320@1.5x détectée et corrigée à la racine (`EmptyView` scrollable).
+6. Cycle de vie ✅ — map `_filtres` immuable remplacée (`setState`), pas de mutation.
+7. Persistance ✅ — lecture seule.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — `ecrans_test` (menu export + recherche) + `textscale` 32/32 ; suite 128/128.
+10. Contre-expertise finale ✅ — export « Tous » ignore les filtres par design (nom + sous-titre l'indiquent).
+
+### Point 26 — Fournisseurs (fournisseurs_screen.dart)
+1. Fonctionnelle ✅ — recherche nom/tél/spécialité + dropdown spécialités distinctes + exports 3 formats.
+2. Métier ✅ — spécialités construites des données (pas de référentiel inventé) ; formulaire CRUD intact.
+3. Contre-expertise ✅ — dropdown vide si aucune spécialité (menu « Toutes » seul) : pas de crash.
+4. Sécurité ✅ — lecture globale pré-existante, écriture collaborateurs (matrice inchangée).
+5. Overflow ✅ — panel + carte existante (ellipsis, `mainAxisSize.min`).
+6. Cycle de vie ✅ — `context.mounted` sur export, `ctx.mounted` formulaire intacts.
+7. Persistance ✅ — lecture seule pour filtres/export.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — nouveau test widget (recherche + dropdown + export + vide) ; suite 128/128.
+10. Contre-expertise finale ✅ — vide initial (« Aucun fournisseur… » remplacé par vide filtré explicite) : formulé sans ambiguïté.

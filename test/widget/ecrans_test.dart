@@ -10,6 +10,7 @@ import 'package:pme_gestion_pro/screens/collab/messagerie_screen.dart';
 import 'package:pme_gestion_pro/screens/dashboard/dashboard_screen.dart';
 import 'package:pme_gestion_pro/screens/admin/boutiques_screen.dart';
 import 'package:pme_gestion_pro/screens/admin/categories_screen.dart';
+import 'package:pme_gestion_pro/screens/collab/fournisseurs_screen.dart';
 import 'package:pme_gestion_pro/screens/documents/documents_history_screen.dart';
 import 'package:pme_gestion_pro/screens/documents/documents_screen.dart';
 import 'package:pme_gestion_pro/screens/journal/journal_screen.dart';
@@ -177,6 +178,27 @@ void main() {
           findsOneWidget);
     });
 
+    testWidgets('Fournisseurs : recherche + spécialité + export',
+        (tester) async {
+      await _pomper(tester, const FournisseursScreen());
+      expect(find.text('Fournisseurs'), findsOneWidget);
+      expect(
+          find.widgetWithText(
+              TextField, 'Rechercher (nom, téléphone)…'),
+          findsOneWidget);
+      expect(find.text('Spécialité'), findsOneWidget);
+      expect(find.byTooltip('Exporter la vue filtrée'), findsOneWidget);
+      await tester.enterText(
+          find.widgetWithText(
+              TextField, 'Rechercher (nom, téléphone)…'),
+          'zzz-introuvable');
+      await tester.pumpAndSettle();
+      expect(
+          find.text('Aucun fournisseur (filtre sans résultat)'),
+          findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 700));
+    });
+
     testWidgets('Catégories : recherche par nom (onglet type)',
         (tester) async {
       await _pomper(tester, const CategoriesScreen());
@@ -194,9 +216,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Aucune catégorie (filtre sans résultat)'),
           findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 700));
     });
 
-    testWidgets('Analytique : onglets CA et Dépenses', (tester) async {      await tester.pumpWidget(MaterialApp(
+    testWidgets('Analytique : onglets CA et Dépenses', (tester) async {
+      await tester.pumpWidget(MaterialApp(
         home: ChangeNotifierProvider.value(
           value: Store(const AppUser(
               id: 'u', nom: 'Test', role: Role.admin)),
