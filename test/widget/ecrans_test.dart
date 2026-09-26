@@ -87,6 +87,7 @@ void main() {
     testWidgets('Charges : résumé du mois', (tester) async {
       await _pomper(tester, const ChargesScreen());
       expect(find.textContaining('Dépenses du mois'), findsOneWidget);
+      expect(find.text('Toutes catégories'), findsOneWidget);
     });
 
     testWidgets('Messagerie : écran complet', (tester) async {

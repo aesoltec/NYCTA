@@ -9,14 +9,36 @@ import '../../widgets/date_selector.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
 
+import '../../services/export_service.dart';
+
 /// Charges & dépenses de l'entreprise, avec total du mois.
-class ChargesScreen extends StatelessWidget {
+class ChargesScreen extends StatefulWidget {
   const ChargesScreen({super.key});
+
+  @override
+  State<ChargesScreen> createState() => _ChargesScreenState();
+}
+
+class _ChargesScreenState extends State<ChargesScreen> {
+  String? _categorie;
+  String _recherche = '';
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
-    final depenses = store.depensesBoutique;
+    var depenses = store.depensesBoutique;
+    if (_categorie != null) {
+      depenses =
+          depenses.where((c) => c.categorie == _categorie).toList();
+    }
+    final rech = _recherche.trim().toLowerCase();
+    if (rech.isNotEmpty) {
+      depenses = depenses
+          .where((c) =>
+              c.libelle.toLowerCase().contains(rech) ||
+              c.categorie.toLowerCase().contains(rech))
+          .toList();
+    }
 
     return Scaffold(
       body: Column(children: [
@@ -27,6 +49,35 @@ class ChargesScreen extends StatelessWidget {
             valeur: store.totalDepensesMois,
             icone: Icons.money_off_rounded,
             couleur: const Color(0xFFD97706),
+            onExport: (f) => _exporter(context, store, depenses, f),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: TextField(
+            decoration: const InputDecoration(
+              hintText: 'Rechercher une dépense…',
+              prefixIcon: Icon(Icons.search_rounded),
+              filled: true,
+            ),
+            onChanged: (v) => setState(() => _recherche = v),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: DropdownButtonFormField<String>(
+            value: _categorie,
+            isExpanded: true,
+            decoration: const InputDecoration(
+                labelText: 'Catégorie',
+                prefixIcon: Icon(Icons.category_outlined)),
+            items: [
+              const DropdownMenuItem(
+                  value: null, child: Text('Toutes catégories')),
+              for (final c in store.catsCharge)
+                DropdownMenuItem(value: c, child: Text(c)),
+            ],
+            onChanged: (v) => setState(() => _categorie = v),
           ),
         ),
         Expanded(
@@ -77,6 +128,48 @@ class ChargesScreen extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _exporter(BuildContext context, Store store,
+      List<Charge> depenses, String format) async {
+    const entetes = [
+      'Date', 'Catégorie', 'Libellé', 'Montant', 'Récurrente', 'Devise'
+    ];
+    final lignes = [
+      for (final c in depenses)
+        [
+          c.date,
+          c.categorie,
+          c.libelle,
+          c.montant,
+          c.recurrente ? 'Oui' : 'Non',
+          store.profile.devise,
+        ],
+    ];
+    final total =
+        depenses.fold(0.0, (s, c) => s + c.montant);
+    final nom = 'depenses_${store.moisCourant}_${depenses.length}ops';
+    try {
+      switch (format) {
+        case 'pdf':
+          await ExportService.partagerPdf(nom,
+              titre: 'Dépenses — ${store.boutiqueCourante.nom}',
+              sousTitre:
+                  '${depenses.length} dépense(s) · Total : ${total.toStringAsFixed(0)} ${store.profile.devise}',
+              entetes: entetes,
+              lignes: lignes);
+        case 'xlsx':
+          await ExportService.partagerExcel(
+              nom, 'Dépenses', entetes, lignes);
+        default:
+          await ExportService.partagerCsv(nom, entetes, lignes);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
+  }
 }
 
 class SoftSummary extends StatelessWidget {
@@ -84,8 +177,9 @@ class SoftSummary extends StatelessWidget {
   final double valeur;
   final IconData icone;
   final Color couleur;
+  final ValueChanged<String>? onExport;
   const SoftSummary({super.key, required this.label, required this.valeur,
-      required this.icone, required this.couleur});
+      required this.icone, required this.couleur, this.onExport});
 
   @override
   Widget build(BuildContext context) => Container(
@@ -109,6 +203,20 @@ class SoftSummary extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           MoneyText(valeur, style: const TextStyle(fontSize: 18)),
+          if (onExport != null)
+            PopupMenuButton<String>(
+              tooltip: 'Exporter',
+              icon: const Icon(Icons.ios_share_outlined, size: 20),
+              onSelected: onExport,
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                    value: 'pdf', child: Text('PDF (partage)')),
+                PopupMenuItem(
+                    value: 'xlsx', child: Text('Excel (.xlsx)')),
+                PopupMenuItem(
+                    value: 'csv', child: Text('CSV (Excel)')),
+              ],
+            ),
         ]),
       );
 }
