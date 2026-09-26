@@ -18,7 +18,7 @@
 | 14 | Export PDF/Excel/CSV Partenaires hotspot | ✅ | ExportService + menu AppBar (ventes, parts, clôture) | 2026-09-26 |
 | 15 | Export + filtres Trésorerie | ✅ | ExportService + filtre catégorie/boutique | 2026-09-26 |
 | 16 | Export + filtres Rapport financier | ✅ | ExportService + filtre boutiques | 2026-09-26 |
-| 17 | Export + filtres Analytique CA & Dépenses | ⬜ | — | — |
+| 17 | Export + filtres Analytique CA & Dépenses | ✅ | ExportService (série + détail CSV déjà là) ; ecrans_test 10/10 | 2026-09-26 |
 | 18 | Audit Documents commerciaux | ⬜ | — | — |
 | 19 | Signature entreprise gauche + espace client droite | ⬜ | — | — |
 | 20 | Corriger overflow Documents émis (33px) | ⬜ | — | — |

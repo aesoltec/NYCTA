@@ -8,6 +8,8 @@ import '../../widgets/money_text.dart';
 import '../../widgets/soft_card.dart';
 import 'analytique_detail_screen.dart';
 
+import '../../services/export_service.dart';
+
 /// Analytique CA & dépenses (mission 3, §3.1/3.2) : 7 derniers jours,
 /// mois de l'année, années — indicateurs, comparaison période précédente,
 /// détail filtrable au tap.
@@ -49,6 +51,74 @@ class _Panneau extends StatefulWidget {
 class _PanneauState extends State<_Panneau> {
   int _periode = 0; // 0 = 7 jours, 1 = mois, 2 = années
   int? _annee;
+
+  /// Série courante (même calcul que le build — export CSV/Excel/PDF).
+  List<AgregatPeriode> _serieCourante(Store store, int annee) {
+    switch (_periode) {
+      case 1:
+        return widget.depenses
+            ? store.depensesParMois(annee)
+            : store.caParMois(annee);
+      case 2:
+        return widget.depenses
+            ? store.depensesParAnnee()
+            : store.caParAnnee();
+      default:
+        return widget.depenses
+            ? store.depenses7Jours()
+            : store.ca7Jours();
+    }
+  }
+
+  String get _nomPeriode => switch (_periode) {
+        1 => 'mois_${_annee ?? DateTime.now().year}',
+        2 => 'annees',
+        _ => '7jours',
+      };
+
+  Future<void> _exporter(
+      BuildContext context, Store store, String format) async {
+    final serie = _serieCourante(store, _annee ?? DateTime.now().year);
+    const entetes = [
+      'Période', 'Montant', 'Opérations', 'Panier moyen', 'Marge', 'Devise'
+    ];
+    final lignes = [
+      for (final e in serie)
+        [
+          e.label,
+          e.montant,
+          e.nb,
+          e.panierMoyen,
+          e.marge,
+          store.profile.devise,
+        ],
+    ];
+    final quoi = widget.depenses ? 'depenses' : 'ca';
+    final nom = 'analytique_${quoi}_$_nomPeriode';
+    final titre =
+        'Analytique ${widget.depenses ? 'dépenses' : 'CA'} — $_nomPeriode';
+    try {
+      switch (format) {
+        case 'pdf':
+          await ExportService.partagerPdf(nom,
+              titre: titre,
+              sousTitre:
+                  'Total : ${serie.fold(0.0, (s, e) => s + e.montant).toStringAsFixed(0)} ${store.profile.devise}',
+              entetes: entetes,
+              lignes: lignes);
+        case 'xlsx':
+          await ExportService.partagerExcel(
+              nom, 'Analytique', entetes, lignes);
+        default:
+          await ExportService.partagerCsv(nom, entetes, lignes);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -93,16 +163,33 @@ class _PanneauState extends State<_Panneau> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: [
-        SegmentedButton<int>(
-          segments: const [
-            ButtonSegment(value: 0, label: Text('7 jours')),
-            ButtonSegment(value: 1, label: Text('Mois')),
-            ButtonSegment(value: 2, label: Text('Années')),
-          ],
-          selected: {_periode},
-          onSelectionChanged: (s) =>
-              setState(() => _periode = s.first),
-        ),
+        Row(children: [
+          Expanded(
+            child: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 0, label: Text('7 jours')),
+                ButtonSegment(value: 1, label: Text('Mois')),
+                ButtonSegment(value: 2, label: Text('Années')),
+              ],
+              selected: {_periode},
+              onSelectionChanged: (s) =>
+                  setState(() => _periode = s.first),
+            ),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Exporter la série',
+            icon: const Icon(Icons.ios_share_outlined),
+            onSelected: (f) => _exporter(context, store, f),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                  value: 'pdf', child: Text('PDF (partage)')),
+              PopupMenuItem(
+                  value: 'xlsx', child: Text('Excel (.xlsx)')),
+              PopupMenuItem(
+                  value: 'csv', child: Text('CSV (Excel)')),
+            ],
+          ),
+        ]),
         if (_periode == 1) ...[
           const SizedBox(height: 12),
           DropdownButtonFormField<int>(
