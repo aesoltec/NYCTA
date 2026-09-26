@@ -1,8 +1,8 @@
 -- ============================================================================
--- VERIFIER_RLS.sql — Jeu de vérification post-installation (missionbis §6.4).
--- À exécuter dans Supabase → SQL Editor APRÈS supabase_schema.sql +
--- supabase_fonctions_rls.sql (base neuve) OU supabase_migration.sql +
--- supabase_fonctions_rls.sql (base existante).
+-- supabase_verify.sql — Jeu de vérification post-installation.
+-- À exécuter dans Supabase → SQL Editor APRÈS supabase_apply_all.sql
+-- (ou supabase_schema.sql + supabase_fonctions_rls.sql, ou
+-- supabase_migration.sql + supabase_fonctions_rls.sql).
 -- Chaque ligne rend PASS ou FAIL. Tout FAIL = objet manquant.
 -- (Les tests par rôle connecté exigent d'exécuter les blocs 7-9 avec des
 -- JWT de test ; ils sont fournis en commentaires à adapter.)

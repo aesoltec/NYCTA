@@ -64,4 +64,4 @@
 - Fichiers SQL applicables (v3.0) : `database/supabase_schema.sql` PUIS
   `database/supabase_fonctions_rls.sql` (base neuve) ; base existante :
   `database/supabase_migration.sql` PUIS `database/supabase_fonctions_rls.sql`.
-  Contrôle : `database/VERIFIER_RLS.sql`.
+  Contrôle : `database/supabase_verify.sql`.

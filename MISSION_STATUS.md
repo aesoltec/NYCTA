@@ -1,0 +1,41 @@
+# MISSION_STATUS — Suivi d'exécution
+
+| # | Point | Statut | Preuve | Date |
+|---|-------|--------|--------|------|
+| 1 | Regrouper SQL en supabase_schema.sql + supabase_migration.sql + supabase_fonctions_rls.sql | ✅ | database/ (582+148+944 lignes) + supabase_apply_all.sql (1540, généré) + supabase_verify.sql ; tests/analyze verts | 2026-09-26 |
+| 2 | Supprimer fichiers de migration obsolètes | ✅ | 13 fichiers supprimés (git) ; database/ = 6 fichiers utiles | 2026-09-26 |
+| 3 | Déplacer bouton Journal → onglet Plus | ⬜ | — | — |
+| 4 | Remplacer place Journal par bouton Achat | ⬜ | — | — |
+| 5 | Export PDF/Excel/CSV onglet Achat | ⬜ | — | — |
+| 6 | Filtres période/intervalle/catégorie/sous-catégorie Journal | ⬜ | — | — |
+| 7 | Corriger bug impression/export PDF vide | ⬜ | — | — |
+| 8 | Filtres catégorie/sous-catégorie Stock | ⬜ | — | — |
+| 9 | Export PDF/Excel/CSV Stock | ⬜ | — | — |
+| 10 | Corriger persistance images Stock | ⬜ | — | — |
+| 11 | Multi-images produits (max 05) | ⬜ | — | — |
+| 12 | Filtres catégorie/sous-catégorie Dépenses | ⬜ | — | — |
+| 13 | Export PDF/Excel/CSV Dépenses | ⬜ | — | — |
+| 14 | Export PDF/Excel/CSV Partenaires hotspot | ⬜ | — | — |
+| 15 | Export + filtres Trésorerie | ⬜ | — | — |
+| 16 | Export + filtres Rapport financier | ⬜ | — | — |
+| 17 | Export + filtres Analytique CA & Dépenses | ⬜ | — | — |
+| 18 | Audit Documents commerciaux | ⬜ | — | — |
+| 19 | Signature entreprise gauche + espace client droite | ⬜ | — | — |
+| 20 | Corriger overflow Documents émis (33px) | ⬜ | — | — |
+| 21 | Filtres Documents émis | ⬜ | — | — |
+| 22 | Filtre + recherche Boutique | ⬜ | — | — |
+| 23 | Filtre + recherche Catégories | ⬜ | — | — |
+| 24 | Audit formulaire vente | ⬜ | — | — |
+| 25 | Filtres + export Achat et fournisseurs | ⬜ | — | — |
+| 26 | Filtre spécialité + recherche + export Fournisseurs | ⬜ | — | — |
+| 27 | Recherche + filtre Clients | ⬜ | — | — |
+| 28 | Champs clients étendus (RIB, RCCM, logo, coordonnées) | ⬜ | — | — |
+| 29 | Export Clients | ⬜ | — | — |
+| 30 | Brancher Comptabilité | ⬜ | — | — |
+| 31 | Export + filtres Comptabilité | ⬜ | — | — |
+| 32 | Filtres Statistiques & graphiques | ⬜ | — | — |
+| 33 | Export PDF/Excel Statistiques | ⬜ | — | — |
+| 34 | Filtres Tarifs & catégories | ⬜ | — | — |
+| 35 | Formulaire catégorie connecté + anti-doublon | ⬜ | — | — |
+| 36 | Multi-images articles (max 05) | ⬜ | — | — |
+| 37 | Réorganiser menu onglet Plus | ⬜ | — | — |

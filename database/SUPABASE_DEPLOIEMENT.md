@@ -18,7 +18,10 @@
 
 > **Base existante (créée avant v3.0) ?** Exécutez `database/supabase_migration.sql`
 > PUIS `database/supabase_fonctions_rls.sql` — tout est idempotent.
-> **Vérification :** exécutez `database/VERIFIER_RLS.sql` (6 blocs PASS/FAIL).
+> **Vérification :** exécutez `database/supabase_verify.sql` (6 blocs PASS/FAIL).
+>
+> **Installation neuve en 1 seul copier-coller :** `database/supabase_apply_all.sql`
+> (= schéma + fonctions/RLS concaténés, fichier généré — ne pas éditer).
 
 ## Étape 3 — Stockage des images (2 min)
 
