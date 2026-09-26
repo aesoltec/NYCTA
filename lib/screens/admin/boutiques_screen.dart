@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../data/store.dart';
 import '../../models/boutique.dart';
 import '../../models/enums.dart';
+import '../../widgets/filtre_panel.dart';
 
 /// Administration des boutiques : créer, modifier (dont affectation des
 /// utilisateurs et statut siège), fermer. Plus jamais de SQL manuel.
@@ -15,25 +16,31 @@ class BoutiquesScreen extends StatefulWidget {
 }
 
 class _BoutiquesScreenState extends State<BoutiquesScreen> {
-  String _recherche = '';
-  // Statut : 'actives' (défaut), 'fermees', 'toutes'.
-  String _statut = 'actives';
-  // Siège : null = tous, true = siège seul, false = annexes seules.
-  bool? _siege;
+  // Filtres via FiltrePanel : statut (chips) + siège (chips) + recherche.
+  // 'siege' : 'tous' | 'siege' | 'annexes' (String, pas bool — le panel
+  // ne porte que des String?).
+  Map<String, dynamic> _filtres = const {
+    'statut': 'actives',
+    'siege': 'tous',
+  };
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
     var liste = store.boutiques.toList();
-    if (_statut == 'actives') {
+    final statut = (_filtres['statut'] as String?) ?? 'actives';
+    if (statut == 'actives') {
       liste = liste.where((b) => b.actif).toList();
-    } else if (_statut == 'fermees') {
+    } else if (statut == 'fermees') {
       liste = liste.where((b) => !b.actif).toList();
     }
-    if (_siege != null) {
-      liste = liste.where((b) => b.siege == _siege).toList();
+    final siege = (_filtres['siege'] as String?) ?? 'tous';
+    if (siege == 'siege') {
+      liste = liste.where((b) => b.siege).toList();
+    } else if (siege == 'annexes') {
+      liste = liste.where((b) => !b.siege).toList();
     }
-    final rech = _recherche.trim().toLowerCase();
+    final rech = ((_filtres['q'] as String?) ?? '').trim().toLowerCase();
     if (rech.isNotEmpty) {
       // Le modèle Boutique ne porte que nom + adresse : pas de
       // ville/responsable/code à filtrer (non inventés).
@@ -47,51 +54,34 @@ class _BoutiquesScreenState extends State<BoutiquesScreen> {
       appBar: AppBar(title: const Text('Boutiques')),
       body: Column(children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: TextField(
-            decoration: const InputDecoration(
-              hintText: 'Rechercher (nom, adresse)…',
-              prefixIcon: Icon(Icons.search_rounded),
-              filled: true,
-            ),
-            onChanged: (v) => setState(() => _recherche = v),
-          ),
-        ),
-        SizedBox(
-          height: 44,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            children: [
-              for (final (valeur, label) in [
-                ('actives', 'Actives'),
-                ('fermees', 'Fermées'),
-                ('toutes', 'Toutes'),
-              ])
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(label),
-                    selected: _statut == valeur,
-                    onSelected: (_) =>
-                        setState(() => _statut = valeur),
-                  ),
-                ),
-              for (final (valeur, label) in [
-                (null, 'Siège + annexes'),
-                (true, 'Siège'),
-                (false, 'Annexes'),
-              ])
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(label),
-                    selected: _siege == valeur,
-                    onSelected: (_) =>
-                        setState(() => _siege = valeur),
-                  ),
-                ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: FiltrePanel(
+            filtres: const [
+              FiltreConfig(
+                  cle: 'q',
+                  kind: FiltreKind.recherche,
+                  label: 'Rechercher (nom, adresse)…'),
+              FiltreConfig(
+                  cle: 'statut',
+                  kind: FiltreKind.chips,
+                  label: 'Statut',
+                  options: [
+                    ('actives', 'Actives'),
+                    ('fermees', 'Fermées'),
+                    ('toutes', 'Toutes'),
+                  ]),
+              FiltreConfig(
+                  cle: 'siege',
+                  kind: FiltreKind.chips,
+                  label: 'Siège',
+                  options: [
+                    ('tous', 'Siège + annexes'),
+                    ('siege', 'Siège'),
+                    ('annexes', 'Annexes'),
+                  ]),
             ],
+            valeurs: _filtres,
+            onFiltreChange: (m) => setState(() => _filtres = m),
           ),
         ),
         const SizedBox(height: 4),

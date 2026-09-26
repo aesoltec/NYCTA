@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/store.dart';
+import '../../widgets/filtre_panel.dart';
 
 /// Catégories dynamiques : produits et charges — ajouter, renommer,
 /// supprimer (avec garde-fou si utilisées). Utilisées partout dans l'app.
@@ -98,7 +99,7 @@ class _ListeCategories extends StatefulWidget {
 }
 
 class _ListeCategoriesState extends State<_ListeCategories> {
-  String _recherche = '';
+  Map<String, dynamic> _filtres = const {};
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +109,8 @@ class _ListeCategoriesState extends State<_ListeCategories> {
     // non inventés (voir PASSES_AUDIT point 23).
     final toutes =
         widget.produit ? store.catsProduit : store.catsCharge;
-    final rech = _recherche.trim().toLowerCase();
+    final rech =
+        ((_filtres['q'] as String?) ?? '').trim().toLowerCase();
     final liste = rech.isEmpty
         ? toutes
         : toutes
@@ -116,16 +118,19 @@ class _ListeCategoriesState extends State<_ListeCategories> {
             .toList();
     return Column(children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-        child: TextField(
-          decoration: const InputDecoration(
-            hintText: 'Rechercher une catégorie…',
-            prefixIcon: Icon(Icons.search_rounded),
-            filled: true,
-          ),
-          onChanged: (v) => setState(() => _recherche = v),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: FiltrePanel(
+          filtres: const [
+            FiltreConfig(
+                cle: 'q',
+                kind: FiltreKind.recherche,
+                label: 'Rechercher une catégorie…'),
+          ],
+          valeurs: _filtres,
+          onFiltreChange: (m) => setState(() => _filtres = m),
         ),
       ),
+      const SizedBox(height: 4),
       Expanded(
         child: liste.isEmpty
             ? Center(
