@@ -15,7 +15,7 @@
 | 11 | Multi-images produits (max 05) | ✅ | Galerie (ajout/aperçu/principal/suppression), Produit.images, produit_images_test 4/4 | 2026-09-26 |
 | 12 | Filtres catégorie/sous-catégorie Dépenses | ✅ | charges_screen.dart (recherche + dropdown catégorie) ; ecrans_test | 2026-09-26 |
 | 13 | Export PDF/Excel/CSV Dépenses | ✅ | ExportService + menu export (total inclus) | 2026-09-26 |
-| 14 | Export PDF/Excel/CSV Partenaires hotspot | ⬜ | — | — |
+| 14 | Export PDF/Excel/CSV Partenaires hotspot | ✅ | ExportService + menu AppBar (ventes, parts, clôture) | 2026-09-26 |
 | 15 | Export + filtres Trésorerie | ⬜ | — | — |
 | 16 | Export + filtres Rapport financier | ⬜ | — | — |
 | 17 | Export + filtres Analytique CA & Dépenses | ⬜ | — | — |

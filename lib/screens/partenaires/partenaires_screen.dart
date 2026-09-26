@@ -8,6 +8,8 @@ import '../../models/partenaire.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
 
+import '../../services/export_service.dart';
+
 /// Partenaires hotspot : liste + clôture mensuelle du partage.
 class PartenairesScreen extends StatelessWidget {
   const PartenairesScreen({super.key});
@@ -40,7 +42,24 @@ class PartenairesScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Partenaires hotspot')),
+      appBar: AppBar(
+        title: const Text('Partenaires hotspot'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Exporter',
+            icon: const Icon(Icons.ios_share_outlined),
+            onSelected: (f) => _exporter(context, store, mois, f),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                  value: 'pdf', child: Text('PDF (partage)')),
+              PopupMenuItem(
+                  value: 'xlsx', child: Text('Excel (.xlsx)')),
+              PopupMenuItem(
+                  value: 'csv', child: Text('CSV (Excel)')),
+            ],
+          ),
+        ],
+      ),
       backgroundColor: const Color(0xFFD5F0F0),
       body: RefreshIndicator(
         onRefresh: store.rafraichir,
@@ -71,6 +90,49 @@ class PartenairesScreen extends StatelessWidget {
             )
           : null,
     );
+  }
+
+  static Future<void> _exporter(BuildContext context, Store store,
+      String mois, String format) async {
+    const entetes = [
+      'Partenaire', 'Localisation', 'Taux %', 'Ventes du mois',
+      'Sa part', 'Part entreprise', 'Clôturé', 'Devise'
+    ];
+    final lignes = [
+      for (final p in store.partenaires)
+        [
+          p.nom,
+          p.localisation,
+          (p.taux * 100).round(),
+          store.ventesPartenaireMois(p.id, mois),
+          store.ventesPartenaireMois(p.id, mois) * p.taux,
+          store.ventesPartenaireMois(p.id, mois) * (1 - p.taux),
+          store.partageExiste(p.id, mois) ? 'Oui' : 'Non',
+          store.profile.devise,
+        ],
+    ];
+    final nom = 'partenaires_$mois';
+    try {
+      switch (format) {
+        case 'pdf':
+          await ExportService.partagerPdf(nom,
+              titre: 'Partenaires hotspot — $mois',
+              sousTitre:
+                  '${store.partenaires.length} partenaire(s)',
+              entetes: entetes,
+              lignes: lignes);
+        case 'xlsx':
+          await ExportService.partagerExcel(
+              nom, 'Partenaires', entetes, lignes);
+        default:
+          await ExportService.partagerCsv(nom, entetes, lignes);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
   }
 
   static void _formPartenaire(
