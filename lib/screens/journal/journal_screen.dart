@@ -254,7 +254,7 @@ class _JournalScreenState extends State<JournalScreen> {
 
   static String _detailExport(Tx t) {
     final d = t.details;
-    return switch (t.type) {
+    final base = switch (t.type) {
       TypeTransaction.prestationService =>
         '${d['domaine'] ?? ''}${d['description'] != null ? ' — ${d['description']}' : ''}',
       TypeTransaction.mobileMoney =>
@@ -264,6 +264,7 @@ class _JournalScreenState extends State<JournalScreen> {
       TypeTransaction.venteMateriel =>
         (d['lignes'] as List?)?.map((l) => '${l['quantite']}× ${l['libelle']}').join(', ') ?? '',
     };
+    return '$base${suffixesVente(t)}';
   }
 
   Future<void> _exporter(
@@ -354,6 +355,27 @@ class _JournalScreenState extends State<JournalScreen> {
   }
 }
 
+/// Suffixes remise + mode de paiement (point 24) : partagés entre
+/// l'affichage journal et l'export pour une stricte cohérence.
+/// Vide pour les ventes antérieures (clés absentes).
+String suffixesVente(Tx t) {
+  final d = t.details;
+  final remise = (d['remise'] as num?)?.toDouble() ?? 0;
+  final mode = d['modePaiement']?.toString();
+  var s = '';
+  if (remise > 0) {
+    final brut = (d['montantBrut'] as num?)?.toDouble();
+    s += brut != null
+        ? ' · remise ${remise.toStringAsFixed(0)} (brut ${brut.toStringAsFixed(0)})'
+        : ' · remise ${remise.toStringAsFixed(0)}';
+  }
+  if (mode != null && mode.isNotEmpty) {
+    s +=
+        ' · ${NouvelleTransactionScreen.libelleMode(mode)}';
+  }
+  return s;
+}
+
 class _FiltreChip extends StatelessWidget {
   final String label;
   final bool actif;
@@ -420,7 +442,7 @@ class _LigneTx extends StatelessWidget {
     };
     final detail = brut.isEmpty
         ? '${tx.date.day.toString().padLeft(2, '0')}/${tx.date.month.toString().padLeft(2, '0')} à ${tx.date.hour.toString().padLeft(2, '0')}h${tx.date.minute.toString().padLeft(2, '0')}'
-        : brut;
+        : '$brut${suffixesVente(tx)}';
 
     final carte = Container(
       decoration: BoxDecoration(

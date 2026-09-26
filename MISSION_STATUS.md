@@ -27,8 +27,10 @@
 | 22bis | Réouverture boutique fermée | ⬜ (🟡, RPC Supabase requise, 0,5j) | Bloqué : nécessite RPC `reouvrir_boutique` (garde admin/gérant) + bouton « Rouvrir » ; voir CDC §8 | — |
 | 22ter | Champs boutique étendus (ville, responsable, code) | ⬜ (🟢, validation CDC requise avant implémentation) | Bloqué : modèle `Boutique` = id/nom/adresse/siege/actif ; voir CDC §8 | — |
 | 23 | Filtre + recherche Catégories | ✅ | categories_screen.dart (recherche nom par onglet, type = onglets Produits/Charges ; statut/parent/code absents du modèle, non inventés) ; ecrans_test 14/14 + suite 118/118 | 2026-09-26 |
-| 24 | Audit formulaire vente | ⬜ | — | — |
+| 23bis | Modèle catégories String → table dédiée | ⬜ (🟢, dette fonctionnelle, avant v1.10.0) | Bloqué : modèle actuel = listes de `String` (pas de statut/parent/code) ; migration vers table SQL + RLS à planifier hors mission | — |
+| 24 | Audit formulaire vente | ✅ | nouvelle_transaction_screen.dart (remise + mode paiement ajoutés, net = brut − remise, garde mounted) + journal suffixes ; vente_form_test.dart 6/6 + suite 124/124 | 2026-09-26 |
 | 25 | Filtres + export Achat et fournisseurs | ⬜ | — | — |
+| 25bis | Extraction FiltrePanel commun | ⬜ (🟠, À FAIRE AU point 25, pas après — engagement) | Bloqué : spéc en PASSES_AUDIT (Décisions) ; cible points 25-36 | — |
 | 26 | Filtre spécialité + recherche + export Fournisseurs | ⬜ | — | — |
 | 27 | Recherche + filtre Clients | ⬜ | — | — |
 | 28 | Champs clients étendus (RIB, RCCM, logo, coordonnées) | ⬜ | — | — |

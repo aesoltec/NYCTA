@@ -18,6 +18,22 @@ class NouvelleTransactionScreen extends StatefulWidget {
   const NouvelleTransactionScreen(
       {super.key, required this.type, this.transaction});
 
+  /// Modes de paiement (point 24) : mêmes codes que les achats
+  /// ('especes', 'mobile_money', 'credit', 'virement').
+  static const modesPaiement = [
+    ('especes', 'Espèces'),
+    ('mobile_money', 'Mobile Money'),
+    ('credit', 'Crédit'),
+    ('virement', 'Virement'),
+  ];
+
+  static String libelleMode(String code) =>
+      modesPaiement
+          .where((m) => m.$1 == code)
+          .map((m) => m.$2)
+          .firstOrNull ??
+      code;
+
   @override
   State<NouvelleTransactionScreen> createState() => _State();
 }
@@ -34,6 +50,10 @@ class _State extends State<NouvelleTransactionScreen> {
   String? _operation;
   String? _domaine;
   String? _duree;
+  // Remise (optionnelle) + mode de paiement (point 24) : persistés en
+  // details, affichés au journal. Montant saisi = brut, net = brut − remise.
+  late final TextEditingController _remise;
+  String _modePaiement = 'especes';
   bool _busy = false;
   // Date de l'opération : aujourd'hui par défaut (création) ou date
   // d'origine (modification), modifiable dans les deux cas.
@@ -49,10 +69,20 @@ class _State extends State<NouvelleTransactionScreen> {
   void initState() {
     super.initState();
     final tx = widget.transaction;
+    // Re-édition d'une vente remisée : le champ affiche le brut, la
+    // remise est restaurée — la sauvegarde recalcule le même net.
+    final brut = (tx?.details['montantBrut'] as num?)?.toDouble();
     _montant = TextEditingController(
-        text: tx == null ? '' : tx.montant.toStringAsFixed(0));
+        text: tx == null
+            ? ''
+            : (brut ?? tx.montant).toStringAsFixed(0));
     _cout = TextEditingController(
         text: tx == null || tx.cout == 0 ? '' : tx.cout.toStringAsFixed(0));
+    final remiseInit = (tx?.details['remise'] as num?)?.toDouble() ?? 0;
+    _remise = TextEditingController(
+        text: remiseInit > 0 ? remiseInit.toStringAsFixed(0) : '');
+    _modePaiement =
+        tx?.details['modePaiement']?.toString() ?? 'especes';
     _client = TextEditingController(text: tx?.clientNom ?? '');
     _date = tx?.date ?? DateTime.now();
     _statut = tx?.statut ?? StatutPaiement.paye;
@@ -74,6 +104,7 @@ class _State extends State<NouvelleTransactionScreen> {
   void dispose() {
     _montant.dispose();
     _cout.dispose();
+    _remise.dispose();
     _client.dispose();
     _description.dispose();
     super.dispose();
@@ -184,6 +215,34 @@ class _State extends State<NouvelleTransactionScreen> {
                 if ((v ?? '').trim().isEmpty) return null;
                 return V.prix(v, label: 'Coût');
               },
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _remise,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                  labelText: 'Remise accordée (optionnel)',
+                  helperText: 'Déduite du montant : net = brut − remise',
+                  prefixIcon: Icon(Icons.discount_outlined)),
+              validator: (v) {
+                if ((v ?? '').trim().isEmpty) return null;
+                return V.prix(v, label: 'Remise');
+              },
+            ),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              initialValue: _modePaiement,
+              decoration: const InputDecoration(
+                  labelText: 'Mode de paiement',
+                  prefixIcon: Icon(Icons.wallet_outlined)),
+              items: [
+                for (final m
+                    in NouvelleTransactionScreen.modesPaiement)
+                  DropdownMenuItem(value: m.$1, child: Text(m.$2)),
+              ],
+              onChanged: (v) =>
+                  v != null ? setState(() => _modePaiement = v) : null,
             ),
             const SizedBox(height: 18),
             const SectionHeader(titre: 'Client'),
@@ -337,7 +396,18 @@ class _State extends State<NouvelleTransactionScreen> {
 
   Future<void> _valider(Store store) async {
     if (!_formKey.currentState!.validate()) return;
-    final montant = V.prixValue(_montant.text);
+    final brut = V.prixValue(_montant.text);
+    final remise = _remise.text.trim().isEmpty
+        ? 0.0
+        : V.prixValue(_remise.text);
+    // Remise ≥ brut = net nul ou négatif : refusé (V.prix impose déjà > 0).
+    if (remise >= brut) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              '⚠️ La remise doit être inférieure au montant')));
+      return;
+    }
+    final montant = brut - remise;
     final cout = _cout.text.trim().isEmpty
         ? 0.0
         : V.prixValue(_cout.text);
@@ -359,7 +429,7 @@ class _State extends State<NouvelleTransactionScreen> {
           title: const Text('Marge négative ⚠️'),
           content: Text(
               'Le coût support (${cout.toStringAsFixed(0)}) dépasse le '
-              'montant encaissé (${montant.toStringAsFixed(0)}).\n\n'
+              'montant net encaissé (${montant.toStringAsFixed(0)}).\n\n'
               'Perte : ${(cout - montant).toStringAsFixed(0)} '
               '${store.profile.devise}.\n\nContinuer quand même ?'),
           actions: [
@@ -373,9 +443,16 @@ class _State extends State<NouvelleTransactionScreen> {
           ],
         ),
       );
-      if (confirme != true) return;
+      if (confirme != true || !mounted) return;
     }
     setState(() => _busy = true);
+    final detailsVente = <String, dynamic>{
+      ..._details,
+      'modePaiement': _modePaiement,
+      if (remise > 0) ...{'montantBrut': brut, 'remise': remise},
+      if (_description.text.isNotEmpty)
+        'description': _description.text
+    };
     try {
       if (estModification) {
         final origine = widget.transaction!;
@@ -384,11 +461,7 @@ class _State extends State<NouvelleTransactionScreen> {
           cout: cout,
           statut: _statut,
           clientNom: _client.text.trim().isEmpty ? null : _client.text.trim(),
-          details: {
-            ..._details,
-            if (_description.text.isNotEmpty)
-              'description': _description.text
-          },
+          details: detailsVente,
           date: _date,
         );
         // Partenaire (forfait) : remise à null explicite si « Siège ».
@@ -415,7 +488,7 @@ class _State extends State<NouvelleTransactionScreen> {
           partenaireId: type == TypeTransaction.forfaitHotspot ? _partenaireId : null,
           date: _date,
           statut: _statut,
-          details: {..._details, if (_description.text.isNotEmpty) 'description': _description.text},
+          details: detailsVente,
         );
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

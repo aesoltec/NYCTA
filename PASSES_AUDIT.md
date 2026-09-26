@@ -120,3 +120,25 @@
 8. Analyze ✅ — 0 erreur, 0 warning nouveau.
 9. Tests ✅ — onglets + recherche + état vide vérifiés ; suite complète 118/118.
 10. Contre-expertise finale ✅ — recherche vide = liste complète (comportement précédent) : aucune régression.
+
+### Point 24 — Audit formulaire de vente (nouvelle_transaction_screen.dart, journal_screen.dart)
+Conformes sans changement : montant > 0 + dropdowns requis (`V.prix`, validateurs), crédit→client nommé, marge négative confirmée, `_comptabiliserVente` auto (partie double), RLS insert vendeur/caissier, TextScaler borné 0.9–1.15, TVA au niveau document (transactions en TTC — design assumé).
+Écarts corrigés :
+- E1 Mode de paiement absent (exigé §3.12) → dropdown Espèces/Mobile Money/Crédit/Virement (défaut Espèces), persisté `details['modePaiement']`, affiché au journal + export.
+- E2 Remise absente → champ optionnel, net = brut − remise persisté (`montantBrut`, `remise`), refus si remise ≥ brut, ré-édition restaure brut+remise (idempotent).
+- E3 `setState(_busy)` après dialogue marge sans garde → `if (confirme != true || !mounted) return`.
+1. Fonctionnelle ✅ — création + modification (brut restauré) vérifiées par tests.
+2. Métier ✅ — net enregistré = encaissé réel ; marge = net − coût ; compta auto sur le net.
+3. Contre-expertise ✅ — ventes antérieures (clés absentes) : suffixes vides, montant inchangé ; remise ≥ brut refusée avant tout await.
+4. Sécurité ✅ — aucune policy touchée ; rôles vendeur/caissier déjà couverts côté RLS.
+5. Overflow ✅ — 2 champs ajoutés dans le `ListView` existant, CTA en `bottomNavigationBar`.
+6. Cycle de vie ✅ — E3 corrigé ; `dispose()` du contrôleur remise ; `mounted` après `ajouterTransaction`.
+7. Persistance ✅ — détails JSON (pas de migration SQL) ; `copyWith` conserve details en modification.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — `vente_form_test.dart` 6/6 (suffixes, libellés, refus remise, net persisté) ; suite 124/124.
+10. Contre-expertise finale ✅ — remise vide = comportement précédent à l'euro près (net = brut).
+
+## Décisions d'architecture (validées 2026-09-26)
+- **ExportService non générique** : refus du refactor `<T>` en pleine mission (risque de régression sur 8 modules verts > gain nul côté métier). Le service actuel (PDF/Excel/CSV, BOM/`;`, vue filtrée/Tous) couvre le besoin. Décision validée.
+- **FiltrePanel commun** : extraction prévue AU point 25 (engagement tracé en MISSION_STATUS 25bis). Les écrans verts existants ne seront pas réécrits ; le panel servira aux points 25-36.
+- **Onglets Catégories mutuellement exclusifs** : Produits OU Charges (jamais les deux) — le filtre par type est l'onglet lui-même, la recherche s'applique à l'onglet actif uniquement.

@@ -19,7 +19,8 @@
 - Point 5 : export Achat = vue filtrée par défaut + option « Tous » (6 entrées menu), `test/achat_export_test.dart` 3/3 (BOM, en-têtes, totaux, xlsx, PDF plein+vide)
 - Point 22 : Boutique — recherche nom/adresse + filtres statut/siège, fermées en lecture seule ; dettes 22bis (réouverture, 🟡) et 22ter (champs étendus, 🟢) tracées en MISSION_STATUS + CDC §8bis
 - Point 23 : Catégories — recherche nom par onglet (type = onglets) ; statut/parent/code hors modèle, non inventés
-- Tests : suite complète 118/118 verts ; `flutter analyze` 0 erreur
+- Point 24 : audit vente — remise (net = brut − remise) + mode de paiement, garde `mounted`, suffixes journal/export ; `vente_form_test.dart` 6/6
+- Tests : suite complète 124/124 verts ; `flutter analyze` 0 erreur
 
 ### Dette warnings `flutter analyze` (justification, 2026-09-26)
 Total 111 = 0 erreur + 69 warnings + 42 infos, aucun introduit comme nouvelle famille par le lot :
@@ -36,6 +37,10 @@ Familles à nettoyer, par charge estimée :
 3. `deprecated_member_use` (8) — **charge M (~1 j)** : aligné sur la montée de version des dépendances (`share_plus`, `printing`, `pdf`), à tester écran par écran.
 4. Infos restantes (~34, ex : `prefer_const_literals`, docs) — **charge S (~0,5 j)**.
 Règle : un commit par famille, `flutter test` vert après chacun. Ne pas mélanger avec du fonctionnel (AGENTS.md §7).
+
+### ADR — ExportService non générique (2026-09-26, validée)
+Refus du refactor `<T>` en pleine mission : 8 modules verts dépendent de l'API actuelle (risque > gain).
+Le service couvre le besoin (PDF/Excel/CSV, BOM/`;`, vue filtrée/Tous) ; réévaluation éventuelle après v1.10.0.
 
 ## 1.8.0 — 2026-09-25
 - Sélecteur de date robuste (`DatePickerField`, délégués FR, saisie manuelle)
