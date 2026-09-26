@@ -6,6 +6,7 @@ import '../../models/enums.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
 import '../../services/export_service.dart';
+import '../../widgets/filtre_panel.dart';
 import 'achat_detail_screen.dart';
 import 'achat_form_screen.dart';
 
@@ -17,8 +18,8 @@ class AchatListScreen extends StatefulWidget {
 }
 
 class _AchatListScreenState extends State<AchatListScreen> {
-  String _filtreStatut = 'tous';
-  String _recherche = '';
+  // Filtres via FiltrePanel : statut (chips) + recherche + période (dates).
+  Map<String, dynamic> _filtres = const {'statut': 'tous'};
 
   static const _statuts = [
     ('tous', 'Tous'),
@@ -39,16 +40,27 @@ class _AchatListScreenState extends State<AchatListScreen> {
         role == Role.caissier;
     var liste = store.achatsBoutique
       ..sort((a, b) => b.date.compareTo(a.date));
-    if (_filtreStatut != 'tous') {
-      liste = liste.where((a) => a.statut == _filtreStatut).toList();
+    final statut = (_filtres['statut'] as String?) ?? 'tous';
+    if (statut != 'tous') {
+      liste = liste.where((a) => a.statut == statut).toList();
     }
-    final rech = _recherche.trim().toLowerCase();
+    final rech = ((_filtres['q'] as String?) ?? '').trim().toLowerCase();
     if (rech.isNotEmpty) {
       liste = liste
           .where((a) =>
               a.numero.toLowerCase().contains(rech) ||
               a.fournisseurNom.toLowerCase().contains(rech))
           .toList();
+    }
+    // Point 25 : filtre par période / intervalle (manquait).
+    final debut = _filtres['debut'] as DateTime?;
+    final fin = _filtres['fin'] as DateTime?;
+    if (debut != null) {
+      liste = liste.where((a) => !a.date.isBefore(debut)).toList();
+    }
+    if (fin != null) {
+      final finJour = DateTime(fin.year, fin.month, fin.day, 23, 59, 59);
+      liste = liste.where((a) => !a.date.isAfter(finJour)).toList();
     }
     return Scaffold(
       appBar: AppBar(
@@ -97,27 +109,23 @@ class _AchatListScreenState extends State<AchatListScreen> {
       ),
       body: Column(children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: TextField(
-            decoration: const InputDecoration(
-                hintText: 'Rechercher (n°, fournisseur)…',
-                prefixIcon: Icon(Icons.search)),
-            onChanged: (v) => setState(() => _recherche = v),
-          ),
-        ),
-        SizedBox(
-          height: 44,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _statuts.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (_, i) => ChoiceChip(
-              label: Text(_statuts[i].$2),
-              selected: _filtreStatut == _statuts[i].$1,
-              onSelected: (_) =>
-                  setState(() => _filtreStatut = _statuts[i].$1),
-            ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: FiltrePanel(
+            filtres: [
+              const FiltreConfig(
+                  cle: 'q',
+                  kind: FiltreKind.recherche,
+                  label: 'Rechercher (n°, fournisseur)…'),
+              FiltreConfig(
+                  cle: 'statut',
+                  kind: FiltreKind.chips,
+                  label: 'Statut',
+                  options: _statuts),
+              const FiltreConfig(
+                  cle: '', kind: FiltreKind.dates, label: ''),
+            ],
+            valeurs: _filtres,
+            onFiltreChange: (m) => setState(() => _filtres = m),
           ),
         ),
         const SizedBox(height: 4),
