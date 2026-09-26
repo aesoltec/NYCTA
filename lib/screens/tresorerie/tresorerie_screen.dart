@@ -6,22 +6,56 @@ import '../../data/store.dart';
 import '../../widgets/money_text.dart';
 import '../../widgets/soft_card.dart';
 
+import '../../services/export_service.dart';
+
 /// Trésorerie : fonds de roulement, solde de caisse, budgets du mois.
-class TresorerieScreen extends StatelessWidget {
+class TresorerieScreen extends StatefulWidget {
   const TresorerieScreen({super.key});
+
+  @override
+  State<TresorerieScreen> createState() => _TresorerieScreenState();
+}
+
+class _TresorerieScreenState extends State<TresorerieScreen> {
+  String _recherche = '';
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
     final solde = store.soldeCaisseCourant;
     final budgets = store.suiviBudgets;
+    // Filtre unique (catégorie de budget + nom de boutique).
+    final rech = _recherche.trim().toLowerCase();
+    final budgetsFiltres = Map.fromEntries(budgets.entries.where((e) =>
+        rech.isEmpty || e.key.toLowerCase().contains(rech)));
+    final boutiquesFiltrees = store.boutiques
+        .where((b) =>
+            rech.isEmpty || b.nom.toLowerCase().contains(rech))
+        .toList();
 
     // Poussé via Navigator.push(MaterialPageRoute(builder: (_) => destination))
     // depuis le menu « Plus », sans Scaffold englobant : cet écran DOIT
     // fournir le sien, sinon aucune surface n'est peinte derrière lui et le
     // fond apparaît noir/sombre à la place du thème clair de l'app.
     return Scaffold(
-      appBar: AppBar(title: const Text('Trésorerie')),
+      appBar: AppBar(
+        title: const Text('Trésorerie'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Exporter',
+            icon: const Icon(Icons.ios_share_outlined),
+            onSelected: (f) => _exporter(context, store, f),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                  value: 'pdf', child: Text('PDF (partage)')),
+              PopupMenuItem(
+                  value: 'xlsx', child: Text('Excel (.xlsx)')),
+              PopupMenuItem(
+                  value: 'csv', child: Text('CSV (Excel)')),
+            ],
+          ),
+        ],
+      ),
       backgroundColor: const Color(0xFFD5F0F0),
       body: ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -53,18 +87,29 @@ class TresorerieScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: TextField(
+            decoration: const InputDecoration(
+              hintText: 'Filtrer (catégorie, boutique)…',
+              prefixIcon: Icon(Icons.search_rounded),
+              filled: true,
+            ),
+            onChanged: (v) => setState(() => _recherche = v),
+          ),
+        ),
         Text('Budgets du mois ${store.moisCourant}',
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
-        if (budgets.isEmpty)
+        if (budgetsFiltres.isEmpty)
           const SoftCard(
-            child: Text('Aucun budget défini.\nRendez-vous dans Configuration → Budgets.',
+            child: Text('Aucun budget (ou filtre sans résultat).\nRendez-vous dans Configuration → Budgets.',
                 style: TextStyle(color: Colors.grey)),
           )
         else
           SoftCard(
             child: Column(children: [
-              for (final e in budgets.entries)
+              for (final e in budgetsFiltres.entries)
                 _BarreBudget(categorie: e.key, budget: e.value.$1, consomme: e.value.$2),
             ]),
           ),
@@ -72,7 +117,7 @@ class TresorerieScreen extends StatelessWidget {
         Text('Soldes de caisse par boutique',
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
-        for (final b in store.boutiques)
+        for (final b in boutiquesFiltrees)
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: SoftCard(
@@ -95,8 +140,57 @@ class TresorerieScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _modifierFonds(BuildContext context, Store store) async {
-    final ctrl = TextEditingController(
+  Future<void> _exporter(
+      BuildContext context, Store store, String format) async {
+    const entetes = [
+      'Rubrique', 'Catégorie / Boutique', 'Budget / Fonds', 'Consommé / CA',
+      'Solde', 'Devise'
+    ];
+    final lignes = <List<dynamic>>[
+      for (final e in store.suiviBudgets.entries)
+        [
+          'Budget ${store.moisCourant}',
+          e.key,
+          e.value.$1,
+          e.value.$2,
+          e.value.$1 - e.value.$2,
+          store.profile.devise,
+        ],
+      for (final b in store.boutiques)
+        [
+          'Solde de caisse',
+          b.nom,
+          store.profile.fondsRoulement[b.id] ?? 0,
+          '',
+          store.soldeCaisse(b.id),
+          store.profile.devise,
+        ],
+    ];
+    final nom = 'tresorerie_${store.moisCourant}';
+    try {
+      switch (format) {
+        case 'pdf':
+          await ExportService.partagerPdf(nom,
+              titre: 'Trésorerie — ${store.moisCourant}',
+              sousTitre:
+                  'Solde courant : ${store.soldeCaisseCourant.toStringAsFixed(0)} ${store.profile.devise}',
+              entetes: entetes,
+              lignes: lignes);
+        case 'xlsx':
+          await ExportService.partagerExcel(
+              nom, 'Trésorerie', entetes, lignes);
+        default:
+          await ExportService.partagerCsv(nom, entetes, lignes);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
+  }
+
+  Future<void> _modifierFonds(BuildContext context, Store store) async {    final ctrl = TextEditingController(
         text: store.fondsRoulementCourant == 0 ? '' : store.fondsRoulementCourant.toStringAsFixed(0));
     final montant = await showDialog<double>(
       context: context,

@@ -16,7 +16,7 @@
 | 12 | Filtres catégorie/sous-catégorie Dépenses | ✅ | charges_screen.dart (recherche + dropdown catégorie) ; ecrans_test | 2026-09-26 |
 | 13 | Export PDF/Excel/CSV Dépenses | ✅ | ExportService + menu export (total inclus) | 2026-09-26 |
 | 14 | Export PDF/Excel/CSV Partenaires hotspot | ✅ | ExportService + menu AppBar (ventes, parts, clôture) | 2026-09-26 |
-| 15 | Export + filtres Trésorerie | ⬜ | — | — |
+| 15 | Export + filtres Trésorerie | ✅ | ExportService + filtre catégorie/boutique | 2026-09-26 |
 | 16 | Export + filtres Rapport financier | ⬜ | — | — |
 | 17 | Export + filtres Analytique CA & Dépenses | ⬜ | — | — |
 | 18 | Audit Documents commerciaux | ⬜ | — | — |
