@@ -72,6 +72,18 @@ void main() {
       expect(find.text('Mouvements'), findsOneWidget);
     });
 
+    testWidgets('Stock : recherche + catégorie + export', (tester) async {
+      await _pomper(tester, const StockScreen());
+      await tester.enterText(
+          find.widgetWithText(TextField, 'Rechercher un produit…'),
+          'zzz-introuvable');
+      await tester.pumpAndSettle();
+      expect(find.text('Aucun produit dans cette boutique'),
+          findsOneWidget);
+      expect(
+          find.byTooltip('Exporter la liste filtrée'), findsOneWidget);
+    });
+
     testWidgets('Charges : résumé du mois', (tester) async {
       await _pomper(tester, const ChargesScreen());
       expect(find.textContaining('Dépenses du mois'), findsOneWidget);

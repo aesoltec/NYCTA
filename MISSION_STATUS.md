@@ -9,8 +9,8 @@
 | 5 | Export PDF/Excel/CSV onglet Achat | ⬜ | — | — |
 | 6 | Filtres période/intervalle/catégorie/sous-catégorie Journal | ✅ | journal_screen.dart (plage dates, sous-catégorie/type) ; test export ci-dessous | 2026-09-26 |
 | 7 | Corriger bug impression/export PDF vide | ✅ | ExportService.pdfTableau (ligne « Aucune donnée » garantie) + menu export Journal ; export_service_test.dart 3/3 | 2026-09-26 |
-| 8 | Filtres catégorie/sous-catégorie Stock | ⬜ | — | — |
-| 9 | Export PDF/Excel/CSV Stock | ⬜ | — | — |
+| 8 | Filtres catégorie/sous-catégorie Stock | ✅ | stock_screen.dart (recherche + dropdown catégorie) ; ecrans_test 10/10 | 2026-09-26 |
+| 9 | Export PDF/Excel/CSV Stock | ✅ | ExportService + menu export (valorisation incluse) | 2026-09-26 |
 | 10 | Corriger persistance images Stock | ⬜ | — | — |
 | 11 | Multi-images produits (max 05) | ⬜ | — | — |
 | 12 | Filtres catégorie/sous-catégorie Dépenses | ⬜ | — | — |

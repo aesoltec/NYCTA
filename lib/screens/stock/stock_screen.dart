@@ -11,15 +11,56 @@ import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
 import 'mouvements_screen.dart';
 
-class StockScreen extends StatelessWidget {
+import '../../services/export_service.dart';
+
+class StockScreen extends StatefulWidget {
   const StockScreen({super.key});
+
+  @override
+  State<StockScreen> createState() => _StockScreenState();
+
+  static void formProduit(
+      BuildContext context, Store store, Produit? produit) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true, // jamais caché par le clavier / la zone système
+      showDragHandle: true,
+      builder: (ctx) => Padding(
+        // ctx (celui du builder), pas context (l'écran appelant) : sinon le
+        // padding reste figé à sa valeur au moment de l'ouverture (clavier
+        // fermé) et ne suit jamais l'apparition du clavier ensuite.
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: _FormProduit(produit: produit),
+      ),
+    );
+  }
+
+  void _formProduit(BuildContext context, Store store, Produit? p) =>
+      formProduit(context, store, p);
+}
+
+class _StockScreenState extends State<StockScreen> {
+  String? _categorie;
+  String _recherche = '';
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
-    final produits = store.produitsBoutique;
     final peutVendre = store.peut(Permission.vendre);
     final peutGererStock = store.peut(Permission.gererStock);
+    final cats = store.catsProduit;
+    var produits = store.produitsBoutique;
+    if (_categorie != null) {
+      produits =
+          produits.where((p) => p.categorie == _categorie).toList();
+    }
+    final rech = _recherche.trim().toLowerCase();
+    if (rech.isNotEmpty) {
+      produits = produits
+          .where((p) => p.libelle.toLowerCase().contains(rech))
+          .toList();
+    }
 
     return Scaffold(
       body: Column(children: [
@@ -62,7 +103,48 @@ class StockScreen extends StatelessWidget {
                     MaterialPageRoute(
                         builder: (_) => const MouvementsScreen())),
               ),
+              PopupMenuButton<String>(
+                tooltip: 'Exporter la liste filtrée',
+                icon: const Icon(Icons.ios_share_outlined, size: 20),
+                onSelected: (f) => _exporter(context, store, produits, f),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                      value: 'pdf', child: Text('PDF (partage)')),
+                  PopupMenuItem(
+                      value: 'xlsx', child: Text('Excel (.xlsx)')),
+                  PopupMenuItem(
+                      value: 'csv', child: Text('CSV (Excel)')),
+                ],
+              ),
             ]),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: TextField(
+            decoration: const InputDecoration(
+              hintText: 'Rechercher un produit…',
+              prefixIcon: Icon(Icons.search_rounded),
+              filled: true,
+            ),
+            onChanged: (v) => setState(() => _recherche = v),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: DropdownButtonFormField<String>(
+            value: _categorie,
+            isExpanded: true,
+            decoration: const InputDecoration(
+                labelText: 'Catégorie',
+                prefixIcon: Icon(Icons.category_outlined)),
+            items: [
+              const DropdownMenuItem(
+                  value: null, child: Text('Toutes catégories')),
+              for (final c in cats)
+                DropdownMenuItem(value: c, child: Text(c)),
+            ],
+            onChanged: (v) => setState(() => _categorie = v),
           ),
         ),
         Expanded(
@@ -121,6 +203,57 @@ class StockScreen extends StatelessWidget {
 
   void _formProduit(BuildContext context, Store store, Produit? p) =>
       formProduit(context, store, p);
+
+  /// Lignes d'export de la liste filtrée (mêmes colonnes partout).
+  static List<List<dynamic>> _lignesExport(
+      List<Produit> produits, String devise) => [
+        for (final p in produits)
+          [
+            p.libelle,
+            p.categorie,
+            p.prixAchat,
+            p.prixVente,
+            p.stock,
+            p.seuil,
+            p.stock * p.prixAchat,
+            devise,
+          ],
+      ];
+
+  Future<void> _exporter(BuildContext context, Store store,
+      List<Produit> produits, String format) async {
+    const entetes = [
+      'Produit', 'Catégorie', 'Prix achat', 'Prix vente', 'Stock',
+      'Seuil', 'Valorisation', 'Devise'
+    ];
+    final lignes = _lignesExport(produits, store.profile.devise);
+    final total =
+        produits.fold(0.0, (s, p) => s + p.stock * p.prixAchat);
+    final nom =
+        'stock_${store.boutiqueCourante.nom.replaceAll(' ', '_')}_${produits.length}articles';
+    final titre = 'Stock — ${store.boutiqueCourante.nom}';
+    try {
+      switch (format) {
+        case 'pdf':
+          await ExportService.partagerPdf(nom,
+              titre: titre,
+              sousTitre:
+                  '${produits.length} article(s) · Valorisation : ${total.toStringAsFixed(0)} ${store.profile.devise}',
+              entetes: entetes,
+              lignes: lignes);
+        case 'xlsx':
+          await ExportService.partagerExcel(
+              nom, 'Stock', entetes, lignes);
+        default:
+          await ExportService.partagerCsv(nom, entetes, lignes);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
+  }
 }
 
 class _LigneProduit extends StatelessWidget {
