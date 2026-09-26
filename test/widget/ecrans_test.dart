@@ -58,6 +58,14 @@ void main() {
       expect(find.text('Aucune transaction'), findsOneWidget);
     });
 
+    testWidgets('Journal : filtres date + menu export', (tester) async {
+      await _pomper(tester, const JournalScreen());
+      expect(find.text('Début (optionnel)'), findsOneWidget);
+      expect(find.text('Fin (optionnel)'), findsOneWidget);
+      expect(
+          find.byTooltip('Exporter la vue filtrée'), findsOneWidget);
+    });
+
     testWidgets('Stock : liste + valorisation', (tester) async {
       await _pomper(tester, const StockScreen());
       expect(find.text('Valorisation du stock'), findsOneWidget);

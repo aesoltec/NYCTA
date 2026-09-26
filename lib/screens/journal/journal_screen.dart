@@ -4,8 +4,10 @@ import '../../core/constants.dart';
 import '../../data/store.dart';
 import '../../models/enums.dart';
 import '../../models/transaction.dart';
+import '../../widgets/date_picker_field.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
+import '../../services/export_service.dart';
 import '../../services/pdf_service.dart';
 import '../transaction/nouvelle_transaction_screen.dart';
 
@@ -21,6 +23,9 @@ class JournalScreen extends StatefulWidget {
 
 class _JournalScreenState extends State<JournalScreen> {
   TypeTransaction? _filtre;
+  String? _sousCategorie;
+  DateTime? _debut;
+  DateTime? _fin;
   String _recherche = '';
 
   @override
@@ -37,6 +42,30 @@ class _JournalScreenState extends State<JournalScreen> {
         role == Role.admin || role == Role.gerant;
     var txs = store.txBoutique;
     if (_filtre != null) txs = txs.where((t) => t.type == _filtre).toList();
+    if (_sousCategorie != null) {
+      txs = txs.where((t) {
+        final d = t.details;
+        return switch (t.type) {
+          TypeTransaction.mobileMoney =>
+            (d['operateur']?.toString() ?? '') == _sousCategorie,
+          TypeTransaction.creditCommunication =>
+            (d['operateur']?.toString() ?? '') == _sousCategorie,
+          TypeTransaction.prestationService =>
+            (d['domaine']?.toString() ?? '') == _sousCategorie,
+          TypeTransaction.forfaitHotspot =>
+            (d['duree']?.toString() ?? '') == _sousCategorie,
+          TypeTransaction.venteMateriel => true,
+        };
+      }).toList();
+    }
+    if (_debut != null) {
+      txs = txs.where((t) => !t.date.isBefore(_debut!)).toList();
+    }
+    if (_fin != null) {
+      final finJour =
+          DateTime(_fin!.year, _fin!.month, _fin!.day, 23, 59, 59);
+      txs = txs.where((t) => !t.date.isAfter(finJour)).toList();
+    }
     if (_recherche.isNotEmpty) {
       txs = txs
           .where((t) =>
@@ -48,7 +77,24 @@ class _JournalScreenState extends State<JournalScreen> {
       // (corps sous le Scaffold d'AppShell) et comme route poussée depuis
       // le menu « Plus » — sans Scaffold propre, TextField/ListTile n'ont
       // aucun ancêtre Material en mode route (assertion debug).
-      appBar: AppBar(title: const Text('Journal des ventes')),
+      appBar: AppBar(
+        title: const Text('Journal des ventes'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Exporter la vue filtrée',
+            icon: const Icon(Icons.ios_share_outlined),
+            onSelected: (f) => _exporter(context, f, txs),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                  value: 'pdf', child: Text('PDF (partage)')),
+              PopupMenuItem(
+                  value: 'xlsx', child: Text('Excel (.xlsx)')),
+              PopupMenuItem(
+                  value: 'csv', child: Text('CSV (Excel)')),
+            ],
+          ),
+        ],
+      ),
       body: Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -80,16 +126,69 @@ class _JournalScreenState extends State<JournalScreen> {
             _FiltreChip(
               label: 'Tout · ${store.txBoutique.length}',
               actif: _filtre == null,
-              onTap: () => setState(() => _filtre = null),
+              onTap: () => setState(() {
+                _filtre = null;
+                _sousCategorie = null;
+              }),
             ),
             for (final t in TypeTransaction.values)
               _FiltreChip(
                 label: C.infosTypes[t]!.$1,
                 actif: _filtre == t,
-                onTap: () => setState(() => _filtre = t),
+                onTap: () => setState(() {
+                  _filtre = t;
+                  _sousCategorie = null;
+                }),
               ),
           ],
         ),
+      ),
+      if (_optionsSousCategorie(store).isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          child: DropdownButtonFormField<String>(
+            value: _sousCategorie,
+            isExpanded: true,
+            decoration: const InputDecoration(
+                labelText: 'Sous-catégorie',
+                prefixIcon: Icon(Icons.filter_alt_outlined)),
+            items: [
+              const DropdownMenuItem(
+                  value: null, child: Text('Toutes')),
+              for (final o in _optionsSousCategorie(store))
+                DropdownMenuItem(value: o, child: Text(o)),
+            ],
+            onChanged: (v) => setState(() => _sousCategorie = v),
+          ),
+        ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+        child: Row(children: [
+          Expanded(
+            child: DatePickerField(
+              valeur: _debut,
+              label: 'Début (optionnel)',
+              onChanged: (d) => setState(() => _debut = d),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: DatePickerField(
+              valeur: _fin,
+              label: 'Fin (optionnel)',
+              onChanged: (d) => setState(() => _fin = d),
+            ),
+          ),
+          if (_debut != null || _fin != null)
+            IconButton(
+              tooltip: 'Effacer les dates',
+              icon: const Icon(Icons.close),
+              onPressed: () => setState(() {
+                _debut = null;
+                _fin = null;
+              }),
+            ),
+        ]),
       ),
       Expanded(
         child: RefreshIndicator(
@@ -126,8 +225,84 @@ class _JournalScreenState extends State<JournalScreen> {
     );
   }
 
-  void _modifier(BuildContext context, Tx tx) {
-    Navigator.of(context).push(MaterialPageRoute(
+  /// Sous-catégories dépendant du type filtré (opérateur, domaine…).
+  /// Vente matériel : pas de sous-catégorie (lignes libres).
+  List<String> _optionsSousCategorie(Store store) => switch (_filtre) {
+        TypeTransaction.mobileMoney => store.opsMobileMoney,
+        TypeTransaction.creditCommunication => store.opsCredit,
+        TypeTransaction.prestationService => store.domainesPresta,
+        TypeTransaction.forfaitHotspot => store.dureesForfaitListe,
+        _ => const [],
+      };
+
+  /// Lignes d'export de la vue filtrée (mêmes colonnes partout).
+  List<List<dynamic>> _lignesExport(
+      List<Tx> txs, String devise, Store store) => [
+        for (final t in txs)
+          [
+            t.date,
+            C.infosTypes[t.type]!.$1,
+            t.clientNom ?? '',
+            _detailExport(t),
+            t.montant,
+            t.cout,
+            t.marge,
+            devise,
+            store.boutiqueCourante.nom,
+          ],
+      ];
+
+  static String _detailExport(Tx t) {
+    final d = t.details;
+    return switch (t.type) {
+      TypeTransaction.prestationService =>
+        '${d['domaine'] ?? ''}${d['description'] != null ? ' — ${d['description']}' : ''}',
+      TypeTransaction.mobileMoney =>
+        '${d['operateur'] ?? ''} ${d['operation'] ?? ''}',
+      TypeTransaction.creditCommunication => '${d['operateur'] ?? ''}',
+      TypeTransaction.forfaitHotspot => '${d['duree'] ?? ''}',
+      TypeTransaction.venteMateriel =>
+        (d['lignes'] as List?)?.map((l) => '${l['quantite']}× ${l['libelle']}').join(', ') ?? '',
+    };
+  }
+
+  Future<void> _exporter(
+      BuildContext context, String format, List<Tx> txs) async {
+    final store = context.read<Store>();
+    const entetes = [
+      'Date', 'Activité', 'Client', 'Détail', 'Montant', 'Coût',
+      'Marge', 'Devise', 'Boutique'
+    ];
+    final lignes = _lignesExport(txs, store.profile.devise, store);
+    final nom =
+        'journal_${store.moisCourant}_${txs.length}ops';
+    final titre = 'Journal des ventes — ${store.boutiqueCourante.nom}';
+    try {
+      switch (format) {
+        case 'pdf':
+          // pdfTableau garantit un tableau non vide : corrige le bug du
+          // cadre PDF vide quand la période filtrée ne contient rien.
+          await ExportService.partagerPdf(nom,
+              titre: titre,
+              sousTitre:
+                  '${txs.length} opération(s) · Total : ${txs.fold(0.0, (s, t) => s + t.montant).toStringAsFixed(0)} ${store.profile.devise}',
+              entetes: entetes,
+              lignes: lignes);
+        case 'xlsx':
+          await ExportService.partagerExcel(
+              nom, 'Journal', entetes, lignes);
+        default:
+          await ExportService.partagerCsv(nom, entetes, lignes);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
+  }
+
+  void _modifier(BuildContext context, Tx tx) {    Navigator.of(context).push(MaterialPageRoute(
       builder: (_) =>
           NouvelleTransactionScreen(type: tx.type, transaction: tx),
     ));

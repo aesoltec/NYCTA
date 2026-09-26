@@ -7,8 +7,8 @@
 | 3 | Déplacer bouton Journal → onglet Plus | ✅ | app_shell.dart:85-91 (AchatListScreen) + menu_screen.dart:43-50 (tuile Journal) ; parcours_test vert | 2026-09-26 |
 | 4 | Remplacer place Journal par bouton Achat | ✅ | app_shell.dart:244-248 (destination Achats) ; tuile dashboard existante | 2026-09-26 |
 | 5 | Export PDF/Excel/CSV onglet Achat | ⬜ | — | — |
-| 6 | Filtres période/intervalle/catégorie/sous-catégorie Journal | ⬜ | — | — |
-| 7 | Corriger bug impression/export PDF vide | ⬜ | — | — |
+| 6 | Filtres période/intervalle/catégorie/sous-catégorie Journal | ✅ | journal_screen.dart (plage dates, sous-catégorie/type) ; test export ci-dessous | 2026-09-26 |
+| 7 | Corriger bug impression/export PDF vide | ✅ | ExportService.pdfTableau (ligne « Aucune donnée » garantie) + menu export Journal ; export_service_test.dart 3/3 | 2026-09-26 |
 | 8 | Filtres catégorie/sous-catégorie Stock | ⬜ | — | — |
 | 9 | Export PDF/Excel/CSV Stock | ⬜ | — | — |
 | 10 | Corriger persistance images Stock | ⬜ | — | — |
