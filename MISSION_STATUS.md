@@ -24,7 +24,9 @@
 | 20 | Corriger overflow Documents émis (33px) | ✅ | documents_history_screen.dart (actions en Wrap sous l'en-tête, plus de trailing en colonne) ; ecrans_test 12/12 + golden test/golden/documents_emis_360_test.dart (PNG 360×800, 0 exception) | 2026-09-26 |
 | 21 | Filtres Documents émis | ✅ | documents_history_screen.dart (type ChoiceChips, recherche client/numéro, dates Début/Fin, Min/Max, LayoutBuilder étroit) ; ecrans_test 12/12 | 2026-09-26 |
 | 22 | Filtre + recherche Boutique | ✅ | boutiques_screen.dart (recherche nom/adresse, chips Actives/Fermées/Toutes + Siège/Annexes, badge FERMÉE, fermées en lecture seule) ; ecrans_test 13/13 + suite 117/117 | 2026-09-26 |
-| 23 | Filtre + recherche Catégories | ⬜ | — | — |
+| 22bis | Réouverture boutique fermée | ⬜ (🟡, RPC Supabase requise, 0,5j) | Bloqué : nécessite RPC `reouvrir_boutique` (garde admin/gérant) + bouton « Rouvrir » ; voir CDC §8 | — |
+| 22ter | Champs boutique étendus (ville, responsable, code) | ⬜ (🟢, validation CDC requise avant implémentation) | Bloqué : modèle `Boutique` = id/nom/adresse/siege/actif ; voir CDC §8 | — |
+| 23 | Filtre + recherche Catégories | ✅ | categories_screen.dart (recherche nom par onglet, type = onglets Produits/Charges ; statut/parent/code absents du modèle, non inventés) ; ecrans_test 14/14 + suite 118/118 | 2026-09-26 |
 | 24 | Audit formulaire vente | ⬜ | — | — |
 | 25 | Filtres + export Achat et fournisseurs | ⬜ | — | — |
 | 26 | Filtre spécialité + recherche + export Fournisseurs | ⬜ | — | — |

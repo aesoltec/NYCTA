@@ -9,6 +9,7 @@ import 'package:pme_gestion_pro/screens/charges/charges_screen.dart';
 import 'package:pme_gestion_pro/screens/collab/messagerie_screen.dart';
 import 'package:pme_gestion_pro/screens/dashboard/dashboard_screen.dart';
 import 'package:pme_gestion_pro/screens/admin/boutiques_screen.dart';
+import 'package:pme_gestion_pro/screens/admin/categories_screen.dart';
 import 'package:pme_gestion_pro/screens/documents/documents_history_screen.dart';
 import 'package:pme_gestion_pro/screens/documents/documents_screen.dart';
 import 'package:pme_gestion_pro/screens/journal/journal_screen.dart';
@@ -173,6 +174,25 @@ void main() {
           'zzz-introuvable');
       await tester.pumpAndSettle();
       expect(find.text('Aucune boutique (filtre sans résultat)'),
+          findsOneWidget);
+    });
+
+    testWidgets('Catégories : recherche par nom (onglet type)',
+        (tester) async {
+      await _pomper(tester, const CategoriesScreen());
+      expect(find.text('Catégories'), findsOneWidget);
+      // Onglets = filtre par type (Produits / Charges).
+      expect(find.text('Produits'), findsOneWidget);
+      expect(
+          find.widgetWithText(
+              TextField, 'Rechercher une catégorie…'),
+          findsOneWidget);
+      await tester.enterText(
+          find.widgetWithText(
+              TextField, 'Rechercher une catégorie…'),
+          'zzz-introuvable');
+      await tester.pumpAndSettle();
+      expect(find.text('Aucune catégorie (filtre sans résultat)'),
           findsOneWidget);
     });
 

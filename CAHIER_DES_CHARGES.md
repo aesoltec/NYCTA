@@ -51,6 +51,7 @@ et stockées dans la base — elles alimentent automatiquement les documents
 | Nouvelle opération | Formulaire dynamique par activité | ✅ |
 | Journal | Filtres par activité + recherche client | ✅ |
 | Multi-boutiques | Sélecteur, données filtrées par boutique | ✅ |
+| Boutiques (admin) | CRUD + recherche nom/adresse + filtres statut/siège (point 22) | ✅ |
 | **Charges & dépenses** | Loyers, salaires, fournisseurs, taxes, transport… catégorisées, mensuelles | ✅ |
 | **Trésorerie** | Fonds de roulement initial, solde de caisse en temps réel | ✅ |
 | **Budgets** | Budget mensuel par catégorie de charge, suivi consommé/reste | ✅ |
@@ -444,6 +445,15 @@ créer votre compte dans Authentication → Add user ; exécuter `supabase_schem
 | P11 clôture v3 | Workflow documents complet, Edge Function admin, CAGR mois/dépenses, export CSV+PDF, mini-graphe, tests widget/parcours/concurrence, rapprochement (`migration_rapprochement.sql`) |
 
 ## 8. Backlog (idées à prioriser ensemble)
+
+### 8bis. Dettes fonctionnelles — Boutique (mission 2026-09-26)
+Champs actuels du modèle `Boutique` (v1.9.x) : `id`, `nom`, `adresse`, `siege`, `actif`.
+Filtres livrés (point 22) : recherche nom/adresse, statut actives/fermées/toutes, siège/annexes.
+
+| Dette | Champs cibles | Charge | Priorité | Acceptation |
+|---|---|---|---|---|
+| 22bis Réouverture boutique | RPC `reouvrir_boutique` (garde admin/gérant) + bouton « Rouvrir » sur carte FERMÉE | 0,5 j | 🟡 | Boutique rouverte réapparaît en Actives, historique intact, test dédié |
+| 22ter Champs étendus | `ville`, `responsable`, `code` (+ migration SQL + formulaire + recherche) | 1 j | 🟢 | À valider avec le métier avant implémentation (ces champs ne sont exigés par aucun flux actuel) |
 
 - TVA configurable et factures normalisées (normes fiscales du pays)
 - Gestion des fournisseurs & réapprovisionnement

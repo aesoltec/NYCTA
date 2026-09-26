@@ -89,47 +89,115 @@ class CategoriesScreen extends StatelessWidget {
   }
 }
 
-class _ListeCategories extends StatelessWidget {
+class _ListeCategories extends StatefulWidget {
   final bool produit;
   const _ListeCategories({required this.produit});
 
   @override
+  State<_ListeCategories> createState() => _ListeCategoriesState();
+}
+
+class _ListeCategoriesState extends State<_ListeCategories> {
+  String _recherche = '';
+
+  @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
-    final liste = produit ? store.catsProduit : store.catsCharge;
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-      itemCount: liste.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (_, i) => Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 8, offset: Offset(0, 3))],
-        ),
-        child: ListTile(
-          leading: Icon(produit ? Icons.label_outline : Icons.receipt_long_outlined,
-              size: 20, color: const Color(0xFF3D6FB4)),
-          title: Text(liste[i],
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600)),
-          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-            IconButton(icon: const Icon(Icons.edit_outlined, size: 19),
-                onPressed: () => CategoriesScreen._dialog(context, produit, liste[i])),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, size: 19, color: Colors.redAccent),
-              onPressed: () async {
-                final erreur = await context
-                    .read<Store>().supprimerCategorie(liste[i], produit: produit);
-                if (context.mounted && erreur != null) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(SnackBar(content: Text('⚠️ $erreur')));
-                }
-              },
-            ),
-          ]),
+    // Filtre par type = les onglets Produits/Charges eux-mêmes.
+    // Statut/parent/code : absents du modèle (simples listes de noms) —
+    // non inventés (voir PASSES_AUDIT point 23).
+    final toutes =
+        widget.produit ? store.catsProduit : store.catsCharge;
+    final rech = _recherche.trim().toLowerCase();
+    final liste = rech.isEmpty
+        ? toutes
+        : toutes
+            .where((c) => c.toLowerCase().contains(rech))
+            .toList();
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: TextField(
+          decoration: const InputDecoration(
+            hintText: 'Rechercher une catégorie…',
+            prefixIcon: Icon(Icons.search_rounded),
+            filled: true,
+          ),
+          onChanged: (v) => setState(() => _recherche = v),
         ),
       ),
-    );
+      Expanded(
+        child: liste.isEmpty
+            ? Center(
+                child: Text(
+                  'Aucune catégorie (filtre sans résultat)',
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+              )
+            : ListView.separated(
+                padding:
+                    const EdgeInsets.fromLTRB(16, 8, 16, 90),
+                itemCount: liste.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (_, i) => Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: const [
+                      BoxShadow(
+                          color: Color(0x10000000),
+                          blurRadius: 8,
+                          offset: Offset(0, 3))
+                    ],
+                  ),
+                  child: ListTile(
+                    leading: Icon(
+                        widget.produit
+                            ? Icons.label_outline
+                            : Icons.receipt_long_outlined,
+                        size: 20,
+                        color: const Color(0xFF3D6FB4)),
+                    title: Text(liste[i],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600)),
+                    trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                              icon: const Icon(Icons.edit_outlined,
+                                  size: 19),
+                              onPressed: () =>
+                                  CategoriesScreen._dialog(
+                                      context,
+                                      widget.produit,
+                                      liste[i])),
+                          IconButton(
+                            icon: const Icon(
+                                Icons.delete_outline,
+                                size: 19,
+                                color: Colors.redAccent),
+                            onPressed: () async {
+                              final erreur = await context
+                                  .read<Store>()
+                                  .supprimerCategorie(liste[i],
+                                      produit: widget.produit);
+                              if (context.mounted &&
+                                  erreur != null) {
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(
+                                        content:
+                                            Text('⚠️ $erreur')));
+                              }
+                            },
+                          ),
+                        ]),
+                  ),
+                ),
+              ),
+      ),
+    ]);
   }
 }

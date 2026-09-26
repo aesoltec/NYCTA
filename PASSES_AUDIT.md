@@ -108,3 +108,15 @@
 8. Analyze ✅ — 0 erreur, 0 warning nouveau.
 9. Tests ✅ — recherche + chips + état vide vérifiés ; suite complète 117/117.
 10. Contre-expertise finale ✅ — défaut 'actives' = comportement précédent (seules actives listées) : aucune régression.
+
+### Point 23 — Recherche Catégories (categories_screen.dart)
+1. Fonctionnelle ✅ — recherche nom insensible à la casse, par onglet ; renommer/supprimer inchangés.
+2. Métier ✅ — filtre par type = onglets existants (Produits/Charges) ; anti-doublon et garde-fou suppression préservés.
+3. Contre-expertise ✅ — statut/parent/code absents du modèle (listes de `String`) : non inventés, tracé en commentaire ; refactor Stateless→Stateful sans changer les actions.
+4. Sécurité ✅ — écran admin, aucune policy touchée.
+5. Overflow ✅ — `Column` + `Expanded`, recherche fixe en haut, `ellipsis` conservés.
+6. Cycle de vie ✅ — aucun contrôleur, `context.mounted` existants intacts.
+7. Persistance ✅ — lecture seule (`catsProduit`/`catsCharge`), écritures via store inchangées.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — onglets + recherche + état vide vérifiés ; suite complète 118/118.
+10. Contre-expertise finale ✅ — recherche vide = liste complète (comportement précédent) : aucune régression.
