@@ -446,6 +446,18 @@ class CloudRepository {
         await _c!.from('boutiques').update({'actif': false}).eq('id', id);
       });
 
+  /// Réouverture (point 22bis) : la RPC `reouvrir_boutique` (security
+  /// definer, garde admin/gérant côté serveur) effectue l'UPDATE — sans
+  /// elle, la policy UPDATE interdirait l'écriture au rôle vendeur.
+  static Future<String?> rouvrirBoutique(String id) async {
+    try {
+      await _c!.rpc('reouvrir_boutique', params: {'p_id': id});
+      return null;
+    } catch (e) {
+      return 'Réouverture impossible (RPC reouvrir_boutique)';
+    }
+  }
+
   static Future<void> upsertCategorie(String type, String nom) =>
       _silencieux(() async {
         await _c!.from('categories').upsert({'type': type, 'nom': nom},

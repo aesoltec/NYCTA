@@ -1144,6 +1144,23 @@ class Store extends ChangeNotifier {
     return null;
   }
 
+  /// Réouverture d'une boutique fermée (point 22bis) : admin/gérant
+  /// uniquement (miroir de la RPC `reouvrir_boutique`). Retourne null
+  /// si OK, sinon le motif du refus.
+  Future<String?> rouvrirBoutique(String id) async {
+    if (role != Role.admin && role != Role.gerant) {
+      return 'Réouverture réservée (admin, gérant)';
+    }
+    final i = boutiques.indexWhere((x) => x.id == id);
+    if (i < 0) return 'Boutique introuvable';
+    if (boutiques[i].actif) return 'Boutique déjà active';
+    final erreur = await CloudRepository.rouvrirBoutique(id);
+    if (erreur != null) return erreur;
+    boutiques[i] = boutiques[i].copyWith(actif: true);
+    notifyListeners();
+    return null;
+  }
+
   // ---------- Configuration entreprise ----------
   Future<void> updateProfile(CompanyProfile p) async {
     profile = p;

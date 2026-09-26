@@ -238,7 +238,23 @@ class _CarteBoutique extends StatelessWidget {
                       }
                     }),
               ])
-            : null,
+            : (store.role == Role.admin || store.role == Role.gerant)
+                ? IconButton(
+                    icon: const Icon(Icons.restore_page_outlined,
+                        size: 20, color: Color(0xFF3E9D8F)),
+                    tooltip: 'Réouvrir cette boutique',
+                    onPressed: () async {
+                      final erreur =
+                          await store.rouvrirBoutique(b.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text(erreur ??
+                                    '✅ Boutique rouverte')));
+                      }
+                    },
+                  )
+                : null,
       ),
     );
   }
