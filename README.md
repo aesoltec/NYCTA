@@ -249,6 +249,29 @@ Check-list de mise en service : SQL (schéma → fonctions) → bucket `media` �
 compte Authentication → boutiques en SQL → utilisateurs via l'écran dédié.
 
 
+## Menu « Plus » thématique (v1.9.x)
+
+L'onglet **Plus** est organisé en 11 sections suivant le flux métier
+(vente → achat → stock → finance → reporting → configuration) :
+
+| Section | Contenu |
+|---|---|
+| Ventes | Journal des ventes, Relances clients, Clients |
+| Achats | Achats fournisseurs, Fournisseurs |
+| Stock | Produits & stock, Mouvements de stock |
+| Finances | Trésorerie, Charges & dépenses |
+| Comptabilité | Comptabilité (journal, balance, résultat, TVA, âgée) |
+| Partenaires | Partenaires hotspot, Boutiques |
+| Documents | Documents commerciaux, Historique des documents |
+| Rapports | Rapports, Analytique CA & dépenses, Statistiques & graphiques |
+| Configuration | Tarifs & catalogue, Catégories, Listes du formulaire, Utilisateurs, Configuration |
+| Administration | Synchronisation, Sauvegardes & exports |
+| Collaboration | Messagerie, Suggestions & signalements, Réunions & événements, Notes & rappels |
+
+Chaque tuile est filtrée par le rôle connecté (matrice
+`MATRICE_PERMISSIONS.md`). La barre principale donne accès direct à
+Accueil, Achats, Stock, Dépenses et Plus.
+
 ## Administration complète (v1.1.0)
 
 Plus RIEN ne se fait dans Supabase à la main — toute la gestion est dans l'app :

@@ -245,3 +245,15 @@ Décisions SYSCOHADA (ADR) : documents commerciaux ne postent PAS (évite double
 8. Analyze ✅ — 0 erreur, 0 warning nouveau.
 9. Tests ✅ — `tarifs_test.dart` 7/7 (accents, dedup, roundtrip, liste, formulaire+Autocomplete) ; suite 148/148.
 10. Contre-expertise finale ✅ — table parallel-strings remplacée par `Map` explicite après échec test (`Alectricite`) : le test a fait son travail.
+
+### Point 37 — Menu « Plus » thématique (menu_screen.dart)
+1. Fonctionnelle ✅ — 11 sections (Ventes, Achats, Stock, Finances, Comptabilité, Partenaires, Documents, Rapports, Configuration, Administration, Collaboration) + tuiles réordonnées selon le flux métier.
+2. Métier ✅ — ordre = flux vente → achat → stock → finance → compta → partenaires → documents → rapports → config → admin → collaboration ; permissions inchangées par tuile.
+3. Contre-expertise ✅ — tuiles déplacées sans duplication (grep : 1 occurrence par destination) ; nouvelles tuiles Stock/Mouvements/Charges avec permissions cohérentes.
+4. Sécurité ✅ — aucune permission modifiée (mêmes gardes `peut()`/rôle).
+5. Overflow ✅ — `_Section` en `Text` borné (11.5px, letterSpacing) ; tuiles `Material`+`ListTile` existantes ; test 360px.
+6. Cycle de vie ✅ — aucun contrôleur ajouté.
+7. Persistance ✅ — aucune donnée.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — 11 sections + tuiles + 360px vérifiés (scrollUntilVisible pour sections basses) ; suite 150/150.
+10. Contre-expertise finale ✅ — « Prestations/Mobile Money/Crédit/Forfait » de la spec = le Journal (toutes activités) : pas de sous-écrans inventés (ils n'existent pas).

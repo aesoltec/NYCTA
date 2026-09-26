@@ -52,6 +52,7 @@ et stockées dans la base — elles alimentent automatiquement les documents
 | Journal | Filtres par activité + recherche client | ✅ |
 | Multi-boutiques | Sélecteur, données filtrées par boutique | ✅ |
 | Boutiques (admin) | CRUD + recherche nom/adresse + filtres statut/siège (point 22) | ✅ |
+| Boutiques (admin) | CRUD + recherche nom/adresse + filtres statut/siège (point 22) | ✅ |
 | **Charges & dépenses** | Loyers, salaires, fournisseurs, taxes, transport… catégorisées, mensuelles | ✅ |
 | **Trésorerie** | Fonds de roulement initial, solde de caisse en temps réel | ✅ |
 | **Budgets** | Budget mensuel par catégorie de charge, suivi consommé/reste | ✅ |
@@ -61,6 +62,7 @@ et stockées dans la base — elles alimentent automatiquement les documents
 | **Statistiques & graphiques (fl_chart)** | Courbe CA 30 jours (accueil + écran dédié), camembert activités, histogramme, indicateurs clés (moyenne/jour, meilleur jour, marge %) | ✅ |
 | Partenaires hotspot | Ventes mensuelles, clôture & partage automatique | ✅ |
 | Rapports | Par activité, frais MoMo par opérateur, par boutique | ✅ |
+| Menu « Plus » | 11 sections thématiques (Ventes → Collaboration), permissions par rôle | ✅ |
 
 ## 3bis. Rôles & matrice de permissions (7 rôles)
 

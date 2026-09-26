@@ -20,6 +20,7 @@ import '../config/synchronisation_screen.dart';
 import '../documents/documents_history_screen.dart';
 import '../documents/documents_screen.dart';
 import '../backup/backup_screen.dart';
+import '../charges/charges_screen.dart';
 import '../compta/compta_screen.dart';
 import '../journal/journal_screen.dart';
 import '../partenaires/partenaires_screen.dart';
@@ -27,44 +28,21 @@ import '../relances/relances_screen.dart';
 import '../rapports/analytique_screen.dart';
 import '../rapports/rapports_screen.dart';
 import '../stats/stats_screen.dart';
+import '../stock/mouvements_screen.dart';
+import '../stock/stock_screen.dart';
 import '../tarifs/tarifs_screen.dart';
 import '../tresorerie/tresorerie_screen.dart';
 import '../users/users_screen.dart';
-import '../stock/mouvements_screen.dart';
 
-/// Hub "Plus" : accès aux modules secondaires, regroupés par thème
-/// professionnel (point 37) dans l'ordre du flux métier :
-/// vente → achat → stock → finance → reporting. Chaque tuile reste
-/// filtrée par le rôle connecté ; une section vide est masquée.
+/// Hub "Plus" : accès aux modules secondaires, filtrés par le rôle
+/// connecté, RÉORGANISÉ PAR THÈMES (point 37) selon le flux métier :
+/// vente → achat → stock → finance → reporting → configuration.
 class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
-    // Visibilités (mêmes règles qu'avant, factorisées pour masquer
-    // les sections entièrement vides selon le rôle).
-    final vJournal = store.role != Role.partenaire;
-    final vPartenaires = store.peut(Permission.gererPartenaires) ||
-        store.peut(Permission.cloturerMois);
-    final vTresorerie = store.peut(Permission.voirCaisse);
-    final vRapports = store.peut(Permission.voirRapports);
-    final vTarifs = store.role != Role.partenaire;
-    final vDocuments = store.peut(Permission.gererDocuments) ||
-        store.role == Role.vendeur;
-    final vBoutiques = store.peut(Permission.gererUtilisateurs) ||
-        store.peut(Permission.configurer);
-    final vConfig = store.peut(Permission.configurer);
-    final vAchats = store.peut(Permission.gererAchats) ||
-        store.role == Role.vendeur ||
-        store.role == Role.caissier;
-    final vFournisseurs = store.peut(Permission.gererDepenses) ||
-        store.peut(Permission.configurer);
-    final vVendre = store.peut(Permission.vendre);
-    final vUsers = store.peut(Permission.gererUtilisateurs);
-    final vCollab = store.role != Role.partenaire;
-    final vMouvements =
-        vJournal && store.peut(Permission.gererStock);
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: [
@@ -110,9 +88,10 @@ class MenuScreen extends StatelessWidget {
             ),
           ]),
         ),
-        // ---------- Ventes ----------
-        if (vJournal || vVendre) const _Section('Ventes'),
-        if (vJournal)
+
+        // ==================== VENTES ====================
+        const _Section('Ventes'),
+        if (store.role != Role.partenaire)
           _Tuille(
             icone: Icons.receipt_long_outlined,
             couleur: const Color(0xFF37474F),
@@ -121,7 +100,7 @@ class MenuScreen extends StatelessWidget {
                 '${store.txBoutique.length} opération(s) · filtres, recherche, corrections',
             destination: const JournalScreen(),
           ),
-        if (vVendre)
+        if (store.peut(Permission.vendre))
           _Tuille(
             icone: Icons.notification_important_outlined,
             couleur: const Color(0xFFC62828),
@@ -131,9 +110,20 @@ class MenuScreen extends StatelessWidget {
                 : '${store.creances.length} impayé(s) · ${store.totalCreances.toStringAsFixed(0)} à recouvrer',
             destination: const RelancesScreen(),
           ),
-        // ---------- Achats ----------
-        if (vAchats || vFournisseurs) const _Section('Achats'),
-        if (vAchats)
+        if (store.peut(Permission.vendre))
+          _Tuille(
+            icone: Icons.people_outline,
+            couleur: const Color(0xFF6A1B9A),
+            titre: 'Clients',
+            sousTitre: '${store.clientsBoutique.length} client(s) de cette boutique',
+            destination: const ClientsScreen(),
+          ),
+
+        // ==================== ACHATS ====================
+        const _Section('Achats'),
+        if (store.peut(Permission.gererAchats) ||
+            store.role == Role.vendeur ||
+            store.role == Role.caissier)
           _Tuille(
             icone: Icons.shopping_cart_outlined,
             couleur: const Color(0xFFEF6C00),
@@ -143,7 +133,8 @@ class MenuScreen extends StatelessWidget {
                 : 'Demandes, commandes, réceptions, dettes',
             destination: const AchatListScreen(),
           ),
-        if (vFournisseurs)
+        if (store.peut(Permission.gererDepenses) ||
+            store.peut(Permission.configurer))
           _Tuille(
             icone: Icons.local_shipping_outlined,
             couleur: const Color(0xFFBF360C),
@@ -151,19 +142,30 @@ class MenuScreen extends StatelessWidget {
             sousTitre: '${store.fournisseurs.length} fournisseur(s)',
             destination: const FournisseursScreen(),
           ),
-        // ---------- Stock ----------
-        if (vMouvements) const _Section('Stock'),
-        if (vMouvements)
+
+        // ==================== STOCK ====================
+        const _Section('Stock'),
+        if (store.peut(Permission.gererStock) ||
+            store.peut(Permission.vendre))
           _Tuille(
-            icone: Icons.history_rounded,
-            couleur: const Color(0xFF5C6BC0),
+            icone: Icons.inventory_2_outlined,
+            couleur: const Color(0xFF2E7D32),
+            titre: 'Produits & stock',
+            sousTitre: '${store.produitsBoutique.length} article(s) · alertes, vente, galerie',
+            destination: const StockScreen(),
+          ),
+        if (store.peut(Permission.gererStock))
+          _Tuille(
+            icone: Icons.swap_vert_outlined,
+            couleur: const Color(0xFF00838F),
             titre: 'Mouvements de stock',
-            sousTitre: 'Entrées, sorties, ajustements tracés',
+            sousTitre: 'Entrées, sorties, ajustements — traçabilité',
             destination: const MouvementsScreen(),
           ),
-        // ---------- Finances ----------
-        if (vTresorerie) const _Section('Finances'),
-        if (vTresorerie)
+
+        // ==================== FINANCES ====================
+        const _Section('Finances'),
+        if (store.peut(Permission.voirCaisse))
           _Tuille(
             icone: Icons.account_balance_wallet_outlined,
             couleur: const Color(0xFF3E9D8F),
@@ -171,9 +173,19 @@ class MenuScreen extends StatelessWidget {
             sousTitre: 'Fonds de roulement, soldes de caisse, budgets',
             destination: const TresorerieScreen(),
           ),
-        // ---------- Comptabilité ----------
-        if (vRapports) const _Section('Comptabilité'),
-        if (vRapports)
+        if (store.peut(Permission.gererDepenses) ||
+            store.peut(Permission.configurer))
+          _Tuille(
+            icone: Icons.money_off_rounded,
+            couleur: const Color(0xFFD97706),
+            titre: 'Charges & dépenses',
+            sousTitre: '${store.depensesBoutique.length} dépense(s) · budgets mensuels',
+            destination: const ChargesScreen(),
+          ),
+
+        // ==================== COMPTABILITÉ ====================
+        const _Section('Comptabilité'),
+        if (store.peut(Permission.voirRapports))
           _Tuille(
             icone: Icons.account_balance_outlined,
             couleur: const Color(0xFF0D47A1),
@@ -181,9 +193,11 @@ class MenuScreen extends StatelessWidget {
             sousTitre: 'Journal immuable, balance, compte de résultat',
             destination: const ComptaScreen(),
           ),
-        if (vPartenaires || vVendre || vBoutiques)
-          const _Section('Partenaires & clients'),
-        if (vPartenaires)
+
+        // ==================== PARTENAIRES ====================
+        const _Section('Partenaires'),
+        if (store.peut(Permission.gererPartenaires) ||
+            store.peut(Permission.cloturerMois))
           _Tuille(
             icone: Icons.handshake_outlined,
             couleur: const Color(0xFF3D6FB4),
@@ -191,15 +205,8 @@ class MenuScreen extends StatelessWidget {
             sousTitre: '${store.partenaires.length} partenaire(s) · clôture mensuelle',
             destination: const PartenairesScreen(),
           ),
-        if (vVendre)
-          _Tuille(
-            icone: Icons.people_outline,
-            couleur: const Color(0xFF6A1B9A),
-            titre: 'Clients',
-            sousTitre: '${store.clientsBoutique.length} client(s) de cette boutique',
-            destination: const ClientsScreen(),
-          ),
-        if (vBoutiques)
+        if (store.peut(Permission.gererUtilisateurs) ||
+            store.peut(Permission.configurer))
           _Tuille(
             icone: Icons.storefront_outlined,
             couleur: const Color(0xFF37474F),
@@ -207,9 +214,11 @@ class MenuScreen extends StatelessWidget {
             sousTitre: '${store.boutiquesActives.length} boutique(s) · création, accès, siège',
             destination: const BoutiquesScreen(),
           ),
-        // ---------- Documents ----------
-        if (vDocuments) const _Section('Documents'),
-        if (vDocuments)
+
+        // ==================== DOCUMENTS ====================
+        const _Section('Documents'),
+        if (store.peut(Permission.gererDocuments) ||
+            store.role == Role.vendeur)
           _Tuille(
             icone: Icons.description_outlined,
             couleur: const Color(0xFFEF6C00),
@@ -217,7 +226,8 @@ class MenuScreen extends StatelessWidget {
             sousTitre: 'Factures, devis proforma, bons de commande, tickets',
             destination: const DocumentsScreen(),
           ),
-        if (vDocuments)
+        if (store.peut(Permission.gererDocuments) ||
+            store.role == Role.vendeur)
           _Tuille(
             icone: Icons.folder_outlined,
             couleur: const Color(0xFF455A64),
@@ -225,9 +235,10 @@ class MenuScreen extends StatelessWidget {
             sousTitre: '${store.documentsEmis.length} document(s) émis — factures, devis, bons, tickets',
             destination: const DocumentsHistoryScreen(),
           ),
-        // ---------- Rapports ----------
-        if (vRapports) const _Section('Rapports'),
-        if (vRapports)
+
+        // ==================== RAPPORTS ====================
+        const _Section('Rapports'),
+        if (store.peut(Permission.voirRapports))
           _Tuille(
             icone: Icons.insights_outlined,
             couleur: const Color(0xFF7E57C2),
@@ -235,7 +246,7 @@ class MenuScreen extends StatelessWidget {
             sousTitre: 'Par activité, opérateurs, boutiques',
             destination: const RapportsScreen(),
           ),
-        if (vRapports)
+        if (store.peut(Permission.voirRapports))
           _Tuille(
             icone: Icons.query_stats_outlined,
             couleur: const Color(0xFF00838F),
@@ -243,7 +254,7 @@ class MenuScreen extends StatelessWidget {
             sousTitre: '7 jours, mois, années — comparaisons, détail filtrable',
             destination: const AnalytiqueScreen(),
           ),
-        if (vRapports)
+        if (store.peut(Permission.voirRapports))
           _Tuille(
             icone: Icons.bar_chart_rounded,
             couleur: const Color(0xFF5C6BC0),
@@ -251,25 +262,10 @@ class MenuScreen extends StatelessWidget {
             sousTitre: 'Courbe CA, camembert activités, partenaires',
             destination: const StatsScreen(),
           ),
-        // ---------- Configuration ----------
-        if (vConfig || vTarifs) const _Section('Configuration'),
-        if (vConfig)
-          _Tuille(
-            icone: Icons.label_outline,
-            couleur: const Color(0xFF00838F),
-            titre: 'Catégories',
-            sousTitre: '${store.catsProduit.length} produit(s) · ${store.catsCharge.length} charge(s) — dynamiques',
-            destination: const CategoriesScreen(),
-          ),
-        if (vConfig)
-          _Tuille(
-            icone: Icons.tune_rounded,
-            couleur: const Color(0xFF00838F),
-            titre: 'Listes du formulaire de vente',
-            sousTitre: 'Opérateurs Mobile Money/Crédit, domaines, durées forfait',
-            destination: const ListesDynamiquesScreen(),
-          ),
-        if (vTarifs)
+
+        // ==================== CONFIGURATION ====================
+        const _Section('Configuration'),
+        if (store.role != Role.partenaire)
           _Tuille(
             icone: Icons.sell_outlined,
             couleur: const Color(0xFF2E7D32),
@@ -278,17 +274,23 @@ class MenuScreen extends StatelessWidget {
                 'factures et devis',
             destination: const TarifsScreen(),
           ),
-        if (vConfig)
+        if (store.peut(Permission.configurer))
           _Tuille(
-            icone: Icons.settings_outlined,
-            couleur: Colors.grey.shade700,
-            titre: 'Configuration',
-            sousTitre: 'Identité, RCCM, IFU, devise, image de marque, budgets…',
-            destination: const ConfigScreen(),
+            icone: Icons.label_outline,
+            couleur: const Color(0xFF00838F),
+            titre: 'Catégories',
+            sousTitre: '${store.catsProduit.length} produit(s) · ${store.catsCharge.length} charge(s) — dynamiques',
+            destination: const CategoriesScreen(),
           ),
-        // ---------- Administration ----------
-        if (vUsers || vConfig) const _Section('Administration'),
-        if (vUsers)
+        if (store.peut(Permission.configurer))
+          _Tuille(
+            icone: Icons.tune_rounded,
+            couleur: const Color(0xFF00838F),
+            titre: 'Listes du formulaire de vente',
+            sousTitre: 'Opérateurs Mobile Money/Crédit, domaines, durées forfait',
+            destination: const ListesDynamiquesScreen(),
+          ),
+        if (store.peut(Permission.gererUtilisateurs))
           _Tuille(
             icone: Icons.group_outlined,
             couleur: const Color(0xFF6D4C41),
@@ -296,7 +298,18 @@ class MenuScreen extends StatelessWidget {
             sousTitre: '${store.users.length} compte(s) · rôles et boutiques',
             destination: const UsersScreen(),
           ),
-        if (vConfig)
+        if (store.peut(Permission.configurer))
+          _Tuille(
+            icone: Icons.settings_outlined,
+            couleur: Colors.grey.shade700,
+            titre: 'Configuration',
+            sousTitre: 'Identité, RCCM, IFU, devise, image de marque, budgets…',
+            destination: const ConfigScreen(),
+          ),
+
+        // ==================== ADMINISTRATION ====================
+        const _Section('Administration'),
+        if (store.peut(Permission.configurer))
           _Tuille(
             icone: Icons.sync_problem_outlined,
             couleur: const Color(0xFFC62828),
@@ -304,7 +317,7 @@ class MenuScreen extends StatelessWidget {
             sousTitre: 'Ventes/opérations en attente ou bloquées — pourquoi et comment relancer',
             destination: const SynchronisationScreen(),
           ),
-        if (vConfig)
+        if (store.peut(Permission.configurer))
           _Tuille(
             icone: Icons.cloud_outlined,
             couleur: const Color(0xFF0277BD),
@@ -312,9 +325,10 @@ class MenuScreen extends StatelessWidget {
             sousTitre: 'Excel (CSV), sauvegarde complète, restauration',
             destination: const BackupScreen(),
           ),
-        // ---------- Collaboration ----------
-        if (vCollab) const _Section('Collaboration'),
-        if (vCollab)
+
+        // ==================== COLLABORATION ====================
+        const _Section('Collaboration'),
+        if (store.role != Role.partenaire)
           _Tuille(
             icone: Icons.forum_outlined,
             couleur: const Color(0xFF00695C),
@@ -324,7 +338,7 @@ class MenuScreen extends StatelessWidget {
                 : 'Messages à un utilisateur ou à tous',
             destination: const MessagerieScreen(),
           ),
-        if (vCollab)
+        if (store.role != Role.partenaire)
           _Tuille(
             icone: store.nouveauxFeedbacks > 0
                 ? Icons.mark_chat_unread_outlined
@@ -336,7 +350,7 @@ class MenuScreen extends StatelessWidget {
                 : 'Recommandations, idées, pannes, avis',
             destination: const FeedbacksScreen(),
           ),
-        if (vCollab)
+        if (store.role != Role.partenaire)
           _Tuille(
             icone: Icons.event_outlined,
             couleur: const Color(0xFF4527A0),
@@ -346,7 +360,7 @@ class MenuScreen extends StatelessWidget {
                 : '${store.evenementsAVenir.length} événement(s) à venir',
             destination: const EvenementsScreen(),
           ),
-        if (vCollab)
+        if (store.role != Role.partenaire)
           _Tuille(
             icone: Icons.sticky_note_2_outlined,
             couleur: const Color(0xFF827717),
@@ -354,6 +368,7 @@ class MenuScreen extends StatelessWidget {
             sousTitre: '${store.notesPerso.length} note(s)',
             destination: const NotesScreen(),
           ),
+
         const SizedBox(height: 16),
         Card(
           color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.06),
@@ -384,25 +399,24 @@ class MenuScreen extends StatelessWidget {
   }
 }
 
-/// Titre de section du menu (point 37) : sobre, borné anti-overflow.
+/// En-tête de section thématique (point 37).
 class _Section extends StatelessWidget {
   final String titre;
   const _Section(this.titre);
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 8, left: 4),
-      child: Text(titre.toUpperCase(),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 14, bottom: 6),
+        child: Text(
+          titre.toUpperCase(),
           style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
-              color: Colors.grey.shade600)),
-    );
-  }
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+      );
 }
 
 class _Tuille extends StatelessWidget {

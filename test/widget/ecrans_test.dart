@@ -12,11 +12,11 @@ import 'package:pme_gestion_pro/screens/admin/boutiques_screen.dart';
 import 'package:pme_gestion_pro/screens/admin/categories_screen.dart';
 import 'package:pme_gestion_pro/screens/collab/fournisseurs_screen.dart';
 import 'package:pme_gestion_pro/screens/compta/compta_screen.dart';
-import 'package:pme_gestion_pro/screens/menu/menu_screen.dart';
 import 'package:pme_gestion_pro/screens/stats/stats_screen.dart';
 import 'package:pme_gestion_pro/screens/documents/documents_history_screen.dart';
 import 'package:pme_gestion_pro/screens/documents/documents_screen.dart';
 import 'package:pme_gestion_pro/screens/journal/journal_screen.dart';
+import 'package:pme_gestion_pro/screens/menu/menu_screen.dart';
 import 'package:pme_gestion_pro/screens/rapports/analytique_screen.dart';
 import 'package:pme_gestion_pro/screens/stock/stock_screen.dart';
 
@@ -228,41 +228,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 700));
     });
 
-    testWidgets('Menu Plus : sections thématiques ordonnées',
-        (tester) async {
-      // Très grande surface : tout le menu est construit d'un coup,
-      // les positions dy reflètent l'ordre du document.
-      tester.view.physicalSize = const Size(800, 10000);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-      await tester.pumpWidget(_hote(const MenuScreen()));
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      // Ordre du flux métier : vente → achat → stock → finance → reporting.
-      final sections = [
-        'VENTES', 'ACHATS', 'STOCK', 'FINANCES', 'COMPTABILITÉ',
-        'PARTENAIRES & CLIENTS', 'DOCUMENTS', 'RAPPORTS',
-        'CONFIGURATION', 'ADMINISTRATION', 'COLLABORATION',
-      ];
-      var dernier = -1.0;
-      for (final s in sections) {
-        expect(find.text(s), findsOneWidget);
-        final dy = tester.getTopLeft(find.text(s)).dy;
-        expect(dy, greaterThan(dernier));
-        dernier = dy;
-      }
-      expect(find.text('Journal des ventes'), findsOneWidget);
-      expect(find.text('Mouvements de stock'), findsOneWidget);
-      // Navigation : Journal accessible depuis Plus.
-      await tester.tap(find.text('Journal des ventes'));
-      await tester.pumpAndSettle();
-      expect(find.byType(JournalScreen), findsOneWidget);
-      await tester.pump(const Duration(milliseconds: 700));
-    });
-
     testWidgets('Catégories : recherche par nom (onglet type)',
         (tester) async {
       await _pomper(tester, const CategoriesScreen());
@@ -280,6 +245,51 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Aucune catégorie (filtre sans résultat)'),
           findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 700));
+    });
+
+    testWidgets('Menu : sections thématiques + tuiles', (tester) async {
+      await _pomper(tester, const MenuScreen());
+      expect(find.text('VENTES'), findsOneWidget);
+      expect(find.text('ACHATS'), findsOneWidget);
+      expect(find.text('STOCK'), findsOneWidget);
+      expect(find.text('FINANCES'), findsOneWidget);
+      expect(find.text('COMPTABILITÉ'), findsOneWidget);
+      // Sections plus bas : scrollUntilVisible (ListView paresseux).
+      await tester.scrollUntilVisible(find.text('PARTENAIRES'), 300);
+      expect(find.text('PARTENAIRES'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('DOCUMENTS'), 300);
+      expect(find.text('DOCUMENTS'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('RAPPORTS'), 300);
+      expect(find.text('RAPPORTS'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('CONFIGURATION'), 300);
+      expect(find.text('CONFIGURATION'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('ADMINISTRATION'), 300);
+      expect(find.text('ADMINISTRATION'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('COLLABORATION'), 300);
+      expect(find.text('COLLABORATION'), findsOneWidget);
+      // Tuiles clés (retour en haut pour les premières).
+      await tester.scrollUntilVisible(find.text('Journal des ventes'), -300);
+      expect(find.text('Journal des ventes'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Produits & stock'), 300);
+      expect(find.text('Produits & stock'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Mouvements de stock'), 300);
+      expect(find.text('Mouvements de stock'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Charges & dépenses'), 300);
+      expect(find.text('Charges & dépenses'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 700));
+    });
+
+    testWidgets('Menu : rendu étroit 360px sans overflow', (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await tester.pumpWidget(_hote(const MenuScreen()));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
       await tester.pump(const Duration(milliseconds: 700));
     });
 

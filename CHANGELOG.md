@@ -24,7 +24,8 @@
 - Batch 2 : Clients — recherche/filtre Pro-Particulier (27), champs étendus email/RCCM/RIB/logo + migration SQL (28), exports PDF/Excel/CSV (29) ; `clients_test.dart` 6/6
 - Batch 3 : Comptabilité branchée (30 : contre-passes manquantes + anti-double caisse, `compta_test.dart` 7/7) + exports/filtres journal-balance (31) + Stats type/période + exports (32/33)
 - Batch 4 : Tarifs sur FiltrePanel (34), catégorie connectée Autocomplete + anti-doublon casse/accents + création transactionnelle (35), galerie articles max 05 + SQL (36) ; `tarifs_test.dart` 7/7
-- Tests : suite complète 148/148 verts ; `flutter analyze` 0 erreur
+- Batch 5 : Menu « Plus » réorganisé en 11 sections thématiques (flux métier) ; ecrans_test 19/19
+- Tests : suite complète 150/150 verts ; `flutter analyze` 0 erreur
 
 ### Dette warnings `flutter analyze` (justification, 2026-09-26)
 Total 111 = 0 erreur + 69 warnings + 42 infos, aucun introduit comme nouvelle famille par le lot :

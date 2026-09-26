@@ -42,4 +42,4 @@
 | 34 | Filtres Tarifs & catégories | ✅ | tarifs_screen.dart sur FiltrePanel (recherche + dropdown catégories catalogue) ; tarifs_test.dart | 2026-09-26 |
 | 35 | Formulaire catégorie connecté + anti-doublon | ✅ | Autocomplete (module ∪ catalogue, casse+accents via Store.sansAccents/memeCategorie) + création auto transactionnelle ; tarifs_test.dart 7/7 | 2026-09-26 |
 | 36 | Multi-images articles (max 05) | ✅ | Tarif.images + galerie formulaire + vignette liste + cloud bucket `produits` (repli) + SQL tarifs.images + roundtrip test | 2026-09-26 |
-| 37 | Réorganiser menu onglet Plus | ⬜ | — | — |
+| 37 | Réorganiser menu onglet Plus | ✅ | menu_screen.dart (11 sections thématiques : Ventes, Achats, Stock, Finances, Comptabilité, Partenaires, Documents, Rapports, Configuration, Administration, Collaboration — flux métier) ; ecrans_test 19/19 + suite 150/150 | 2026-09-26 |
