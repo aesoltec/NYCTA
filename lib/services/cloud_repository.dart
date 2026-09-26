@@ -459,10 +459,20 @@ class CloudRepository {
       });
 
   static Future<void> upsertClient(Client c) => _silencieux(() async {
-        await _c!.from('clients').upsert({
+        final base = <String, dynamic>{
           'id': c.id, 'boutique_id': c.boutiqueId, 'nom': c.nom,
           'telephone': c.telephone, 'adresse': c.adresse,
-        });
+        };
+        try {
+          await _c!.from('clients').upsert({
+            ...base,
+            // Champs étendus (point 28) : base non migrée → repli.
+            'email': c.email, 'rccm': c.rccm, 'rib': c.rib,
+            'logo_path': await _urlMedia(c.logoPath),
+          });
+        } catch (_) {
+          await _c!.from('clients').upsert(base);
+        }
       });
 
   // ---------- Fournisseurs / messages / événements / notes ----------

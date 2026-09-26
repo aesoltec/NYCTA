@@ -154,7 +154,11 @@ create table if not exists public.clients (
   boutique_id uuid not null references public.boutiques(id),
   nom         text not null,
   telephone   text default '',
+  email       text default '',
   adresse     text default '',
+  rccm        text default '',
+  rib         text default '',
+  logo_path   text,
   created_at  timestamptz not null default now()
 );
 

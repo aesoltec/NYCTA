@@ -270,7 +270,11 @@ class Store extends ChangeNotifier {
             id: r['id'].toString(), boutiqueId: r['boutique_id'].toString(),
             nom: r['nom'].toString(),
             telephone: r['telephone']?.toString() ?? '',
+            email: r['email']?.toString() ?? '',
             adresse: r['adresse']?.toString() ?? '',
+            rccm: r['rccm']?.toString() ?? '',
+            rib: r['rib']?.toString() ?? '',
+            logoPath: r['logo_path']?.toString(),
           ),
       ]);
     fournisseurs
@@ -778,7 +782,8 @@ class Store extends ChangeNotifier {
     // prochain chargement depuis Supabase.
     final client = Client(
       id: _nid(), boutiqueId: c.boutiqueId, nom: c.nom,
-      telephone: c.telephone, adresse: c.adresse,
+      telephone: c.telephone, email: c.email, adresse: c.adresse,
+      rccm: c.rccm, rib: c.rib, logoPath: c.logoPath,
     );
     clients.add(client);
     notifyListeners();
@@ -2618,7 +2623,9 @@ class Store extends ChangeNotifier {
         'clients': [
           for (final c in clients)
             {'id': c.id, 'boutique_id': c.boutiqueId, 'nom': c.nom,
-             'telephone': c.telephone, 'adresse': c.adresse},
+             'telephone': c.telephone, 'email': c.email,
+             'adresse': c.adresse, 'rccm': c.rccm, 'rib': c.rib,
+             'logo_path': c.logoPath},
         ],
         'fournisseurs': [
           for (final f in fournisseurs)
@@ -2794,7 +2801,11 @@ class Store extends ChangeNotifier {
             id: c['id'].toString(), boutiqueId: c['boutique_id'].toString(),
             nom: c['nom'].toString(),
             telephone: c['telephone']?.toString() ?? '',
+            email: c['email']?.toString() ?? '',
             adresse: c['adresse']?.toString() ?? '',
+            rccm: c['rccm']?.toString() ?? '',
+            rib: c['rib']?.toString() ?? '',
+            logoPath: c['logo_path']?.toString(),
           ),
       ]);
     fournisseurs

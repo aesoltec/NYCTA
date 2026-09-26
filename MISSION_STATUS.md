@@ -32,9 +32,9 @@
 | 25 | Filtres + export Achat et fournisseurs | ✅ | achat_list_screen.dart sur FiltrePanel (statuts + recherche + NOUVEAU filtre période Début/Fin) ; export point 5 inchangé ; suite 128/128 | 2026-09-26 |
 | 25bis | Extraction FiltrePanel commun | ✅ | widgets/filtre_panel.dart (recherche, chips, dropdown, dates, min/max, LayoutBuilder) ; filtre_panel_test.dart 3/3 ; migrés : Achat, Boutique, Catégories | 2026-09-26 |
 | 26 | Filtre spécialité + recherche + export Fournisseurs | ✅ | fournisseurs_screen.dart sur FiltrePanel (recherche nom/tél/spé + dropdown spécialités) + menu export PDF/Excel/CSV ; ecrans_test | 2026-09-26 |
-| 27 | Recherche + filtre Clients | ⬜ | — | — |
-| 28 | Champs clients étendus (RIB, RCCM, logo, coordonnées) | ⬜ | — | — |
-| 29 | Export Clients | ⬜ | — | — |
+| 27 | Recherche + filtre Clients | ✅ | clients_screen.dart sur FiltrePanel (recherche nom/tél/adresse + chips Tous/Professionnels/Particuliers) ; clients_test.dart | 2026-09-26 |
+| 28 | Champs clients étendus (RIB, RCCM, logo, coordonnées) | ✅ | Client.email/rccm/rib/logoPath + formulaire (Email/RCCM/RIB/logo bucket media) + migration SQL + upsert avec repli ; fromJson rétrocompatible | 2026-09-26 |
+| 29 | Export Clients | ✅ | Menu PDF/Excel/CSV (nom, tél, email, adresse, RCCM, RIB, catégorie) | 2026-09-26 |
 | 30 | Brancher Comptabilité | ⬜ | — | — |
 | 31 | Export + filtres Comptabilité | ⬜ | — | — |
 | 32 | Filtres Statistiques & graphiques | ⬜ | — | — |

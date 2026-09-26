@@ -178,3 +178,15 @@ Conformes sans changement : montant > 0 + dropdowns requis (`V.prix`, validateur
 8. Analyze ✅ — 0 erreur, 0 warning nouveau.
 9. Tests ✅ — nouveau test widget (recherche + dropdown + export + vide) ; suite 128/128.
 10. Contre-expertise finale ✅ — vide initial (« Aucun fournisseur… » remplacé par vide filtré explicite) : formulé sans ambiguïté.
+
+### Point 27/28/29 — Clients (client.dart, store.dart, cloud_repository.dart, clients_screen.dart, SQL)
+1. Fonctionnelle ✅ — recherche + filtre Pro/Particulier + formulaire étendu + exports ; CRUD existant (anti-doublon) intact.
+2. Métier ✅ — `estPro` = RCCM renseigné ; logo optionnel (bucket `media` existant, pas de nouveau bucket) ; RIB/RCCM textes libres (pas de format national imposé — non inventé).
+3. Contre-expertise ✅ — `fromJson` rétrocompatible (anciennes sauvegardes sans clés) ; upsert avec repli si base non migrée ; `logoPath` null-safe (`MediaService.existe`).
+4. Sécurité ✅ — table `clients` existante, RLS inchangée ; logo via bucket `media` (policies existantes).
+5. Overflow ✅ — FiltrePanel + carte (badge PRO, `Flexible`, 2 lignes sous-titre) ; formulaire en `ListView` bottom-sheet.
+6. Cycle de vie ✅ — `dispose()` ajouté (manquait pour les 3 contrôleurs d'origine) ; `context.mounted` conservés.
+7. Persistance ✅ — modèle + toJson + 2 loaders + cloud upsert + migration SQL idempotente + `apply_all` régénéré.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — `clients_test.dart` 6/6 (rétrocompat, estPro, roundtrip, persistance store, liste, formulaire) ; suite 134/134.
+10. Contre-expertise finale ✅ — filtre « Professionnels » vide si aucun RCCM : EmptyView explicite, pas de confusion.

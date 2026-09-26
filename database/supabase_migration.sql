@@ -168,4 +168,17 @@ create policy "produits suppression" on storage.objects
   for delete to authenticated
   using (bucket_id = 'produits' and public.user_role() in ('admin','gerant'));
 
+-- ---------------------------------------------------------------------------
+-- Champs clients étendus (mission §3.15 / point 28) : email, RCCM, RIB,
+-- logo (URL bucket « media »). Idempotent : rejouable sur base existante.
+-- ---------------------------------------------------------------------------
+alter table public.clients
+  add column if not exists email text default '';
+alter table public.clients
+  add column if not exists rccm text default '';
+alter table public.clients
+  add column if not exists rib text default '';
+alter table public.clients
+  add column if not exists logo_path text;
+
 -- FIN DE LA MIGRATION — suite : supabase_fonctions_rls.sql
