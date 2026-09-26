@@ -22,7 +22,8 @@
 - Point 24 : audit vente — remise (net = brut − remise) + mode de paiement, garde `mounted`, suffixes journal/export ; `vente_form_test.dart` 6/6
 - Batch 1 : FiltrePanel commun (25bis, testé 3/3, migré Achat/Boutique/Catégories) + filtre période Achat (25) + Fournisseurs recherche/spécialité/exports (26) + `EmptyView` scrollable (fix textscale 320@1.5x)
 - Batch 2 : Clients — recherche/filtre Pro-Particulier (27), champs étendus email/RCCM/RIB/logo + migration SQL (28), exports PDF/Excel/CSV (29) ; `clients_test.dart` 6/6
-- Tests : suite complète 134/134 verts ; `flutter analyze` 0 erreur
+- Batch 3 : Comptabilité branchée (30 : contre-passes manquantes + anti-double caisse, `compta_test.dart` 7/7) + exports/filtres journal-balance (31) + Stats type/période + exports (32/33)
+- Tests : suite complète 141/141 verts ; `flutter analyze` 0 erreur
 
 ### Dette warnings `flutter analyze` (justification, 2026-09-26)
 Total 111 = 0 erreur + 69 warnings + 42 infos, aucun introduit comme nouvelle famille par le lot :

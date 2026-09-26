@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../../data/store.dart';
 import '../../models/ecriture.dart';
 import '../../models/enums.dart';
+import '../../services/export_service.dart';
 import '../../widgets/empty_view.dart';
+import '../../widgets/filtre_panel.dart';
 import '../../widgets/money_text.dart';
 import '../../widgets/soft_card.dart';
 
@@ -50,8 +52,8 @@ class _Journal extends StatefulWidget {
 }
 
 class _JournalState extends State<_Journal> {
-  String _journal = 'tous';
-  String _recherche = '';
+  // Filtres via FiltrePanel : journal (chips) + recherche + période.
+  Map<String, dynamic> _filtres = const {'journal': 'tous'};
   bool _nonRapprochees = false;
 
   static const _journaux = [
@@ -67,13 +69,23 @@ class _JournalState extends State<_Journal> {
     final store = context.watch<Store>();
     var lignes = store.ecrituresBoutique.toList()
       ..sort((a, b) => b.date.compareTo(a.date));
-    if (_journal != 'tous') {
-      lignes = lignes.where((e) => e.journal == _journal).toList();
+    final journal = (_filtres['journal'] as String?) ?? 'tous';
+    if (journal != 'tous') {
+      lignes = lignes.where((e) => e.journal == journal).toList();
     }
     if (_nonRapprochees) {
       lignes = lignes.where((e) => !e.pointee).toList();
     }
-    final rech = _recherche.trim().toLowerCase();
+    final debut = _filtres['debut'] as DateTime?;
+    final fin = _filtres['fin'] as DateTime?;
+    if (debut != null) {
+      lignes = lignes.where((e) => !e.date.isBefore(debut)).toList();
+    }
+    if (fin != null) {
+      final finJour = DateTime(fin.year, fin.month, fin.day, 23, 59, 59);
+      lignes = lignes.where((e) => !e.date.isAfter(finJour)).toList();
+    }
+    final rech = ((_filtres['q'] as String?) ?? '').trim().toLowerCase();
     if (rech.isNotEmpty) {
       lignes = lignes
           .where((e) =>
@@ -83,38 +95,49 @@ class _JournalState extends State<_Journal> {
     }
     return Column(children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-        child: TextField(
-          decoration: const InputDecoration(
-              hintText: 'Rechercher (libellé, compte)…',
-              prefixIcon: Icon(Icons.search)),
-          onChanged: (v) => setState(() => _recherche = v),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: FiltrePanel(
+          filtres: [
+            const FiltreConfig(
+                cle: 'q',
+                kind: FiltreKind.recherche,
+                label: 'Rechercher (libellé, compte)…'),
+            FiltreConfig(
+                cle: 'journal',
+                kind: FiltreKind.chips,
+                label: 'Journal',
+                options: _journaux),
+            const FiltreConfig(
+                cle: '', kind: FiltreKind.dates, label: ''),
+          ],
+          valeurs: _filtres,
+          onFiltreChange: (m) => setState(() => _filtres = m),
         ),
       ),
-      SizedBox(
-        height: 44,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: _journaux.length + 1,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (_, i) {
-            if (i >= _journaux.length) {
-              return FilterChip(
-                label: const Text('Non rapprochées'),
-                selected: _nonRapprochees,
-                onSelected: (v) =>
-                    setState(() => _nonRapprochees = v),
-              );
-            }
-            return ChoiceChip(
-              label: Text(_journaux[i].$2),
-              selected: _journal == _journaux[i].$1,
-              onSelected: (_) =>
-                  setState(() => _journal = _journaux[i].$1),
-            );
-          },
-        ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+        child: Row(children: [
+          FilterChip(
+            label: const Text('Non rapprochées'),
+            selected: _nonRapprochees,
+            onSelected: (v) =>
+                setState(() => _nonRapprochees = v),
+          ),
+          const Spacer(),
+          PopupMenuButton<String>(
+            tooltip: 'Exporter la vue filtrée',
+            icon: const Icon(Icons.ios_share_outlined, size: 20),
+            onSelected: (f) => _exporter(context, store, lignes, f),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                  value: 'pdf', child: Text('PDF (partage)')),
+              PopupMenuItem(
+                  value: 'xlsx', child: Text('Excel (.xlsx)')),
+              PopupMenuItem(
+                  value: 'csv', child: Text('CSV (Excel)')),
+            ],
+          ),
+        ]),
       ),
       const SizedBox(height: 4),
       Expanded(
@@ -220,6 +243,48 @@ class _JournalState extends State<_Journal> {
 
   /// Dialogue de rapprochement : pointe/dépointe l'écriture (rôles
   /// financiers). Ne modifie aucun montant — seul le suivi évolue.
+  Future<void> _exporter(BuildContext context, Store store,
+      List<Ecriture> lignes, String format) async {
+    const entetes = [
+      'Date', 'Journal', 'Compte', 'Libellé', 'Débit', 'Crédit',
+      'Rapprochée', 'Devise'
+    ];
+    final rows = [
+      for (final e in lignes)
+        [
+          e.date,
+          e.journal,
+          '${e.compte} ${PlanComptable.libelle(e.compte)}',
+          e.libelle,
+          e.debit,
+          e.credit,
+          e.pointee ? 'Oui' : 'Non',
+          store.profile.devise,
+        ],
+    ];
+    final nom = 'journal_${store.moisCourant}_${lignes.length}ecr';
+    try {
+      switch (format) {
+        case 'pdf':
+          await ExportService.partagerPdf(nom,
+              titre: 'Journal — ${store.boutiqueCourante.nom}',
+              sousTitre: '${lignes.length} écriture(s)',
+              entetes: entetes,
+              lignes: rows);
+        case 'xlsx':
+          await ExportService.partagerExcel(
+              nom, 'Journal', entetes, rows);
+        default:
+          await ExportService.partagerCsv(nom, entetes, rows);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
+  }
+
   Future<void> _pointer(
       BuildContext context, String id, bool pointee, String libelle) async {
     final store = context.read<Store>();
@@ -258,6 +323,43 @@ class _JournalState extends State<_Journal> {
 
 class _Balance extends StatelessWidget {
   const _Balance();
+
+  Future<void> _exporterBalance(BuildContext context, Store store,
+      List<MapEntry<String, double>> entrees, String format) async {
+    const entetes = ['Compte', 'Libellé', 'Débit', 'Crédit', 'Devise'];
+    final lignes = [
+      for (final e in entrees)
+        [
+          e.key,
+          PlanComptable.libelle(e.key),
+          e.value > 0 ? e.value : 0.0,
+          e.value < 0 ? -e.value : 0.0,
+          store.profile.devise,
+        ],
+    ];
+    const nom = 'balance';
+    try {
+      switch (format) {
+        case 'pdf':
+          await ExportService.partagerPdf(nom,
+              titre: 'Balance — ${store.boutiqueCourante.nom}',
+              sousTitre: '${entrees.length} compte(s)',
+              entetes: entetes,
+              lignes: lignes);
+        case 'xlsx':
+          await ExportService.partagerExcel(
+              nom, 'Balance', entetes, lignes);
+        default:
+          await ExportService.partagerCsv(nom, entetes, lignes);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {    final store = context.watch<Store>();
     final entrees = store.balance.entries.toList()
@@ -302,6 +404,20 @@ class _Balance extends StatelessWidget {
                                 ? const Color(0xFF3E9D8F)
                                 : const Color(0xFFC62828))),
                   ]),
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'Exporter la balance',
+              icon: const Icon(Icons.ios_share_outlined, size: 20),
+              onSelected: (f) =>
+                  _exporterBalance(context, store, entrees, f),
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                    value: 'pdf', child: Text('PDF (partage)')),
+                PopupMenuItem(
+                    value: 'xlsx', child: Text('Excel (.xlsx)')),
+                PopupMenuItem(
+                    value: 'csv', child: Text('CSV (Excel)')),
+              ],
             ),
           ]),
         ),

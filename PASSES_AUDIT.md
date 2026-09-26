@@ -190,3 +190,46 @@ Conformes sans changement : montant > 0 + dropdowns requis (`V.prix`, validateur
 8. Analyze ✅ — 0 erreur, 0 warning nouveau.
 9. Tests ✅ — `clients_test.dart` 6/6 (rétrocompat, estPro, roundtrip, persistance store, liste, formulaire) ; suite 134/134.
 10. Contre-expertise finale ✅ — filtre « Professionnels » vide si aucun RCCM : EmptyView explicite, pas de confusion.
+
+### Point 30 — Comptabilité : analyse pré-codage + branchement (store.dart)
+État actuel relevé : générateurs VT/BQ/AC/OD + `_contrePasser` + `_poster` existants ; journal/balance/résultat/TVA/âgée affichés ; RLS insert-only + pointage OK.
+Branchements vérifiés : création vente ✅, suppression vente ✅, création/correction charge ✅, validation (sans poste — engagement, correct) ✅, réception ✅, paiement ✅, annulation ✅, encaissement BQ ✅.
+Écarts corrigés :
+- E1 `majTransaction` sans contre-passation → journal faux après modification : contre-passe + re-comptabilise.
+- E2 `supprimerCharge` sans contre-passation (asymétrie vente) : contre-passe ajoutée.
+- E3 `payerAchat` postait la caisse 2× (OD charge + BQ paiement) : OD supprimé (la Charge reste en trésorerie).
+Décisions SYSCOHADA (ADR) : documents commerciaux ne postent PAS (évite double-compte vente+facture — la comptabilité naît des flux) ; TVA ventilée HT/TVA du profil sur VT ; annulation achat = remise à zéro nette (commentaire corrigé, il contredisait le code).
+1. Fonctionnelle ✅ — 7 tests par flux (vente, modif, suppression, charge, achat complet, annulation, invariant global D=C).
+2. Métier ✅ — partie double vérifiée par test sur chaque générateur ; balance D=C.
+3. Contre-expertise ✅ — contre-passe inverse TOUT l'historique refId puis re-poste : net = état courant, jamais de trou.
+4. Sécurité ✅ — aucune policy touchée (insert-only pré-existant respecté).
+5. Overflow ✅ — store pur, aucun layout.
+6. Cycle de vie ✅ — awaits séquentiels après notify, pas de context.
+7. Persistance ✅ — `_poster` → cloud + file ; contre-passations persistées idem.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — `compta_test.dart` 7/7 ; suite 141/141.
+10. Contre-expertise finale ✅ — démo seed sans écritures : journal vide au démarrage = normal (seules les opérations postent).
+
+### Point 31 — Comptabilité exports + filtres (compta_screen.dart)
+1. Fonctionnelle ✅ — journal sur FiltrePanel (chips journaux + recherche + période Début/Fin, chip Non rapprochées conservé) + exports journal/balance 3 formats.
+2. Métier ✅ — fin inclusive ; balance exportée en D/C par compte ; rapprochement (appui long) intact.
+3. Contre-expertise ✅ — libellés/options identiques (test adapté a minima) ; export balance sur `entrees` triées.
+4. Sécurité ✅ — gardes rapprochement inchangées.
+5. Overflow ✅ — panel + ligne filtre/export en `Row`+`Spacer` ; `dense:true` conservé.
+6. Cycle de vie ✅ — `context.mounted` exports + `_pointer` intacts.
+7. Persistance ✅ — lecture seule.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — journal + balance (navigation onglet — TabBarView paresseux pris en compte) ; suite 141/141.
+10. Contre-expertise finale ✅ — périodes sans écritures → EmptyView + PDF « Aucune donnée » (garantie service).
+
+### Point 32/33 — Statistiques (stats_screen.dart)
+1. Fonctionnelle ✅ — type + période (défaut 30 j), seaux jour/semaine/mois, indicateurs/caisse par type/exports 3 formats.
+2. Métier ✅ — fin inclusive ; moyenne = total/nb jours ; marge = Σ(montant−coût).
+3. Contre-expertise ✅ — `ventesFiltrees`/`serie` statics testables ; partenaires mensuels hors périmètre filtre (noté).
+4. Sécurité ✅ — `txBoutique` (boutique courante) uniquement.
+5. Overflow ✅ — panel + graphiques à hauteur fixe + legends `ellipsis`.
+6. Cycle de vie ✅ — aucun contrôleur, map remplacée.
+7. Persistance ✅ — lecture seule.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — `stats_test.dart` 3/3 (filtre, seaux, écran) ; suite 141/141.
+10. Contre-expertise finale ✅ — période vide → graphiques « Pas de données » + totaux à 0, pas de crash (division protégée).

@@ -35,10 +35,10 @@
 | 27 | Recherche + filtre Clients | ✅ | clients_screen.dart sur FiltrePanel (recherche nom/tél/adresse + chips Tous/Professionnels/Particuliers) ; clients_test.dart | 2026-09-26 |
 | 28 | Champs clients étendus (RIB, RCCM, logo, coordonnées) | ✅ | Client.email/rccm/rib/logoPath + formulaire (Email/RCCM/RIB/logo bucket media) + migration SQL + upsert avec repli ; fromJson rétrocompatible | 2026-09-26 |
 | 29 | Export Clients | ✅ | Menu PDF/Excel/CSV (nom, tél, email, adresse, RCCM, RIB, catégorie) | 2026-09-26 |
-| 30 | Brancher Comptabilité | ⬜ | — | — |
-| 31 | Export + filtres Comptabilité | ⬜ | — | — |
-| 32 | Filtres Statistiques & graphiques | ⬜ | — | — |
-| 33 | Export PDF/Excel Statistiques | ⬜ | — | — |
+| 30 | Brancher Comptabilité | ✅ | store.dart (contre-passe maj vente + suppression charge, anti-double caisse paiement) ; compta_test.dart 7/7 (D=C par flux, nets nuls, invariant global) + suite 141/141 | 2026-09-26 |
+| 31 | Export + filtres Comptabilité | ✅ | compta_screen.dart sur FiltrePanel (journal + recherche + période) + exports journal/balance PDF/Excel/CSV ; ecrans_test | 2026-09-26 |
+| 32 | Filtres Statistiques & graphiques | ✅ | stats_screen.dart sur FiltrePanel (activité + période, seaux jour/semaine/mois) ; stats_test.dart 3/3 | 2026-09-26 |
+| 33 | Export PDF/Excel Statistiques | ✅ | Menu export vue filtrée (série + par activité + total, PDF/Excel/CSV) | 2026-09-26 |
 | 34 | Filtres Tarifs & catégories | ⬜ | — | — |
 | 35 | Formulaire catégorie connecté + anti-doublon | ⬜ | — | — |
 | 36 | Multi-images articles (max 05) | ⬜ | — | — |

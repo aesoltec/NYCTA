@@ -11,6 +11,8 @@ import 'package:pme_gestion_pro/screens/dashboard/dashboard_screen.dart';
 import 'package:pme_gestion_pro/screens/admin/boutiques_screen.dart';
 import 'package:pme_gestion_pro/screens/admin/categories_screen.dart';
 import 'package:pme_gestion_pro/screens/collab/fournisseurs_screen.dart';
+import 'package:pme_gestion_pro/screens/compta/compta_screen.dart';
+import 'package:pme_gestion_pro/screens/stats/stats_screen.dart';
 import 'package:pme_gestion_pro/screens/documents/documents_history_screen.dart';
 import 'package:pme_gestion_pro/screens/documents/documents_screen.dart';
 import 'package:pme_gestion_pro/screens/journal/journal_screen.dart';
@@ -196,6 +198,32 @@ void main() {
       expect(
           find.text('Aucun fournisseur (filtre sans résultat)'),
           findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 700));
+    });
+
+    testWidgets('Comptabilité : journal + filtres + exports',
+        (tester) async {
+      await _pomper(tester, const ComptaScreen());
+      expect(find.text('Comptabilité'), findsOneWidget);
+      expect(find.text('Journal'), findsOneWidget);
+      expect(
+          find.widgetWithText(
+              TextField, 'Rechercher (libellé, compte)…'),
+          findsOneWidget);
+      expect(find.text('Ventes'), findsOneWidget);
+      expect(find.byTooltip('Exporter la vue filtrée'), findsOneWidget);
+      await tester.tap(find.text('Balance'));
+      await tester.pumpAndSettle();
+      expect(find.text('Total débits'), findsOneWidget);
+      expect(find.byTooltip('Exporter la balance'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 700));
+    });
+
+    testWidgets('Statistiques : filtres + export', (tester) async {
+      await _pomper(tester, const StatsScreen());
+      expect(find.text('Statistiques & graphiques'), findsOneWidget);
+      expect(find.text('Toutes'), findsOneWidget);
+      expect(find.byTooltip('Exporter la vue filtrée'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 700));
     });
 

@@ -3,44 +3,150 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../data/store.dart';
+import '../../models/transaction.dart';
+import '../../services/export_service.dart';
+import '../../widgets/filtre_panel.dart';
 import '../../widgets/money_text.dart';
 import '../../widgets/soft_card.dart';
 
 /// Statistiques & graphiques — la vue « pilotage » du dirigeant :
-/// évolution du CA sur 30 jours (courbe), répartition par activité
-/// (camembert + histogramme), indicateurs clés (moyenne, meilleur jour,
-/// marge, nombre d'opérations).
-class StatsScreen extends StatelessWidget {
+/// évolution du CA sur la période filtrée (courbe), répartition par
+/// activité (camembert + histogramme), indicateurs clés.
+/// Filtres (point 32) : type d'activité + période Début/Fin
+/// (défaut : 30 derniers jours) — calculs locaux depuis les ventes.
+class StatsScreen extends StatefulWidget {
   const StatsScreen({super.key});
+
+  @override
+  State<StatsScreen> createState() => _StatsScreenState();
+
+  /// Ventes filtrées (même logique que l'écran — testable).
+  static List<Tx> ventesFiltrees(
+      List<Tx> toutes, String type, DateTime debut, DateTime fin) {
+    return toutes.where((t) {
+      if (type != 'tous' && t.type.name != type) return false;
+      if (t.date.isBefore(debut)) return false;
+      final finJour = DateTime(fin.year, fin.month, fin.day, 23, 59, 59);
+      if (t.date.isAfter(finJour)) return false;
+      return true;
+    }).toList();
+  }
+
+  /// Série temporelle : seaux de [pasJours] jours de [debut] à [fin].
+  /// Libellé 'jj/mm' du premier jour du seau. Testable (point 32).
+  static List<MapEntry<String, double>> serie(
+      List<Tx> ventes, DateTime debut, DateTime fin, int pasJours) {
+    final j0 = DateTime(debut.year, debut.month, debut.day);
+    final j1 = DateTime(fin.year, fin.month, fin.day, 23, 59, 59);
+    final seaux = <MapEntry<String, double>>[];
+    var curseur = j0;
+    while (!curseur.isAfter(j1)) {
+      final suivant = curseur.add(Duration(days: pasJours));
+      var total = 0.0;
+      for (final t in ventes) {
+        if (!t.date.isBefore(curseur) && t.date.isBefore(suivant)) {
+          total += t.montant;
+        }
+      }
+      seaux.add(MapEntry(
+          '${curseur.day.toString().padLeft(2, '0')}/${curseur.month.toString().padLeft(2, '0')}',
+          total));
+      curseur = suivant;
+    }
+    return seaux;
+  }
+}
+
+class _StatsScreenState extends State<StatsScreen> {
+  Map<String, dynamic> _filtres = const {'type': 'tous'};
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
-    final caParJour = store.caParJour; // Map<'jj/mm', double> — 30 derniers jours
-    final entrees = caParJour.entries.toList();
-    final maxCa = caParJour.values.fold(0.0, (a, b) => a > b ? a : b);
-    final caTotal = caParJour.values.fold(0.0, (a, b) => a + b);
-    final moyenne = caTotal / (caParJour.values.where((v) => v > 0).isEmpty ? 1 : 30);
+    final maintenant = DateTime.now();
+    final debut = (_filtres['debut'] as DateTime?) ??
+        DateTime(maintenant.year, maintenant.month, maintenant.day)
+            .subtract(const Duration(days: 29));
+    final fin = (_filtres['fin'] as DateTime?) ?? maintenant;
+    final type = (_filtres['type'] as String?) ?? 'tous';
+    final ventes = StatsScreen.ventesFiltrees(
+        store.txBoutique, type, debut, fin);
+
+    // Découpage : jour (≤ 62 j), semaine (≤ 370 j), mois au-delà.
+    final span = fin.difference(debut).inDays;
+    final pasJours = span <= 62 ? 1 : (span <= 370 ? 7 : 30);
+    final entrees = StatsScreen.serie(ventes, debut, fin, pasJours);
+    final maxCa = entrees.fold(
+        0.0, (a, e) => e.value > a ? e.value : a);
+    final caTotal = entrees.fold(0.0, (a, e) => a + e.value);
+    final nbJours = (span + 1).clamp(1, 100000);
+    final moyenne = caTotal / nbJours;
     final meilleur = entrees.isEmpty
         ? null
         : entrees.reduce((a, b) => a.value >= b.value ? a : b);
-    final caParType = store.caParType;
-    // Calculés UNE fois par build (évite les folds répétés dans les
-    // boucles de graphiques à chaque frame).
-    final typesEntrees = caParType.entries.toList();
-    final totalMois =
+    final parType = <TypeTransaction, double>{};
+    for (final t in ventes) {
+      parType[t.type] = (parType[t.type] ?? 0) + t.montant;
+    }
+    final typesEntrees = parType.entries.toList();
+    final totalPeriode =
         typesEntrees.fold(0.0, (s, e) => s + e.value);
+    final margePeriode =
+        ventes.fold(0.0, (s, t) => s + (t.montant - t.cout));
 
     // Poussé via Navigator.push(MaterialPageRoute(builder: (_) => destination))
     // depuis le menu « Plus », sans Scaffold englobant : cet écran DOIT
     // fournir le sien, sinon aucune surface n'est peinte derrière lui et le
     // fond apparaît noir/sombre à la place du thème clair de l'app.
     return Scaffold(
-      appBar: AppBar(title: const Text('Statistiques & graphiques')),
+      appBar: AppBar(
+        title: const Text('Statistiques & graphiques'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Exporter la vue filtrée',
+            icon: const Icon(Icons.ios_share_outlined),
+            onSelected: (f) => _exporterStats(
+                context, store, entrees, typesEntrees, totalPeriode,
+                _libellePeriode(debut, fin), f),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                  value: 'pdf', child: Text('PDF (partage)')),
+              PopupMenuItem(
+                  value: 'xlsx', child: Text('Excel (.xlsx)')),
+              PopupMenuItem(
+                  value: 'csv', child: Text('CSV (Excel)')),
+            ],
+          ),
+        ],
+      ),
       backgroundColor: const Color(0xFFD5F0F0),
       body: ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: FiltrePanel(
+            filtres: [
+              FiltreConfig(
+                  cle: 'type',
+                  kind: FiltreKind.chips,
+                  label: 'Activité',
+                  options: [
+                    ('tous', 'Toutes'),
+                    for (final t in TypeTransaction.values)
+                      (t.name, C.infosTypes[t]!.$1),
+                  ]),
+              const FiltreConfig(
+                  cle: '', kind: FiltreKind.dates, label: ''),
+            ],
+            valeurs: _filtres,
+            onFiltreChange: (m) => setState(() => _filtres = m),
+          ),
+        ),
+        Text('Sans dates : 30 derniers jours · ${ventes.length} opération(s)',
+            style: TextStyle(
+                fontSize: 12, color: Colors.grey.shade600)),
+        const SizedBox(height: 8),
         // ---------- Indicateurs clés ----------
         Row(children: [
           Expanded(child: _Indicateur(
@@ -55,20 +161,20 @@ class StatsScreen extends StatelessWidget {
         const SizedBox(height: 10),
         Row(children: [
           Expanded(child: _Indicateur(
-              label: 'Opérations du mois',
-              valeur: Text('${store.txMois.length}',
+              label: 'Opérations (période)',
+              valeur: Text('${ventes.length}',
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-              sousTexte: 'CA ${C.money(store.caMois, store.profile.devise)}')),
+              sousTexte: 'CA ${C.money(totalPeriode, store.profile.devise)}')),
           const SizedBox(width: 10),
           Expanded(child: _Indicateur(
-              label: 'Marge du mois',
-              valeur: MoneyText(store.margeMois, style: const TextStyle(fontSize: 15, color: Color(0xFF3E9D8F))),
-              sousTexte: '${store.caMois == 0 ? 0 : (store.margeMois / store.caMois * 100).round()} % du CA')),
+              label: 'Marge (période)',
+              valeur: MoneyText(margePeriode, style: const TextStyle(fontSize: 15, color: Color(0xFF3E9D8F))),
+              sousTexte: '${totalPeriode == 0 ? 0 : (margePeriode / totalPeriode * 100).round()} % du CA')),
         ]),
         const SizedBox(height: 20),
 
-        // ---------- Courbe : CA sur 30 jours ----------
-        Text('Évolution du CA — 30 jours',
+        // ---------- Courbe : CA sur la période ----------
+        Text('Évolution du CA — ${_libellePeriode(debut, fin)}',
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
         SoftCard(
@@ -141,14 +247,14 @@ class StatsScreen extends StatelessWidget {
         const SizedBox(height: 20),
 
         // ---------- Camembert : répartition par activité ----------
-        Text('Répartition par activité (mois)',
+        Text('Répartition par activité (période)',
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
         SoftCard(
-          child: caParType.isEmpty
+          child: typesEntrees.isEmpty
               ? const Padding(
                   padding: EdgeInsets.all(24),
-                  child: Text('Pas de ventes ce mois-ci',
+                  child: Text('Pas de ventes sur la période',
                       style: TextStyle(color: Colors.grey)),
                 )
               : Row(children: [
@@ -166,8 +272,8 @@ class StatsScreen extends StatelessWidget {
                                 value: e.value,
                                 color: C.infosTypes[e.key]!.$3,
                                 radius: 52,
-                                title: e.value / totalMois > 0.08
-                                    ? '${(e.value / totalMois * 100).round()}%'
+                                title: e.value / totalPeriode > 0.08
+                                    ? '${(e.value / totalPeriode * 100).round()}%'
                                     : '',
                                 titleStyle: const TextStyle(
                                     fontSize: 10, fontWeight: FontWeight.w800,
@@ -201,7 +307,7 @@ class StatsScreen extends StatelessWidget {
                                     style: const TextStyle(fontSize: 11.5)),
                               ),
                               Text(
-                                '${(e.value / totalMois * 100).round()}%',
+                                '${(e.value / totalPeriode * 100).round()}%',
                                 style: const TextStyle(
                                     fontSize: 11.5, fontWeight: FontWeight.w700),
                               ),
@@ -215,13 +321,13 @@ class StatsScreen extends StatelessWidget {
         const SizedBox(height: 20),
 
         // ---------- Histogramme : CA par activité ----------
-        Text('CA par activité (mois)',
+        Text('CA par activité (période)',
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
         SoftCard(
           child: SizedBox(
             height: 200,
-            child: caParType.isEmpty
+            child: typesEntrees.isEmpty
                 ? const Center(child: Text('Pas de données',
                     style: TextStyle(color: Colors.grey)))
                 : BarChart(
@@ -297,6 +403,53 @@ class StatsScreen extends StatelessWidget {
       ],
       ),
     );
+  }
+}
+
+String _libellePeriode(DateTime debut, DateTime fin) =>
+    'du ${debut.day.toString().padLeft(2, '0')}/${debut.month.toString().padLeft(2, '0')} '
+    'au ${fin.day.toString().padLeft(2, '0')}/${fin.month.toString().padLeft(2, '0')}/${fin.year}';
+
+Future<void> _exporterStats(
+    BuildContext context,
+    Store store,
+    List<MapEntry<String, double>> serie,
+    List<MapEntry<TypeTransaction, double>> parType,
+    double total,
+    String periode,
+    String format) async {
+  const entetes = ['Rubrique', 'Détail', 'Montant', 'Devise'];
+  final lignes = <List<dynamic>>[
+    for (final e in serie) ['Jour', e.key, e.value, store.profile.devise],
+    for (final e in parType)
+      [
+        'Activité',
+        C.infosTypes[e.key]!.$1,
+        e.value,
+        store.profile.devise
+      ],
+    ['Total période', periode, total, store.profile.devise],
+  ];
+  const nom = 'statistiques';
+  try {
+    switch (format) {
+      case 'pdf':
+        await ExportService.partagerPdf(nom,
+            titre: 'Statistiques — ${store.boutiqueCourante.nom}',
+            sousTitre: periode,
+            entetes: entetes,
+            lignes: lignes);
+      case 'xlsx':
+        await ExportService.partagerExcel(
+            nom, 'Stats', entetes, lignes);
+      default:
+        await ExportService.partagerCsv(nom, entetes, lignes);
+    }
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('⚠️ Export impossible')));
+    }
   }
 }
 
