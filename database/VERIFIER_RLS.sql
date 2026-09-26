@@ -1,14 +1,16 @@
 -- ============================================================================
 -- VERIFIER_RLS.sql — Jeu de vérification post-installation (missionbis §6.4).
--- À exécuter dans Supabase → SQL Editor APRÈS APPLIQUER_TOUT.sql.
--- Chaque ligne rend PASS ou FAIL. Tout FAIL = migration manquante.
+-- À exécuter dans Supabase → SQL Editor APRÈS supabase_schema.sql +
+-- supabase_fonctions_rls.sql (base neuve) OU supabase_migration.sql +
+-- supabase_fonctions_rls.sql (base existante).
+-- Chaque ligne rend PASS ou FAIL. Tout FAIL = objet manquant.
 -- (Les tests par rôle connecté exigent d'exécuter les blocs 7-9 avec des
 -- JWT de test ; ils sont fournis en commentaires à adapter.)
 -- ============================================================================
 
 -- ---- Bloc 1 : tables métier présentes ----
 select 'T1 tables' as test,
-  case when count(*) = 12 then 'PASS' else 'FAIL: ' || count(*)::text || '/12' end as resultat
+  case when count(*) = 28 then 'PASS' else 'FAIL: ' || count(*)::text || '/28' end as resultat
 from (select unnest(array[
   'company_profile','boutiques','users','user_boutiques','clients','produits',
   'transactions','partenaires','partages_mensuels','charges','budgets_mensuels',

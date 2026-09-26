@@ -572,7 +572,7 @@ class CloudRepository {
           'created_by': _c!.auth.currentUser?.id,
         };
         try {
-          // Colonne ajoutée par migration_signatures_documents.sql ; les
+          // Colonne ajoutée après coup (cf. supabase_schema.sql) ; les
           // bases non migrées la rejettent → repli sans la colonne.
           await _c!.from('documents').insert({
             ...base,
@@ -743,7 +743,7 @@ class CloudRepository {
       });
 
   /// Pointage de rapprochement : nécessite la policy UPDATE dédiée
-  /// (migration_rapprochement.sql) — sans elle, refus RLS silencieux.
+  /// (supabase_fonctions_rls.sql) — sans elle, refus RLS silencieux.
   static Future<void> upsertEcriturePointee(String id, bool pointee) =>
       _silencieux(() async {
         await _c!

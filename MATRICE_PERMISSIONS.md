@@ -61,6 +61,7 @@
 - Mot de passe/email d'un AUTRE compte : impossible avec la clé anon → lien de
   réinitialisation Supabase Auth depuis l'écran Utilisateurs (traçabilité via
   les logs Auth, pas de colonne dédiée).
-- Fichiers SQL applicables : `database/supabase_schema_consolide.sql`,
-  `database/migration_achats.sql`, `database/migration_mouvements_stock.sql`,
-  `database/migration_fixes_critiques_rls.sql` (à exécuter dans cet ordre).
+- Fichiers SQL applicables (v3.0) : `database/supabase_schema.sql` PUIS
+  `database/supabase_fonctions_rls.sql` (base neuve) ; base existante :
+  `database/supabase_migration.sql` PUIS `database/supabase_fonctions_rls.sql`.
+  Contrôle : `database/VERIFIER_RLS.sql`.

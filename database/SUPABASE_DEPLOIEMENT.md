@@ -12,15 +12,13 @@
 ## Étape 2 — Créer la base (5 min)
 
 1. Menu **SQL Editor** → **+ New query**
-2. Coller **tout le contenu** de `database/supabase_schema_consolide.sql` → **Run**
-3. **+ New query** → coller `database/supabase_fonctions_consolidees.sql` → **Run**
-4. ✅ 25 tables + 2 vues + politiques RLS finales + 9 fonctions RPC + triggers d'audit + buckets créés
+2. Coller **tout le contenu** de `database/supabase_schema.sql` → **Run**
+3. **+ New query** → coller `database/supabase_fonctions_rls.sql` → **Run**
+4. ✅ 28 tables + 2 vues + politiques RLS finales + 11 fonctions RPC + triggers d'audit + buckets créés
 
-> **Base existante déjà à jour ?** Rien à faire : les fichiers consolidés
-> sont idempotents et peuvent être relancés pour réparer/réaligner.
-> Les anciens fichiers (`supabase_schema.sql`, `supabase_functions.sql`,
-> `migration_bon_livraison.sql`) restent comme **historique** — ne les
-> exécutez plus sur une installation neuve.
+> **Base existante (créée avant v3.0) ?** Exécutez `database/supabase_migration.sql`
+> PUIS `database/supabase_fonctions_rls.sql` — tout est idempotent.
+> **Vérification :** exécutez `database/VERIFIER_RLS.sql` (6 blocs PASS/FAIL).
 
 ## Étape 3 — Stockage des images (2 min)
 

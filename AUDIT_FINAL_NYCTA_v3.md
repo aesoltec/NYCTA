@@ -20,7 +20,7 @@
 | #10/#12/#39 résilience | File sync sûre sans réseau, état local primant | `robustesse_test.dart` |
 | #5/#6 TextScaler | 32 tests (4+4 écrans × scalers/formats) ; 3 vrais défauts corrigés (`ListTile`/encre, Stock@2.0x, header Documents@1.5x) | `textscale_test.dart` 32/32 |
 | #42 intégration | `integration_test/app_flow_test.dart` + miroir VM vert | `parcours_test.dart` vert |
-| RLS/SQL | `APPLIQUER_TOUT.sql` (1 exécution), `VERIFIER_RLS.sql` (6 blocs), policy `maj documents` + `ecritures pointage` | `database/` |
+| RLS/SQL | `supabase_schema.sql` + `supabase_fonctions_rls.sql` (`supabase_migration.sql` si base existante), `VERIFIER_RLS.sql` (6 blocs), policy `maj documents` + `ecritures pointage` | `database/` |
 
 ## PDF du détail analytique
 
@@ -44,7 +44,7 @@
 
 ## Verdict : ⚠️ PARTIEL (88%) — reste 2 actions non automatisables
 
-1. **Exécuter `APPLIQUER_TOUT.sql` + `VERIFIER_RLS.sql`** (6/6 PASS) + déployer l'Edge Function (client, ~1 h).
+1. **Exécuter `supabase_schema.sql` (ou `supabase_migration.sql` si base existante) + `supabase_fonctions_rls.sql`, puis `VERIFIER_RLS.sql`** (6/6 PASS) + déployer l'Edge Function (client, ~1 h).
 2. **Run émulateur** `flutter test integration_test` + captures (client, ~1 h).
 3. Modules lourds : voir roadmap CDC (lettrage auto, SYSCOHADA complet, paie, thermique).
 
