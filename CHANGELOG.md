@@ -26,6 +26,7 @@
 - Batch 4 : Tarifs sur FiltrePanel (34), catégorie connectée Autocomplete + anti-doublon casse/accents + création transactionnelle (35), galerie articles max 05 + SQL (36) ; `tarifs_test.dart` 7/7
 - Batch 5 : Menu « Plus » réorganisé en 11 sections thématiques (flux métier) ; ecrans_test 19/19
 - Batch 6 : 22bis réouverture boutique (RPC SQL + UI + test 4/4, ⚠️ réserve SQL serveur) ; 22ter/23bis hors périmètre v1 (CDC) ; `SUPABASE_A_EXECUTER.sql` (migrations en attente)
+- Finalisation : 22bis complet (RPC vérif + audit trail + confirmation UI + MATRICE_PERMISSIONS) ; `APPLIQUER_MAINTENANT.md` ; `AUDIT_FINAL_NYCTA_v4.md` (39/41 = 95,1 %)
 - Tests : suite complète 154/154 verts ; `flutter analyze` 0 erreur
 
 ### Dette warnings `flutter analyze` (justification, 2026-09-26)

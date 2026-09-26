@@ -52,6 +52,11 @@
 - `charges` / `documents` (`created_by NOT NULL`) : le client envoie toujours
   l'auteur réel ; défaut serveur `auth.uid()` en garde-fou (plus de 23502).
 - `transactions` : écriture par rôle + boutique ; partenaire : forfaits à son nom.
+- `boutiques` : fermeture = soft delete (`actif=false`) admin/gérant ;
+  **réouverture** via RPC `reouvrir_boutique(p_id)` (SECURITY DEFINER,
+  garde admin/gérant côté serveur, vérifie l'état « fermée », journalise
+  dans `journal_activite`) — miroir du garde `Store.rouvrirBoutique` et
+  du bouton masqué pour les autres rôles.
 - Journal d'audit : triggers sur toutes les tables métier (`journal_activite`).
 - `ecritures` : **insert seul** (aucun update/delete) — corrections par
   contre-écriture applicative ; lecture boutiques accessibles.

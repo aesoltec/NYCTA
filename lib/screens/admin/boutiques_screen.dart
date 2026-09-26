@@ -243,20 +243,41 @@ class _CarteBoutique extends StatelessWidget {
                     icon: const Icon(Icons.restore_page_outlined,
                         size: 20, color: Color(0xFF3E9D8F)),
                     tooltip: 'Réouvrir cette boutique',
-                    onPressed: () async {
-                      final erreur =
-                          await store.rouvrirBoutique(b.id);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text(erreur ??
-                                    '✅ Boutique rouverte')));
-                      }
-                    },
+                    onPressed: () => _rouvrir(context, store, b),
                   )
                 : null,
       ),
     );
+  }
+}
+
+/// Réouverture avec confirmation (point 22bis) : admin/gérant seuls
+/// (le bouton n'est rendu que pour ces rôles — garde locale en plus).
+Future<void> _rouvrir(BuildContext context, Store store, Boutique b) async {
+  final confirme = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      icon: const Icon(Icons.restore_page_outlined,
+          color: Color(0xFF3E9D8F)),
+      title: Text('Réouvrir « ${b.nom} » ?'),
+      content: const Text(
+          'La boutique redeviendra active et sélectionnable. '
+          'Son historique (ventes, documents) est conservé.'),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler')),
+        FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Réouvrir')),
+      ],
+    ),
+  );
+  if (confirme != true || !context.mounted) return;
+  final erreur = await store.rouvrirBoutique(b.id);
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(erreur ?? '✅ Boutique rouverte')));
   }
 }
 

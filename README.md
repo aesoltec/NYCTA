@@ -337,8 +337,20 @@ soumet et consulte, seuls admin/gérant traitent.
   migration **v1.6** à exécuter : durcit `clients`, isole la lecture par
   boutique (transactions, produits, charges, documents) et crée le
   `journal_activite` (socle de l'audit trail)
-- **Vérification post-installation** : exécuter `database/verifier_installation.sql`
-  après toute installation/migration — tout doit être vert
+- **Vérification post-installation** : exécuter `database/supabase_verify.sql`
+  après toute installation/migration — les 6 blocs doivent être PASS
+
+### Exécution SQL (v3.0 — 2026-09-26)
+
+| Cas | Fichiers (dans l'ordre) |
+|---|---|
+| Base **neuve** | `database/supabase_apply_all.sql` (1 exécution) puis `database/supabase_verify.sql` |
+| Base **existante** | `database/supabase_migration.sql` puis `database/supabase_fonctions_rls.sql` puis `database/supabase_verify.sql` |
+| **Migrations en attente** (mission 2026-09-26) | `database/SUPABASE_A_EXECUTER.sql` (clients, tarifs, RPC réouverture) — idempotent |
+| Guide pas à pas | `database/APPLIQUER_MAINTENANT.md` |
+
+Contrôle attendu : 6/6 PASS. Tests émulateur :
+`flutter test integration_test/app_flow_test.dart`.
 
 ### Améliorations suggérées (prochaines itérations)
 1. Alimenter `journal_activite` à chaque écriture (audit trail complet)

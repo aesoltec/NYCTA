@@ -29,6 +29,7 @@ alter table public.tarifs
 
 -- ---------------------------------------------------------------------------
 -- 3. RPC RÉOUVERTURE BOUTIQUE (point 22bis) — admin/gérant, SECURITY DEFINER
+--    Vérifie l'état « fermée » et journalise dans journal_activite.
 -- ---------------------------------------------------------------------------
 create or replace function public.reouvrir_boutique(p_id uuid)
 returns void
@@ -36,16 +37,29 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_nom text;
 begin
   if public.user_role() not in ('admin', 'gerant') then
     raise exception 'Réouverture boutique réservée (admin, gérant).';
   end if;
-  update public.boutiques
-     set actif = true
-   where id = p_id;
+  select nom into v_nom from public.boutiques where id = p_id;
   if not found then
     raise exception 'Boutique introuvable : %', p_id;
   end if;
+  if exists (select 1 from public.boutiques
+              where id = p_id and actif = true) then
+    raise exception 'Boutique déjà active : %', v_nom;
+  end if;
+  update public.boutiques
+     set actif = true
+   where id = p_id;
+  insert into public.journal_activite (user_id, user_nom, action,
+      table_nom, ligne_id, detail)
+  values (auth.uid(), (select nom from public.users
+                       where id = auth.uid()), 'update', 'boutiques',
+      p_id::text, jsonb_build_object(
+        'action_metier', 'reouverture_boutique', 'boutique_nom', v_nom));
 end;
 $$;
 
