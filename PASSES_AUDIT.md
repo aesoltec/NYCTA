@@ -34,3 +34,65 @@
 | UI AppBar/menu | ok (30 AppBar auditées) | 0 err. | 29/29 | thème+2 écrans |
 
 État final : `flutter test` 41/41 verts, `flutter analyze` 0 erreur.
+
+## Registre lot MISSION (2026-09-26) — points 18/19/20/21 (Documents)
+
+### Point 18 — Audit Documents commerciaux (document.dart, document_service.dart)
+1. Fonctionnelle ✅ — 5 types, préfixes uniques, TVA = HT × taux profil, devis→facture conserve lignes/date/signature.
+2. Métier ✅ — BL sans prix (norme transport), décrément stock facture/ticket/BL uniquement, numérotation séquentielle par préfixe+année (RPC `prochain_numero`).
+3. Contre-expertise ✅ — pas de doublon de préfixe, `typeDocumentDepuisDb` rejette l'inconnu (pas de silent fallback).
+4. Sécurité ✅ — aucune donnée sensible, compteurs via RPC definer ; RLS documents inchangée.
+5. Overflow ✅ — aucun layout modifié (modèle + service purs).
+6. Cycle de vie ✅ — `build` async sans context, pas de `mounted` requis.
+7. Persistance ✅ — `parseAffichage` garde-fou anti-absurdité, date devis conservée après reload cloud.
+8. Analyze ✅ — 0 erreur, 0 warning sur les fichiers lus (aucun touché en fait).
+9. Tests ✅ — `signature_document_test.dart` 5/5 (préfixes, BL sansPrix, RCCM/IFU).
+10. Contre-expertise finale ✅ — audit seul, aucun comportement modifié : rien à casser.
+
+### Point 19 — Signatures entreprise-gauche / client-droite (pdf_service.dart, preview)
+1. Fonctionnelle ✅ — 2 zones toujours imprimées même sans images ; cachet conservé sous les zones.
+2. Métier ✅ — libellés exacts « Signature entreprise (à gauche) » / « Signature client (à droite) — stylo après impression » ; BL → « Réceptionnaire (à droite) ».
+3. Contre-expertise ✅ — `pw.Spacer()` garde les zones en bas ; images null → cadre vide, jamais de crash (`!= null` gardés).
+4. Sécurité ✅ — fichiers lus en local via `mediaServiceExiste`, aucun secret.
+5. Overflow ✅ — `Expanded` ×2 + hauteur fixe 70, pas de dépassement A4.
+6. Cycle de vie ✅ — `generer` async pur, pas de context.
+7. Persistance ✅ — signature client déjà persistée (point 16 v1.8.0), réutilisée telle quelle.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau sur pdf_service.dart.
+9. Tests ✅ — `PdfService.generer` sans images non vide ; suite 5/5.
+10. Contre-expertise finale ✅ — zone vide = comportement voulu (stylo après impression), documenté en commentaire.
+
+### Point 20 — Overflow Documents émis 33px (documents_history_screen.dart)
+1. Fonctionnelle ✅ — valider/payer/annuler/CSV conservés, déplacés en `Wrap` sous l'en-tête.
+2. Métier ✅ — workflow brouillon→émis→payé/annulé et matrice rôles inchangés.
+3. Contre-expertise ✅ — ancien `trailing: Column` (hauteur ListTile fixe → overflow) supprimé ; `InkWell` garde la navigation preview.
+4. Sécurité ✅ — gardes `store.role`/`peut()` inchangées.
+5. Overflow ✅ — `Wrap` + `mainAxisSize.min` partout ; golden 360×800 sans exception.
+6. Cycle de vie ✅ — `context.mounted` après chaque await conservé.
+7. Persistance ✅ — aucune donnée touchée (UI seule).
+8. Analyze ✅ — 0 erreur ; 1 warning `inference_failure_on_instance_creation` (famille pré-existante, 24 occurrences codebase — voir § justification).
+9. Tests ✅ — `ecrans_test.dart` 12/12 + golden `documents_emis_360_test.dart` 1/1.
+10. Contre-expertise finale ⚠️ — golden généré sur fonts du runner local : à régénérer si la CI a d'autres fonts (1 commande `--update-goldens`).
+
+### Point 21 — Filtres Documents émis (documents_history_screen.dart)
+1. Fonctionnelle ✅ — type (ChoiceChips), recherche client/numéro, dates Début/Fin, Min/Max montant ; combinaison cumulative.
+2. Métier ✅ — documents à date illisible jamais exclus silencieusement (`_dateDoc null → visible`).
+3. Contre-expertise ✅ — `double.infinity` par défaut borne Max ; Min/Max parse FR (virgule/espaces).
+4. Sécurité ✅ — filtres 100 % locaux, aucune fuite inter-boutique (source = `documentsEmis` déjà filtré).
+5. Overflow ✅ — `LayoutBuilder` : 2 lignes si < 560px ; chips en `ListView` horizontal.
+6. Cycle de vie ✅ — `dispose()` des 2 contrôleurs ; `setState` sur `onChanged` uniquement.
+7. Persistance ✅ — filtres = état éphémère volontaire (pas de persistance), documents intacts.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — état vide + filtres présents vérifiés (`ecrans_test.dart` 12/12).
+10. Contre-expertise finale ✅ — filtre Min > Max donne vide + EmptyView explicite : acceptable et testé.
+
+### Point 5 — Exports Achat (achat_list_screen.dart)
+1. Fonctionnelle ✅ — menu AppBar « Exporter la vue filtrée » (PDF/Excel/CSV) sur la liste déjà filtrée (statut + recherche).
+2. Métier ✅ — colonnes dette incluses (TTC, payé, reste dû, paiement) ; totaux + dû dans le sous-titre PDF.
+3. Contre-expertise ✅ — `_libelles` exposé via `libelle()` sans dupliquer la table ; détail lignes en clair.
+4. Sécurité ✅ — source = `achatsBoutique` (boutique courante) ; aucune policy modifiée.
+5. Overflow ✅ — `PopupMenuButton` en AppBar, aucun layout de liste touché.
+6. Cycle de vie ✅ — `context.mounted` après await, SnackBar d'échec.
+7. Persistance ✅ — lecture seule, aucune écriture.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — menu export présent vérifié ; suite complète 113/113.
+10. Contre-expertise finale ✅ — export vide → PDF « Aucune donnée » garanti par `ExportService` (point 7).

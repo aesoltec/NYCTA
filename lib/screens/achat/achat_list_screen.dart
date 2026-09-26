@@ -5,6 +5,7 @@ import '../../models/achat.dart';
 import '../../models/enums.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
+import '../../services/export_service.dart';
 import 'achat_detail_screen.dart';
 import 'achat_form_screen.dart';
 
@@ -50,7 +51,24 @@ class _AchatListScreenState extends State<AchatListScreen> {
           .toList();
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Achats fournisseurs')),
+      appBar: AppBar(
+        title: const Text('Achats fournisseurs'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Exporter la vue filtrée',
+            icon: const Icon(Icons.ios_share_outlined),
+            onSelected: (f) => _exporter(context, store, liste, f),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                  value: 'pdf', child: Text('PDF (partage)')),
+              PopupMenuItem(
+                  value: 'xlsx', child: Text('Excel (.xlsx)')),
+              PopupMenuItem(
+                  value: 'csv', child: Text('CSV (Excel)')),
+            ],
+          ),
+        ],
+      ),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -106,6 +124,61 @@ class _AchatListScreenState extends State<AchatListScreen> {
           : null,
     );
   }
+
+  /// Lignes d'export de la vue filtrée (mêmes colonnes partout).
+  static List<List<dynamic>> _lignesExport(
+      List<Achat> liste, String devise) => [
+        for (final a in liste)
+          [
+            a.date,
+            a.numero,
+            a.fournisseurNom,
+            _LigneAchat.libelle(a.statut),
+            a.lignes.length,
+            a.lignes
+                .map((l) =>
+                    '${l.quantite.toStringAsFixed(l.quantite.truncateToDouble() == l.quantite ? 0 : 2)}× ${l.produitNom}')
+                .join(', '),
+            a.montantTTC,
+            a.montantPaye,
+            a.montantRestant,
+            a.modePaiement,
+            devise,
+          ],
+      ];
+
+  Future<void> _exporter(BuildContext context, Store store,
+      List<Achat> liste, String format) async {
+    const entetes = [
+      'Date', 'Numéro', 'Fournisseur', 'Statut', 'Nb lignes', 'Détail',
+      'Montant TTC', 'Payé', 'Reste dû', 'Paiement', 'Devise'
+    ];
+    final lignes = _lignesExport(liste, store.profile.devise);
+    final total = liste.fold(0.0, (s, a) => s + a.montantTTC);
+    final du = liste.fold(0.0, (s, a) => s + a.montantRestant);
+    final nom = 'achats_${store.moisCourant}_${liste.length}ops';
+    try {
+      switch (format) {
+        case 'pdf':
+          await ExportService.partagerPdf(nom,
+              titre: 'Achats — ${store.boutiqueCourante.nom}',
+              sousTitre:
+                  '${liste.length} achat(s) · Total : ${total.toStringAsFixed(0)} ${store.profile.devise} · Dû : ${du.toStringAsFixed(0)} ${store.profile.devise}',
+              entetes: entetes,
+              lignes: lignes);
+        case 'xlsx':
+          await ExportService.partagerExcel(
+              nom, 'Achats', entetes, lignes);
+        default:
+          await ExportService.partagerCsv(nom, entetes, lignes);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
+  }
 }
 
 class _LigneAchat extends StatelessWidget {
@@ -127,6 +200,9 @@ class _LigneAchat extends StatelessWidget {
     Achat.statutRecu: 'REÇU',
     Achat.statutAnnule: 'ANNULÉ',
   };
+
+  static String libelle(String statut) =>
+      _libelles[statut] ?? statut.toUpperCase();
 
   @override
   Widget build(BuildContext context) {

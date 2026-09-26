@@ -126,6 +126,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       expect(find.text('Achats fournisseurs'), findsOneWidget);
+      expect(find.byTooltip('Exporter la vue filtrée'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 700));
     });
 

@@ -6,7 +6,7 @@
 | 2 | Supprimer fichiers de migration obsolètes | ✅ | 13 fichiers supprimés (git) ; database/ = 6 fichiers utiles | 2026-09-26 |
 | 3 | Déplacer bouton Journal → onglet Plus | ✅ | app_shell.dart:85-91 (AchatListScreen) + menu_screen.dart:43-50 (tuile Journal) ; parcours_test vert | 2026-09-26 |
 | 4 | Remplacer place Journal par bouton Achat | ✅ | app_shell.dart:244-248 (destination Achats) ; tuile dashboard existante | 2026-09-26 |
-| 5 | Export PDF/Excel/CSV onglet Achat | ⬜ | — | — |
+| 5 | Export PDF/Excel/CSV onglet Achat | ✅ | achat_list_screen.dart (menu AppBar « Exporter la vue filtrée », colonnes date/n°/fournisseur/statut/détail/TTC/payé/dû) ; ecrans_test 12/12 + suite 113/113 | 2026-09-26 |
 | 6 | Filtres période/intervalle/catégorie/sous-catégorie Journal | ✅ | journal_screen.dart (plage dates, sous-catégorie/type) ; test export ci-dessous | 2026-09-26 |
 | 7 | Corriger bug impression/export PDF vide | ✅ | ExportService.pdfTableau (ligne « Aucune donnée » garantie) + menu export Journal ; export_service_test.dart 3/3 | 2026-09-26 |
 | 8 | Filtres catégorie/sous-catégorie Stock | ✅ | stock_screen.dart (recherche + dropdown catégorie) ; ecrans_test 10/10 | 2026-09-26 |
@@ -21,7 +21,7 @@
 | 17 | Export + filtres Analytique CA & Dépenses | ✅ | ExportService (série + détail CSV déjà là) ; ecrans_test 10/10 | 2026-09-26 |
 | 18 | Audit Documents commerciaux | ✅ | document.dart (5 types, préfixes uniques, BL sansPrix, règles stock) + document_service (TVA profil, entête RCCM/IFU, numérotation séquentielle RPC) ; signature_document_test 5/5 | 2026-09-26 |
 | 19 | Signature entreprise gauche + espace client droite | ✅ | pdf_service.dart (2 zones encadrées toujours imprimées, libellés exacts) + preview relabellé ; PdfService.generer sans images OK | 2026-09-26 |
-| 20 | Corriger overflow Documents émis (33px) | ✅ | documents_history_screen.dart (actions en Wrap sous l'en-tête, plus de trailing en colonne) ; ecrans_test 12/12 dont rendu 360px | 2026-09-26 |
+| 20 | Corriger overflow Documents émis (33px) | ✅ | documents_history_screen.dart (actions en Wrap sous l'en-tête, plus de trailing en colonne) ; ecrans_test 12/12 + golden test/golden/documents_emis_360_test.dart (PNG 360×800, 0 exception) | 2026-09-26 |
 | 21 | Filtres Documents émis | ✅ | documents_history_screen.dart (type ChoiceChips, recherche client/numéro, dates Début/Fin, Min/Max, LayoutBuilder étroit) ; ecrans_test 12/12 | 2026-09-26 |
 | 22 | Filtre + recherche Boutique | ⬜ | — | — |
 | 23 | Filtre + recherche Catégories | ⬜ | — | — |
