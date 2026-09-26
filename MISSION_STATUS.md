@@ -6,7 +6,7 @@
 | 2 | Supprimer fichiers de migration obsolètes | ✅ | 13 fichiers supprimés (git) ; database/ = 6 fichiers utiles | 2026-09-26 |
 | 3 | Déplacer bouton Journal → onglet Plus | ✅ | app_shell.dart:85-91 (AchatListScreen) + menu_screen.dart:43-50 (tuile Journal) ; parcours_test vert | 2026-09-26 |
 | 4 | Remplacer place Journal par bouton Achat | ✅ | app_shell.dart:244-248 (destination Achats) ; tuile dashboard existante | 2026-09-26 |
-| 5 | Export PDF/Excel/CSV onglet Achat | ✅ | achat_list_screen.dart (menu AppBar « Exporter la vue filtrée », colonnes date/n°/fournisseur/statut/détail/TTC/payé/dû) ; ecrans_test 12/12 + suite 113/113 | 2026-09-26 |
+| 5 | Export PDF/Excel/CSV onglet Achat | ✅ | achat_list_screen.dart (menu « Exporter (vue filtrée ou tout) » : 3 formats sur vue filtrée + 3 sur « Tous », totaux TTC/dû) ; achat_export_test.dart 3/3 (BOM, en-têtes, totaux, xlsx, PDF plein+vide) + ecrans_test | 2026-09-26 |
 | 6 | Filtres période/intervalle/catégorie/sous-catégorie Journal | ✅ | journal_screen.dart (plage dates, sous-catégorie/type) ; test export ci-dessous | 2026-09-26 |
 | 7 | Corriger bug impression/export PDF vide | ✅ | ExportService.pdfTableau (ligne « Aucune donnée » garantie) + menu export Journal ; export_service_test.dart 3/3 | 2026-09-26 |
 | 8 | Filtres catégorie/sous-catégorie Stock | ✅ | stock_screen.dart (recherche + dropdown catégorie) ; ecrans_test 10/10 | 2026-09-26 |
@@ -23,7 +23,7 @@
 | 19 | Signature entreprise gauche + espace client droite | ✅ | pdf_service.dart (2 zones encadrées toujours imprimées, libellés exacts) + preview relabellé ; PdfService.generer sans images OK | 2026-09-26 |
 | 20 | Corriger overflow Documents émis (33px) | ✅ | documents_history_screen.dart (actions en Wrap sous l'en-tête, plus de trailing en colonne) ; ecrans_test 12/12 + golden test/golden/documents_emis_360_test.dart (PNG 360×800, 0 exception) | 2026-09-26 |
 | 21 | Filtres Documents émis | ✅ | documents_history_screen.dart (type ChoiceChips, recherche client/numéro, dates Début/Fin, Min/Max, LayoutBuilder étroit) ; ecrans_test 12/12 | 2026-09-26 |
-| 22 | Filtre + recherche Boutique | ⬜ | — | — |
+| 22 | Filtre + recherche Boutique | ✅ | boutiques_screen.dart (recherche nom/adresse, chips Actives/Fermées/Toutes + Siège/Annexes, badge FERMÉE, fermées en lecture seule) ; ecrans_test 13/13 + suite 117/117 | 2026-09-26 |
 | 23 | Filtre + recherche Catégories | ⬜ | — | — |
 | 24 | Audit formulaire vente | ⬜ | — | — |
 | 25 | Filtres + export Achat et fournisseurs | ⬜ | — | — |

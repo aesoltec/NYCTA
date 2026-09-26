@@ -8,6 +8,7 @@ import 'package:pme_gestion_pro/screens/achat/achat_list_screen.dart';
 import 'package:pme_gestion_pro/screens/charges/charges_screen.dart';
 import 'package:pme_gestion_pro/screens/collab/messagerie_screen.dart';
 import 'package:pme_gestion_pro/screens/dashboard/dashboard_screen.dart';
+import 'package:pme_gestion_pro/screens/admin/boutiques_screen.dart';
 import 'package:pme_gestion_pro/screens/documents/documents_history_screen.dart';
 import 'package:pme_gestion_pro/screens/documents/documents_screen.dart';
 import 'package:pme_gestion_pro/screens/journal/journal_screen.dart';
@@ -126,7 +127,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       expect(find.text('Achats fournisseurs'), findsOneWidget);
-      expect(find.byTooltip('Exporter la vue filtrée'), findsOneWidget);
+      expect(find.byTooltip('Exporter (vue filtrée ou tout)'),
+          findsOneWidget);
       await tester.pump(const Duration(milliseconds: 700));
     });
 
@@ -153,6 +155,25 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await tester.pump(const Duration(milliseconds: 700));
+    });
+
+    testWidgets('Boutiques : recherche + filtres statut/siège',
+        (tester) async {
+      await _pomper(tester, const BoutiquesScreen());
+      expect(find.text('Boutiques'), findsOneWidget);
+      expect(
+          find.widgetWithText(
+              TextField, 'Rechercher (nom, adresse)…'),
+          findsOneWidget);
+      expect(find.text('Actives'), findsOneWidget);
+      expect(find.text('Siège + annexes'), findsOneWidget);
+      await tester.enterText(
+          find.widgetWithText(
+              TextField, 'Rechercher (nom, adresse)…'),
+          'zzz-introuvable');
+      await tester.pumpAndSettle();
+      expect(find.text('Aucune boutique (filtre sans résultat)'),
+          findsOneWidget);
     });
 
     testWidgets('Analytique : onglets CA et Dépenses', (tester) async {      await tester.pumpWidget(MaterialApp(

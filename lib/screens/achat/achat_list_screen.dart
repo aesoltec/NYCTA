@@ -55,16 +55,42 @@ class _AchatListScreenState extends State<AchatListScreen> {
         title: const Text('Achats fournisseurs'),
         actions: [
           PopupMenuButton<String>(
-            tooltip: 'Exporter la vue filtrée',
+            tooltip: 'Exporter (vue filtrée ou tout)',
             icon: const Icon(Icons.ios_share_outlined),
-            onSelected: (f) => _exporter(context, store, liste, f),
-            itemBuilder: (_) => const [
+            onSelected: (f) {
+              // 'tout:pdf' → tous les achats ; sinon la vue filtrée.
+              final tout = f.startsWith('tout:');
+              final format = tout ? f.substring(5) : f;
+              final source = tout
+                  ? (store.achatsBoutique
+                    ..sort((a, b) => b.date.compareTo(a.date)))
+                  : liste;
+              _exporter(context, store, source, format, tout: tout);
+            },
+            itemBuilder: (_) => [
               PopupMenuItem(
+                  enabled: false,
+                  child: Text('Vue filtrée (${liste.length})',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700))),
+              const PopupMenuItem(
                   value: 'pdf', child: Text('PDF (partage)')),
-              PopupMenuItem(
+              const PopupMenuItem(
                   value: 'xlsx', child: Text('Excel (.xlsx)')),
-              PopupMenuItem(
+              const PopupMenuItem(
                   value: 'csv', child: Text('CSV (Excel)')),
+              PopupMenuItem(
+                  enabled: false,
+                  child: Text('Tous (${store.achatsBoutique.length})',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700))),
+              const PopupMenuItem(
+                  value: 'tout:pdf', child: Text('Tout en PDF')),
+              const PopupMenuItem(
+                  value: 'tout:xlsx',
+                  child: Text('Tout en Excel')),
+              const PopupMenuItem(
+                  value: 'tout:csv', child: Text('Tout en CSV')),
             ],
           ),
         ],
@@ -148,7 +174,7 @@ class _AchatListScreenState extends State<AchatListScreen> {
       ];
 
   Future<void> _exporter(BuildContext context, Store store,
-      List<Achat> liste, String format) async {
+      List<Achat> liste, String format, {bool tout = false}) async {
     const entetes = [
       'Date', 'Numéro', 'Fournisseur', 'Statut', 'Nb lignes', 'Détail',
       'Montant TTC', 'Payé', 'Reste dû', 'Paiement', 'Devise'
@@ -156,14 +182,15 @@ class _AchatListScreenState extends State<AchatListScreen> {
     final lignes = _lignesExport(liste, store.profile.devise);
     final total = liste.fold(0.0, (s, a) => s + a.montantTTC);
     final du = liste.fold(0.0, (s, a) => s + a.montantRestant);
-    final nom = 'achats_${store.moisCourant}_${liste.length}ops';
+    final nom =
+        'achats_${tout ? 'tous' : store.moisCourant}_${liste.length}ops';
     try {
       switch (format) {
         case 'pdf':
           await ExportService.partagerPdf(nom,
               titre: 'Achats — ${store.boutiqueCourante.nom}',
               sousTitre:
-                  '${liste.length} achat(s) · Total : ${total.toStringAsFixed(0)} ${store.profile.devise} · Dû : ${du.toStringAsFixed(0)} ${store.profile.devise}',
+                  '${tout ? 'Tous les achats' : 'Vue filtrée'} · ${liste.length} achat(s) · Total : ${total.toStringAsFixed(0)} ${store.profile.devise} · Dû : ${du.toStringAsFixed(0)} ${store.profile.devise}',
               entetes: entetes,
               lignes: lignes);
         case 'xlsx':

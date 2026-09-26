@@ -65,7 +65,7 @@ class _BandeauHorsLigneState extends State<_BandeauHorsLigne> {
                 onPressed: () async {
                   setState(() => _busy = true);
                   final ok = await widget.store.reconnecter();
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   setState(() => _busy = false);
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                       content: Text(ok

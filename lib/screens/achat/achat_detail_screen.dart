@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../core/validators.dart';
 import '../../data/store.dart';
 import '../../models/enums.dart';
-import '../../widgets/date_picker_field.dart';
 import '../../widgets/money_text.dart';
 
 /// Fiche détail d'un achat + actions contextuelles selon statut et rôle.

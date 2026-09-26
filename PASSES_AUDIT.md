@@ -71,7 +71,7 @@
 7. Persistance ✅ — aucune donnée touchée (UI seule).
 8. Analyze ✅ — 0 erreur ; 1 warning `inference_failure_on_instance_creation` (famille pré-existante, 24 occurrences codebase — voir § justification).
 9. Tests ✅ — `ecrans_test.dart` 12/12 + golden `documents_emis_360_test.dart` 1/1.
-10. Contre-expertise finale ⚠️ — golden généré sur fonts du runner local : à régénérer si la CI a d'autres fonts (1 commande `--update-goldens`).
+10. Contre-expertise finale ✅ — golden déterministe : `test/flutter_test_config.dart` charge Roboto embarqué (`test/golden/fonts/`, licence Apache SDK) via FontLoader — régénéré et vert sans `--update-goldens` (2026-09-26).
 
 ### Point 21 — Filtres Documents émis (documents_history_screen.dart)
 1. Fonctionnelle ✅ — type (ChoiceChips), recherche client/numéro, dates Début/Fin, Min/Max montant ; combinaison cumulative.
@@ -96,3 +96,15 @@
 8. Analyze ✅ — 0 erreur, 0 warning nouveau.
 9. Tests ✅ — menu export présent vérifié ; suite complète 113/113.
 10. Contre-expertise finale ✅ — export vide → PDF « Aucune donnée » garanti par `ExportService` (point 7).
+
+### Point 22 — Filtres Boutique (boutiques_screen.dart)
+1. Fonctionnelle ✅ — recherche nom/adresse, chips Actives/Fermées/Toutes + Siège+annexes/Siège/Annexes, cumulables.
+2. Métier ✅ — fermées visibles en lecture seule (badge FERMÉE, pas d'actions) ; pas de réouverture inventée (aucune RPC) ; garde `fermerBoutique` (≥1 active) inchangée.
+3. Contre-expertise ✅ — champs ville/responsable/code absents du modèle : non inventés, documenté en commentaire ; extraction `_CarteBoutique` sans changer les actions.
+4. Sécurité ✅ — écran admin inchangé côté permissions ; aucune policy touchée.
+5. Overflow ✅ — chips en `ListView` horizontal, titres `Flexible`+ellipsis conservés.
+6. Cycle de vie ✅ — `context.mounted` après `fermerBoutique` conservé ; contrôleurs : aucun (TextField `onChanged` seul).
+7. Persistance ✅ — filtres éphémères, boutiques intactes.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — recherche + chips + état vide vérifiés ; suite complète 117/117.
+10. Contre-expertise finale ✅ — défaut 'actives' = comportement précédent (seules actives listées) : aucune régression.

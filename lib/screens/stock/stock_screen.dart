@@ -36,8 +36,6 @@ class StockScreen extends StatefulWidget {
     );
   }
 
-  void _formProduit(BuildContext context, Store store, Produit? p) =>
-      formProduit(context, store, p);
 }
 
 class _StockScreenState extends State<StockScreen> {
@@ -737,14 +735,14 @@ class _FormProduitState extends State<_FormProduit> {
         ],
       ),
     );
-    if (confirme != true || !mounted) return;
+    if (confirme != true || !context.mounted) return;
     setState(() => _sauvegardeEnCours = true);
-    // Capturés AVANT l'await : usage après trou async interdit par
-    // use_build_context_synchronously.
+    // Capturés AVANT l'await + garde context.mounted : usage après trou
+    // async autorisé (use_build_context_synchronously).
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     final erreur = await store.supprimerProduit(p.id, forcerArchive: true);
-    if (!mounted) return;
+    if (!context.mounted) return;
     setState(() => _sauvegardeEnCours = false);
     if (erreur != null) {
       messenger.showSnackBar(SnackBar(content: Text('⚠️ $erreur')));
