@@ -8,6 +8,7 @@ import 'package:pme_gestion_pro/screens/achat/achat_list_screen.dart';
 import 'package:pme_gestion_pro/screens/charges/charges_screen.dart';
 import 'package:pme_gestion_pro/screens/collab/messagerie_screen.dart';
 import 'package:pme_gestion_pro/screens/dashboard/dashboard_screen.dart';
+import 'package:pme_gestion_pro/screens/documents/documents_history_screen.dart';
 import 'package:pme_gestion_pro/screens/documents/documents_screen.dart';
 import 'package:pme_gestion_pro/screens/journal/journal_screen.dart';
 import 'package:pme_gestion_pro/screens/rapports/analytique_screen.dart';
@@ -128,8 +129,32 @@ void main() {
       await tester.pump(const Duration(milliseconds: 700));
     });
 
-    testWidgets('Analytique : onglets CA et Dépenses', (tester) async {
-      await tester.pumpWidget(MaterialApp(
+    testWidgets('Documents émis : filtres + état vide sans overflow', (tester) async {
+      await _pomper(tester, const DocumentsHistoryScreen());
+      expect(find.text('Documents émis'), findsOneWidget);
+      expect(
+          find.widgetWithText(TextField, 'Rechercher (client, numéro)…'),
+          findsOneWidget);
+      expect(find.text('Tous'), findsOneWidget);
+      expect(find.text('Début'), findsOneWidget);
+      expect(find.text('Aucun document émis'), findsOneWidget);
+    });
+
+    testWidgets('Documents émis : rendu étroit 360px sans overflow',
+        (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await tester.pumpWidget(_hote(const DocumentsHistoryScreen()));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.pump(const Duration(milliseconds: 700));
+    });
+
+    testWidgets('Analytique : onglets CA et Dépenses', (tester) async {      await tester.pumpWidget(MaterialApp(
         home: ChangeNotifierProvider.value(
           value: Store(const AppUser(
               id: 'u', nom: 'Test', role: Role.admin)),

@@ -21,8 +21,8 @@
 | 17 | Export + filtres Analytique CA & Dépenses | ✅ | ExportService (série + détail CSV déjà là) ; ecrans_test 10/10 | 2026-09-26 |
 | 18 | Audit Documents commerciaux | ⬜ | — | — |
 | 19 | Signature entreprise gauche + espace client droite | ⬜ | — | — |
-| 20 | Corriger overflow Documents émis (33px) | ⬜ | — | — |
-| 21 | Filtres Documents émis | ⬜ | — | — |
+| 20 | Corriger overflow Documents émis (33px) | ✅ | documents_history_screen.dart (actions en Wrap sous l'en-tête, plus de trailing en colonne) ; ecrans_test 12/12 dont rendu 360px | 2026-09-26 |
+| 21 | Filtres Documents émis | ✅ | documents_history_screen.dart (type ChoiceChips, recherche client/numéro, dates Début/Fin, Min/Max, LayoutBuilder étroit) ; ecrans_test 12/12 | 2026-09-26 |
 | 22 | Filtre + recherche Boutique | ⬜ | — | — |
 | 23 | Filtre + recherche Catégories | ⬜ | — | — |
 | 24 | Audit formulaire vente | ⬜ | — | — |

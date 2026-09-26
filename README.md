@@ -396,3 +396,9 @@ bouton (21 tables JSONB côté Supabase, migration v1.11), téléchargement en
 JSON, restauration intégrale ordonnée (admin uniquement, double confirmation
 mot de passe + saisie de « RESTAURER »). Les images/archives PDF restent dans
 le bucket indépendamment.
+
+
+## Mission en cours
+
+Voir [`MISSION.md`](./MISSION.md) pour la liste exhaustive des tâches.
+Voir [`MISSION_STATUS.md`](./MISSION_STATUS.md) pour l'avancement.
