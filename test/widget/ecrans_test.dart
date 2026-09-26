@@ -12,6 +12,7 @@ import 'package:pme_gestion_pro/screens/admin/boutiques_screen.dart';
 import 'package:pme_gestion_pro/screens/admin/categories_screen.dart';
 import 'package:pme_gestion_pro/screens/collab/fournisseurs_screen.dart';
 import 'package:pme_gestion_pro/screens/compta/compta_screen.dart';
+import 'package:pme_gestion_pro/screens/menu/menu_screen.dart';
 import 'package:pme_gestion_pro/screens/stats/stats_screen.dart';
 import 'package:pme_gestion_pro/screens/documents/documents_history_screen.dart';
 import 'package:pme_gestion_pro/screens/documents/documents_screen.dart';
@@ -224,6 +225,41 @@ void main() {
       expect(find.text('Statistiques & graphiques'), findsOneWidget);
       expect(find.text('Toutes'), findsOneWidget);
       expect(find.byTooltip('Exporter la vue filtrée'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 700));
+    });
+
+    testWidgets('Menu Plus : sections thématiques ordonnées',
+        (tester) async {
+      // Très grande surface : tout le menu est construit d'un coup,
+      // les positions dy reflètent l'ordre du document.
+      tester.view.physicalSize = const Size(800, 10000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await tester.pumpWidget(_hote(const MenuScreen()));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      // Ordre du flux métier : vente → achat → stock → finance → reporting.
+      final sections = [
+        'VENTES', 'ACHATS', 'STOCK', 'FINANCES', 'COMPTABILITÉ',
+        'PARTENAIRES & CLIENTS', 'DOCUMENTS', 'RAPPORTS',
+        'CONFIGURATION', 'ADMINISTRATION', 'COLLABORATION',
+      ];
+      var dernier = -1.0;
+      for (final s in sections) {
+        expect(find.text(s), findsOneWidget);
+        final dy = tester.getTopLeft(find.text(s)).dy;
+        expect(dy, greaterThan(dernier));
+        dernier = dy;
+      }
+      expect(find.text('Journal des ventes'), findsOneWidget);
+      expect(find.text('Mouvements de stock'), findsOneWidget);
+      // Navigation : Journal accessible depuis Plus.
+      await tester.tap(find.text('Journal des ventes'));
+      await tester.pumpAndSettle();
+      expect(find.byType(JournalScreen), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 700));
     });
 
