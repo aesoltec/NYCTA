@@ -171,6 +171,7 @@ create table if not exists public.produits (
   quantite_stock  integer not null default 0,
   seuil_alerte    integer not null default 3,
   image_path      text,                        -- URL bucket « media »
+  images          jsonb not null default '[]'::jsonb, -- galerie (max 05)
   actif           boolean not null default true,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
@@ -1304,6 +1305,11 @@ insert into storage.buckets (id, name, public)
 values ('documents', 'documents', false)
 on conflict (id) do nothing;
 
+-- Bucket « produits » (public, photos catalogue — mission §3.2).
+insert into storage.buckets (id, name, public)
+values ('produits', 'produits', true)
+on conflict (id) do nothing;
+
 drop policy if exists "media lecture publique" on storage.objects;
 create policy "media lecture publique" on storage.objects
   for select to public using (bucket_id = 'media');
@@ -1327,6 +1333,18 @@ drop policy if exists "documents suppression" on storage.objects;
 create policy "documents suppression" on storage.objects
   for delete to authenticated
   using (bucket_id = 'documents' and public.user_role() in ('admin','gerant'));
+
+drop policy if exists "produits lecture publique" on storage.objects;
+create policy "produits lecture publique" on storage.objects
+  for select to public using (bucket_id = 'produits');
+drop policy if exists "produits ecriture" on storage.objects;
+create policy "produits ecriture" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'produits');
+drop policy if exists "produits suppression" on storage.objects;
+create policy "produits suppression" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'produits' and public.user_role() in ('admin','gerant'));
 
 -- ---------------------------------------------------------------------------
 -- Durcissement de la clé ANON (1 appel, ex-migration v1.10)
@@ -1537,4 +1555,3 @@ end $$;
 -- FIN DES FONCTIONS + RLS — base opérationnelle complète.
 -- Optionnel : select charger_donnees_test(); pour une base de démo.
 -- ============================================================================
-
