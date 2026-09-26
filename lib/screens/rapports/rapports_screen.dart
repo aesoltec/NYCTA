@@ -6,9 +6,18 @@ import '../../widgets/money_text.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/type_chip.dart';
 
+import '../../services/export_service.dart';
+
 /// Rapports : synthèse globale, par activité, par boutique, frais MoMo.
-class RapportsScreen extends StatelessWidget {
+class RapportsScreen extends StatefulWidget {
   const RapportsScreen({super.key});
+
+  @override
+  State<RapportsScreen> createState() => _RapportsScreenState();
+}
+
+class _RapportsScreenState extends State<RapportsScreen> {
+  String _recherche = '';
 
   @override
   Widget build(BuildContext context) {
@@ -21,8 +30,32 @@ class RapportsScreen extends StatelessWidget {
     // depuis le menu « Plus », sans Scaffold englobant : cet écran DOIT
     // fournir le sien, sinon aucune surface n'est peinte derrière lui et le
     // fond apparaît noir/sombre à la place du thème clair de l'app.
+    final boutiques = store.boutiques
+        .where((b) =>
+            _recherche.trim().isEmpty ||
+            b.nom
+                .toLowerCase()
+                .contains(_recherche.trim().toLowerCase()))
+        .toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('Rapports')),
+      appBar: AppBar(
+        title: const Text('Rapports'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Exporter le rapport',
+            icon: const Icon(Icons.ios_share_outlined),
+            onSelected: (f) => _exporter(context, store, f),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                  value: 'pdf', child: Text('PDF (partage)')),
+              PopupMenuItem(
+                  value: 'xlsx', child: Text('Excel (.xlsx)')),
+              PopupMenuItem(
+                  value: 'csv', child: Text('CSV (Excel)')),
+            ],
+          ),
+        ],
+      ),
       backgroundColor: const Color(0xFFD5F0F0),
       body: ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -135,9 +168,18 @@ class RapportsScreen extends StatelessWidget {
           ]),
         ),
         const SizedBox(height: 16),
+        TextField(
+          decoration: const InputDecoration(
+            hintText: 'Filtrer les boutiques…',
+            prefixIcon: Icon(Icons.search_rounded),
+            filled: true,
+          ),
+          onChanged: (v) => setState(() => _recherche = v),
+        ),
+        const SizedBox(height: 16),
         Text('Toutes les boutiques', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
-        for (final b in store.boutiques)
+        for (final b in boutiques)
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: SoftCard(
@@ -163,5 +205,45 @@ class RapportsScreen extends StatelessWidget {
       ],
       ),
     );
+  }
+
+  Future<void> _exporter(
+      BuildContext context, Store store, String format) async {
+    const entetes = [
+      'Section', 'Rubrique', 'Montant', 'Devise'
+    ];
+    final caParType = store.caParType;
+    final total = caParType.values.fold(0.0, (a, b) => a + b);
+    final lignes = <List<dynamic>>[
+      ['CA total (mois)', '', total, store.profile.devise],
+      ['Marge (mois)', '', store.margeMois, store.profile.devise],
+      for (final e in caParType.entries)
+        ['Par activité', e.key.name, e.value, store.profile.devise],
+      for (final e in store.fraisMoMoMois.entries)
+        ['Frais MoMo', e.key, e.value, store.profile.devise],
+      for (final e in store.caParJour.entries)
+        ['CA par jour', e.key, e.value, store.profile.devise],
+    ];
+    final nom = 'rapport_${store.moisCourant}';
+    try {
+      switch (format) {
+        case 'pdf':
+          await ExportService.partagerPdf(nom,
+              titre: 'Rapport — ${store.moisCourant}',
+              sousTitre: store.boutiqueCourante.nom,
+              entetes: entetes,
+              lignes: lignes);
+        case 'xlsx':
+          await ExportService.partagerExcel(
+              nom, 'Rapport', entetes, lignes);
+        default:
+          await ExportService.partagerCsv(nom, entetes, lignes);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
   }
 }

@@ -17,7 +17,7 @@
 | 13 | Export PDF/Excel/CSV Dépenses | ✅ | ExportService + menu export (total inclus) | 2026-09-26 |
 | 14 | Export PDF/Excel/CSV Partenaires hotspot | ✅ | ExportService + menu AppBar (ventes, parts, clôture) | 2026-09-26 |
 | 15 | Export + filtres Trésorerie | ✅ | ExportService + filtre catégorie/boutique | 2026-09-26 |
-| 16 | Export + filtres Rapport financier | ⬜ | — | — |
+| 16 | Export + filtres Rapport financier | ✅ | ExportService + filtre boutiques | 2026-09-26 |
 | 17 | Export + filtres Analytique CA & Dépenses | ⬜ | — | — |
 | 18 | Audit Documents commerciaux | ⬜ | — | — |
 | 19 | Signature entreprise gauche + espace client droite | ⬜ | — | — |
