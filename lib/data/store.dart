@@ -1214,6 +1214,11 @@ class Store extends ChangeNotifier {
     notifyListeners();
     await CloudRepository.upsertTransaction(maj);
     await _fileUpsert('transactions', _payloadTx(maj));
+    // Journal tenu à jour : annule l'historique de la vente puis
+    // re-comptabilise les nouvelles valeurs (point 30 — la modification
+    // laissait sinon le journal sur les anciens montants).
+    await _contrePasser(maj.id, 'correction vente');
+    await _comptabiliserVente(maj);
     return null;
   }
 
@@ -1431,6 +1436,8 @@ class Store extends ChangeNotifier {
     if (CloudRepository.actif) {
       await SyncService().mettreEnFile({'id': id}, table: 'charges__delete');
     }
+    // Comme les ventes : annulation par contre-écriture (point 30).
+    await _contrePasser(id, 'charge supprimée');
   }
 
   List<Charge> get depensesMois =>
@@ -2526,7 +2533,10 @@ class Store extends ChangeNotifier {
       'date_charge': charge.date.toIso8601String(),
       'recurrente': charge.recurrente,
     });
-    await _comptabiliserCharge(charge);
+    // La charge « Fournisseurs » sert la trésorerie (dépenses) : elle ne
+    // poste PAS d'écriture OD — le paiement est comptabilisé une seule
+    // fois ci-dessous (D 401 / C 571), sinon la caisse serait débitée
+    // deux fois pour un seul paiement (point 30).
     await _comptabiliserPaiementAchat(
         achats[i], montant, mode ?? a.modePaiement);
     return null;
@@ -2569,8 +2579,9 @@ class Store extends ChangeNotifier {
     achats[i] = a.copyWith(
         statut: Achat.statutAnnule, motifAnnulation: motif.trim());
     notifyListeners();
-    // Annulation comptable : contre-passation des écritures liées
-    // (réception AC) — les paiements déjà effectués restent acquis.
+    // Annulation comptable : contre-passation de TOUTES les écritures
+    // liées (réception AC + éventuels paiements BQ) — remise à zéro
+    // nette ; les objets Charge « Paiement » restent en trésorerie.
     if (a.statut == Achat.statutRecu) {
       await _contrePasser(a.id, 'annulation ${a.numero}');
     }
