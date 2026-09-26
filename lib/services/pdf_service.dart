@@ -189,33 +189,61 @@ class PdfService {
                 ),
               ),
             pw.Spacer(),
-            // ---------- Signatures : entreprise + client ----------
+            // ---------- Signatures : entreprise à gauche, client à droite.
+            // Les deux zones sont TOUJOURS imprimées (même sans image) :
+            // l'entreprise signe à main levée dans l'app, le client signe
+            // au stylo dans la zone de droite après impression.
             pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
-                if (signature != null)
-                  pw.Column(children: [
-                    pw.Container(width: 110, height: 50,
-                        child: pw.Image(signature, fit: pw.BoxFit.contain)),
-                    pw.Text('Signature',
+                pw.Expanded(
+                  child: pw.Column(children: [
+                    pw.Container(
+                      width: double.infinity,
+                      height: 70,
+                      decoration: pw.BoxDecoration(
+                          border: pw.Border.all(
+                              color: PdfColors.grey400)),
+                      child: signature != null
+                          ? pw.Image(signature,
+                              fit: pw.BoxFit.contain)
+                          : null,
+                    ),
+                    pw.SizedBox(height: 3),
+                    pw.Text('Signature entreprise (à gauche)',
                         style: const pw.TextStyle(fontSize: 8)),
                   ]),
-                if (signatureClient != null)
-                  pw.Column(children: [
-                    pw.Container(width: 110, height: 50,
-                        child: pw.Image(signatureClient,
-                            fit: pw.BoxFit.contain)),
+                ),
+                pw.SizedBox(width: 16),
+                pw.Expanded(
+                  child: pw.Column(children: [
+                    pw.Container(
+                      width: double.infinity,
+                      height: 70,
+                      decoration: pw.BoxDecoration(
+                          border: pw.Border.all(
+                              color: PdfColors.grey400)),
+                      child: signatureClient != null
+                          ? pw.Image(signatureClient,
+                              fit: pw.BoxFit.contain)
+                          : null,
+                    ),
+                    pw.SizedBox(height: 3),
                     pw.Text(
                         doc.type == TypeDocument.bonLivraison
-                            ? 'Réceptionnaire'
-                            : 'Signature du client',
+                            ? 'Réceptionnaire (à droite) — stylo après impression'
+                            : 'Signature client (à droite) — stylo après impression',
                         style: const pw.TextStyle(fontSize: 8)),
                   ]),
-                if (cachet != null)
-                  pw.Container(width: 80, height: 80,
-                      child: pw.Image(cachet, fit: pw.BoxFit.contain)),
+                ),
               ],
             ),
+            if (cachet != null)
+              pw.Container(
+                  width: 80,
+                  height: 80,
+                  child:
+                      pw.Image(cachet, fit: pw.BoxFit.contain)),
             pw.SizedBox(height: 10),
             if (profile.banque.isNotEmpty)
               pw.Text('Banque : ${profile.banque} — ${profile.coordonneesBancaires}',

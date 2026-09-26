@@ -19,8 +19,8 @@
 | 15 | Export + filtres Trésorerie | ✅ | ExportService + filtre catégorie/boutique | 2026-09-26 |
 | 16 | Export + filtres Rapport financier | ✅ | ExportService + filtre boutiques | 2026-09-26 |
 | 17 | Export + filtres Analytique CA & Dépenses | ✅ | ExportService (série + détail CSV déjà là) ; ecrans_test 10/10 | 2026-09-26 |
-| 18 | Audit Documents commerciaux | ⬜ | — | — |
-| 19 | Signature entreprise gauche + espace client droite | ⬜ | — | — |
+| 18 | Audit Documents commerciaux | ✅ | document.dart (5 types, préfixes uniques, BL sansPrix, règles stock) + document_service (TVA profil, entête RCCM/IFU, numérotation séquentielle RPC) ; signature_document_test 5/5 | 2026-09-26 |
+| 19 | Signature entreprise gauche + espace client droite | ✅ | pdf_service.dart (2 zones encadrées toujours imprimées, libellés exacts) + preview relabellé ; PdfService.generer sans images OK | 2026-09-26 |
 | 20 | Corriger overflow Documents émis (33px) | ✅ | documents_history_screen.dart (actions en Wrap sous l'en-tête, plus de trailing en colonne) ; ecrans_test 12/12 dont rendu 360px | 2026-09-26 |
 | 21 | Filtres Documents émis | ✅ | documents_history_screen.dart (type ChoiceChips, recherche client/numéro, dates Début/Fin, Min/Max, LayoutBuilder étroit) ; ecrans_test 12/12 | 2026-09-26 |
 | 22 | Filtre + recherche Boutique | ⬜ | — | — |

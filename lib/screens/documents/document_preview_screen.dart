@@ -245,8 +245,10 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
                       AppImage(store.profile.signaturePath,
                           width: 120, height: 60, size: 60),
                       const SizedBox(height: 4),
-                      Text('Signature',
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      Text('Signature entreprise (à gauche)',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade600)),
                     ]),
                   if (MediaService.existe(store.profile.cachetPath))
                     Column(children: [
@@ -325,8 +327,8 @@ class _SignatureClient extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.read<Store>();
     final libelle = doc.type == TypeDocument.bonLivraison
-        ? 'Réceptionnaire'
-        : 'Signature du client';
+        ? 'Réceptionnaire (à droite)'
+        : 'Signature client (à droite)';
     final existe = MediaService.existe(doc.signatureClientPath);
     return Container(
       width: double.infinity,
