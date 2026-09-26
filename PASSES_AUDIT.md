@@ -257,3 +257,33 @@ Décisions SYSCOHADA (ADR) : documents commerciaux ne postent PAS (évite double
 8. Analyze ✅ — 0 erreur, 0 warning nouveau.
 9. Tests ✅ — 11 sections + tuiles + 360px vérifiés (scrollUntilVisible pour sections basses) ; suite 150/150.
 10. Contre-expertise finale ✅ — « Prestations/Mobile Money/Crédit/Forfait » de la spec = le Journal (toutes activités) : pas de sous-écrans inventés (ils n'existent pas).
+
+### Point 22bis — Réouverture boutique (store.dart, cloud_repository.dart, boutiques_screen.dart, SQL)
+1. Fonctionnelle ✅ — `rouvrirBoutique` (garde admin/gérant locale + RPC) + bouton « Réouvrir » sur carte fermée.
+2. Métier ✅ — miroir de la policy UPDATE (admin/gérant) ; boutique déjà active → refus ; historique conservé (soft delete).
+3. Contre-expertise ✅ — RPC SECURITY DEFINER avec garde serveur (le vendeur ne peut pas passer par la policy) ; idempotente.
+4. Sécurité ✅ — double garde (locale + serveur) ; aucune policy RLS modifiée.
+5. Overflow ✅ — IconButton 20px dans trailing existant.
+6. Cycle de vie ✅ — `context.mounted` après await.
+7. Persistance ✅ — cloud RPC + pas de file locale (boutiques gérées par cloud).
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — `boutique_reouverture_test.dart` 4/4 (refus vendeur, déjà active, introuvable, bouton visible admin) ; suite 154/154.
+10. Contre-expertise finale ⚠️ — RÉSERVE : la RPC `reouvrir_boutique` doit être exécutée sur le Supabase réel (fichier `database/22bis_reouvrir_boutique.sql`, regroupé dans `SUPABASE_A_EXECUTER.sql`) — blocage matériel classé (accès service_role). Sans elle, le bouton échoue silencieusement côté production (le code local est testé et vert).
+
+### Points 22ter / 23bis — Hors périmètre v1 (CDC §8bis)
+- 22ter (ville/responsable/code) : aucun flux actuel n'exige ces champs ; non inventés, tracés au CDC comme « à valider avec le métier ».
+- 23bis (catégories String → table) : la table SQL `categories` existe (v1.2) ; le modèle Dart reste des listes de String volontairement (seed + listes dynamiques) ; migration à planifier hors mission.
+
+10. Contre-expertise finale ✅ — « Prestations/Mobile Money/Crédit/Forfait » de la spec = le Journal (toutes activités) : pas de sous-écrans inventés (ils n'existent pas).
+
+### Point 37 — Menu « Plus » thématique (menu_screen.dart)
+1. Fonctionnelle ✅ — 11 sections (Ventes, Achats, Stock, Finances, Comptabilité, Partenaires, Documents, Rapports, Configuration, Administration, Collaboration) + tuiles réordonnées selon le flux métier.
+2. Métier ✅ — ordre = flux vente → achat → stock → finance → compta → partenaires → documents → rapports → config → admin → collaboration ; permissions inchangées par tuile.
+3. Contre-expertise ✅ — tuiles déplacées sans duplication (grep : 1 occurrence par destination) ; nouvelles tuiles Stock/Mouvements/Charges avec permissions cohérentes.
+4. Sécurité ✅ — aucune permission modifiée (mêmes gardes `peut()`/rôle).
+5. Overflow ✅ — `_Section` en `Text` borné (11.5px, letterSpacing) ; tuiles `Material`+`ListTile` existantes ; test 360px.
+6. Cycle de vie ✅ — aucun contrôleur ajouté.
+7. Persistance ✅ — aucune donnée.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — 11 sections + tuiles + 360px vérifiés (scrollUntilVisible pour sections basses) ; suite 150/150.
+10. Contre-expertise finale ✅ — « Prestations/Mobile Money/Crédit/Forfait » de la spec = le Journal (toutes activités) : pas de sous-écrans inventés (ils n'existent pas).
