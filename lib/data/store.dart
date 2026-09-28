@@ -1084,6 +1084,7 @@ class Store extends ChangeNotifier {
       id: _nid(), libelle: t.libelle, categorie: t.categorie,
       prix: t.prix, description: t.description, actif: t.actif,
       images: t.images,
+      dateAjout: t.dateAjout ?? DateTime.now(),
     );
     catalogue.add(tarif);
     notifyListeners();
@@ -1096,7 +1097,11 @@ class Store extends ChangeNotifier {
     final i = catalogue.indexWhere((x) => x.id == t.id);
     if (i < 0) return 'Article introuvable';
     if (t.prix <= 0) return 'Le prix doit être > 0';
-    catalogue[i] = t;
+    // Date d'ajout d'origine conservée (badge Nouveau stable en modif).
+    catalogue[i] =
+        t.dateAjout == null && catalogue[i].dateAjout != null
+            ? t.copyWith(dateAjout: catalogue[i].dateAjout)
+            : t;
     notifyListeners();
     await CloudRepository.upsertTarif(t);
     await _fileUpsert('tarifs', _payloadTarif(t));

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/validators.dart';
 import '../../data/store.dart';
 import '../../models/enums.dart';
@@ -7,7 +8,9 @@ import '../../models/tarif.dart';
 import '../../services/media_service.dart';
 import '../../widgets/app_image.dart';
 import '../../widgets/filtre_panel.dart';
-import '../../widgets/money_text.dart';
+import 'widgets/categorie_tree.dart';
+import 'widgets/tarif_card.dart';
+import 'widgets/tarif_detail_screen.dart';
 
 /// Tarifs & catalogue : articles vendus AVEC prix, y compris hors stock.
 /// Accès lecture : tous les rôles (utile aux ventes) ; gestion : admin/gérant.
@@ -18,22 +21,25 @@ class TarifsScreen extends StatefulWidget {
 }
 
 class _TarifsScreenState extends State<TarifsScreen> {
-  // Filtres via FiltrePanel : recherche + catégorie (point 34).
-  Map<String, dynamic> _filtres = const {};
+  // Refonte UX e-commerce : grille + arbre catégories (drawer mobile,
+  // panneau latéral en large) + recherche + prix min-max + tri.
+  Map<String, dynamic> _filtres = const {'tri': 'nom_az'};
 
-  @override
-  Widget build(BuildContext context) {
-    final store = context.watch<Store>();
-    final peutGerer = store.role == Role.admin || store.role == Role.gerant;
-    final categories = {
-      for (final t in store.catalogue)
-        if (t.categorie.trim().isNotEmpty) t.categorie.trim(),
-    }.toList()
-      ..sort();
-    var tarifs = store.tarifsActifs;
+  List<Tarif> _filtrer(List<Tarif> base) {
+    var tarifs = base;
     final cat = (_filtres['cat'] as String?) ?? '';
     if (cat.isNotEmpty) {
       tarifs = tarifs.where((t) => t.categorie == cat).toList();
+    }
+    final min =
+        double.tryParse((_filtres['prix_min'] as String?) ?? '');
+    final max =
+        double.tryParse((_filtres['prix_max'] as String?) ?? '');
+    if (min != null) {
+      tarifs = tarifs.where((t) => t.prix >= min).toList();
+    }
+    if (max != null) {
+      tarifs = tarifs.where((t) => t.prix <= max).toList();
     }
     final rech = ((_filtres['q'] as String?) ?? '').trim().toLowerCase();
     if (rech.isNotEmpty) {
@@ -43,86 +49,136 @@ class _TarifsScreenState extends State<TarifsScreen> {
               t.description.toLowerCase().contains(rech))
           .toList();
     }
+    switch ((_filtres['tri'] as String?) ?? 'nom_az') {
+      case 'nom_za':
+        tarifs.sort((a, b) => b.libelle.compareTo(a.libelle));
+      case 'prix_asc':
+        tarifs.sort((a, b) => a.prix.compareTo(b.prix));
+      case 'prix_desc':
+        tarifs.sort((a, b) => b.prix.compareTo(a.prix));
+      case 'date_desc':
+        tarifs.sort((a, b) => (b.dateAjout ?? DateTime(2000))
+            .compareTo(a.dateAjout ?? DateTime(2000)));
+      case 'date_asc':
+        tarifs.sort((a, b) => (a.dateAjout ?? DateTime(2000))
+            .compareTo(b.dateAjout ?? DateTime(2000)));
+      default:
+        tarifs.sort((a, b) => a.libelle.compareTo(b.libelle));
+    }
+    return tarifs;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = context.watch<Store>();
+    final peutGerer = store.role == Role.admin || store.role == Role.gerant;
+    final compteurs = <String, int>{};
+    for (final t in store.tarifsActifs) {
+      final c = t.categorie.trim().isEmpty ? 'Général' : t.categorie.trim();
+      compteurs[c] = (compteurs[c] ?? 0) + 1;
+    }
+    final categories = compteurs.keys.toList()..sort();
+    final catSel = (_filtres['cat'] as String?) ?? '';
+    final tarifs = _filtrer(store.tarifsActifs
+        .where((t) =>
+            catSel.isEmpty || t.categorie == catSel)
+        .toList());
+    final arbre = CategorieTree(
+      compteurs: compteurs,
+      selection: catSel,
+      onSelection: (c) => setState(() => _filtres = {
+            ..._filtres,
+            'cat': c,
+          }),
+    );
     return Scaffold(
       appBar: AppBar(title: const Text('Tarifs & catalogue')),
-      body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: FiltrePanel(
-            filtres: [
-              const FiltreConfig(
-                  cle: 'q',
-                  kind: FiltreKind.recherche,
-                  label: 'Rechercher un article…'),
-              FiltreConfig(
-                  cle: 'cat',
-                  kind: FiltreKind.dropdown,
-                  label: 'Catégorie',
-                  options: [
-                    for (final c in categories) (c, c),
-                  ]),
-            ],
-            valeurs: _filtres,
-            onFiltreChange: (m) => setState(() => _filtres = m),
-          ),
-        ),
-        const SizedBox(height: 4),
+      drawer: MediaQuery.sizeOf(context).width < 700
+          ? Drawer(child: SafeArea(child: arbre))
+          : null,
+      body: Row(children: [
+        if (MediaQuery.sizeOf(context).width >= 700)
+          SizedBox(width: 240, child: Card(child: arbre)),
         Expanded(
-          child: tarifs.isEmpty
-              ? const Center(
-                  child: Text('Aucun article (filtre sans résultat)',
-                      style: TextStyle(color: Colors.grey)))
-              : ListView.separated(
-                  padding: EdgeInsets.fromLTRB(
-                      16, 8, 16, peutGerer ? 90 : 24),
-                  itemCount: tarifs.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: 8),
-                  itemBuilder: (_, i) => Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white, borderRadius: BorderRadius.circular(14),
-                      boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 8, offset: Offset(0, 3))],
-                    ),
-                    child: ListTile(
-                      leading: MediaService.existe(
-                              tarifs[i].images.firstOrNull)
-                          ? AppImage(tarifs[i].images.first,
-                              size: 40,
-                              borderRadius:
-                                  BorderRadius.circular(12))
-                          : Container(
-                              padding: const EdgeInsets.all(9),
-                              decoration: BoxDecoration(
-                                  color: const Color(0xFFE8F0FB),
-                                  borderRadius:
-                                      BorderRadius.circular(12)),
-                              child: const Icon(
-                                  Icons.sell_outlined,
-                                  size: 18,
-                                  color: Color(0xFF3D6FB4)),
-                            ),
-                      title: Text(tarifs[i].libelle,
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700)),
-                      subtitle: Text(
-                        '${tarifs[i].categorie}${tarifs[i].description.isNotEmpty ? ' · ${tarifs[i].description}' : ''}${tarifs[i].images.isNotEmpty ? ' · 📷${tarifs[i].images.length}' : ''}',
-                        maxLines: 2, overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
-                      ),
-                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                        MoneyText(tarifs[i].prix, style: const TextStyle(fontSize: 14)),
-                        if (peutGerer) ...[
-                          IconButton(icon: const Icon(Icons.edit_outlined, size: 19),
-                              onPressed: () => _form(context, store, tarifs[i])),
-                          IconButton(
-                              icon: const Icon(Icons.delete_outline, size: 19,
-                                  color: Colors.redAccent),
-                              onPressed: () => store.supprimerTarif(tarifs[i].id)),
-                        ],
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: FiltrePanel(
+                filtres: [
+                  const FiltreConfig(
+                      cle: 'q',
+                      kind: FiltreKind.recherche,
+                      label: 'Rechercher un article…'),
+                  FiltreConfig(
+                      cle: 'cat',
+                      kind: FiltreKind.dropdown,
+                      label: 'Catégorie',
+                      options: [
+                        for (final c in categories) (c, c),
                       ]),
-                    ),
-                  ),
-                ),
+                  const FiltreConfig(
+                      cle: 'prix',
+                      kind: FiltreKind.minMax,
+                      label: 'Prix (min-max)'),
+                  const FiltreConfig(
+                      cle: 'tri',
+                      kind: FiltreKind.dropdown,
+                      label: 'Tri',
+                      options: [
+                        ('nom_az', 'Libellé A→Z'),
+                        ('nom_za', 'Libellé Z→A'),
+                        ('prix_asc', 'Prix ↑'),
+                        ('prix_desc', 'Prix ↓'),
+                        ('date_desc', 'Récents d\u2019abord'),
+                        ('date_asc', 'Anciens d\u2019abord'),
+                      ]),
+                ],
+                valeurs: _filtres,
+                onFiltreChange: (m) => setState(() => _filtres = m),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Expanded(
+              child: tarifs.isEmpty
+                  ? const Center(
+                      child: Text('Aucun article (filtre sans résultat)',
+                          style: TextStyle(color: Colors.grey)))
+                  : LayoutBuilder(builder: (ctx, contraintes) {
+                      final colonnes =
+                          contraintes.maxWidth >= 1100
+                              ? 4
+                              : contraintes.maxWidth >= 700
+                                  ? 3
+                                  : 2;
+                      return GridView.builder(
+                        padding: EdgeInsets.fromLTRB(
+                            16, 8, 16, peutGerer ? 90 : 24),
+                        gridDelegate:
+                            SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: colonnes,
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 8,
+                          mainAxisExtent: 340,
+                        ),
+                        itemCount: tarifs.length,
+                        itemBuilder: (_, i) {
+                          final t = tarifs[i];
+                          return TarifCard(
+                            tarif: t,
+                            onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) => TarifDetailScreen(
+                                        tarifId: t.id))),
+                            onUtiliser: () =>
+                                Navigator.of(context).pop(t.id),
+                            onMenu: (a) => _menu(
+                                context, store, t, a, peutGerer),
+                          );
+                        },
+                      );
+                    }),
+            ),
+          ]),
         ),
       ]),
       floatingActionButton: peutGerer
@@ -133,6 +189,22 @@ class _TarifsScreenState extends State<TarifsScreen> {
             )
           : null,
     );
+  }
+
+  Future<void> _menu(BuildContext context, Store store, Tarif t,
+      String action, bool peutGerer) async {
+    switch (action) {
+      case 'modifier':
+        if (peutGerer && context.mounted) _form(context, store, t);
+      case 'desactiver':
+        if (peutGerer && context.mounted) {
+          await store.supprimerTarif(t.id);
+        }
+      case 'partager':
+        await SharePlus.instance.share(ShareParams(
+            text:
+                '${t.libelle} — ${t.prix.toStringAsFixed(0)} F (${store.profile.devise})'));
+    }
   }
 
   void _form(BuildContext context, Store store, Tarif? existant) {
