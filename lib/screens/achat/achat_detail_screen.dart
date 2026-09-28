@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/validators.dart';
 import '../../data/store.dart';
+import '../../models/achat.dart';
 import '../../models/enums.dart';
+import '../../services/export_service.dart';
 import '../../widgets/money_text.dart';
+import 'widgets/achat_card.dart';
+import 'widgets/ligne_achat_card.dart';
 
 /// Fiche détail d'un achat + actions contextuelles selon statut et rôle.
 /// Chaque action sensible est confirmée et tracée (createdBy + motif).
@@ -23,21 +27,95 @@ class AchatDetailScreen extends StatelessWidget {
     }
     final a = store.achats[i];
     final gere = store.peut(Permission.gererAchats);
+    final couleur =
+        AchatCard.couleurs[a.statut] ?? Colors.grey;
     return Scaffold(
-      appBar: AppBar(title: Text(a.numero)),
+      appBar: AppBar(title: Text(a.numero), actions: [
+        IconButton(
+          tooltip: 'Exporter PDF',
+          icon: const Icon(Icons.ios_share_outlined),
+          onPressed: () => _exporterUn(context, store, a),
+        ),
+      ]),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
+          // En-tête complet : numéro + statut + fournisseur + date.
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: couleur.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(children: [
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(a.numero,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16)),
+                      const SizedBox(height: 2),
+                      Text(
+                          '${a.fournisseurNom} · ${_date(a.date)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13)),
+                    ]),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: couleur,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                    AchatCard.libelleStatut(a.statut),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 12),
           _Bloc(titre: 'Fournisseur', lignes: [
             a.fournisseurNom,
             if ((a.referenceFacture ?? '').isNotEmpty)
               'Réf : ${a.referenceFacture}',
           ]),
           const SizedBox(height: 12),
-          _Bloc(titre: 'Lignes (${a.lignes.length})', lignes: [
-            for (final l in a.lignes)
-              '${l.quantite.toStringAsFixed(l.quantite.truncateToDouble() == l.quantite ? 0 : 2)} ${l.unite} × ${l.produitNom} — ${l.prixUnitaire.toStringAsFixed(0)}${l.tauxTVA > 0 ? ' (+${l.tauxTVA.toStringAsFixed(0)} % TVA)' : ''}',
-          ]),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(
+                    color: Color(0x10000000),
+                    blurRadius: 8, offset: Offset(0, 3))
+              ],
+            ),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Lignes (${a.lignes.length})',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade600)),
+                  const SizedBox(height: 6),
+                  for (final l in a.lignes)
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 4),
+                      child: LigneAchatCard(ligne: l),
+                    ),
+                ]),
+          ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(16),
@@ -87,6 +165,22 @@ class AchatDetailScreen extends StatelessWidget {
             _Bloc(titre: 'Motif d\'annulation',
                 lignes: [a.motifAnnulation!]),
           ],
+          const SizedBox(height: 12),
+          // Historique des actions (timeline). Limite assumée : le modèle
+          // ne date que la création — les étapes suivantes sont inférées
+          // du statut actuel (dates exactes non stockées, non inventées).
+          _Bloc(titre: 'Historique', lignes: [
+            'Demande créée le ${_dateHeure(a.createdAt)}${a.createdBy.isNotEmpty ? ' par ${a.createdBy}' : ''}',
+            if (a.statut != 'demande' &&
+                a.statut != 'en_attente')
+              'Validé — dette fournisseur',
+            if (a.statut == 'recu')
+              'Réceptionné — entrée stock (CUMP)',
+            if (a.montantPaye > 0)
+              'Payé : ${a.montantPaye.toStringAsFixed(0)} (${a.modePaiement})',
+            if (a.statut == 'annule')
+              'Annulé : ${a.motifAnnulation ?? '—'}',
+          ]),
           const SizedBox(height: 20),
           if (gere && a.peutValider)
             SizedBox(
@@ -138,8 +232,40 @@ class AchatDetailScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _executer(BuildContext context, Store store,
-      Future<String?> Function() action,
+  static String _date(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  static String _dateHeure(DateTime d) =>
+      '${_date(d)} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
+  /// Export PDF de la commande (lignes + totaux + statut).
+  Future<void> _exporterUn(
+      BuildContext context, Store store, Achat a) async {
+    final lignes = [
+      for (final l in a.lignes)
+        [
+          l.produitNom,
+          l.quantite,
+          l.prixUnitaire,
+          (l.quantite * l.prixUnitaire),
+        ],
+    ];
+    try {
+      await ExportService.partagerPdf('achat_${a.numero}',
+          titre: 'Achat ${a.numero} — ${a.fournisseurNom}',
+          sousTitre:
+              '${AchatCard.libelleStatut(a.statut)} · ${_date(a.date)} · TTC : ${a.montantTTC.toStringAsFixed(0)} ${store.profile.devise} · Payé : ${a.montantPaye.toStringAsFixed(0)} · Dû : ${a.montantRestant.toStringAsFixed(0)}',
+          entetes: const ['Article', 'Qté', 'PU', 'Total'],
+          lignes: lignes);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
+  }
+
+  Future<void> _executer(BuildContext context, Store store,      Future<String?> Function() action,
       {String ok = '✅ Opération enregistrée'}) async {
     final erreur = await action();
     if (!context.mounted) return;

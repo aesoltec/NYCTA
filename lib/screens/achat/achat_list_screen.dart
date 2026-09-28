@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/validators.dart';
 import '../../data/store.dart';
 import '../../models/achat.dart';
 import '../../models/enums.dart';
 import '../../widgets/empty_view.dart';
-import '../../widgets/money_text.dart';
 import '../../services/export_service.dart';
 import '../../widgets/filtre_panel.dart';
 import 'achat_detail_screen.dart';
 import 'achat_form_screen.dart';
+import 'widgets/achat_card.dart';
 
 /// Liste des achats : filtres statut + recherche, tuile dashboard et menu.
 class AchatListScreen extends StatefulWidget {
@@ -18,8 +19,12 @@ class AchatListScreen extends StatefulWidget {
 }
 
 class _AchatListScreenState extends State<AchatListScreen> {
-  // Filtres via FiltrePanel : statut (chips) + recherche + période (dates).
-  Map<String, dynamic> _filtres = const {'statut': 'tous'};
+  // Refonte UX : cartes commande (liste par défaut) + bascule grille.
+  // Filtres via FiltrePanel : statut + recherche + période + fournisseur
+  // + montant min-max + tri. Catégorie/sous-catégorie non applicables
+  // (lignes libres sans référentiel — non inventé).
+  var _grille = false;
+  Map<String, dynamic> _filtres = const {'statut': 'tous', 'tri': 'date_desc'};
 
   static const _statuts = [
     ('tous', 'Tous'),
@@ -99,10 +104,39 @@ class _AchatListScreenState extends State<AchatListScreen> {
       final finJour = DateTime(f0.year, f0.month, f0.day, 23, 59, 59);
       liste = liste.where((a) => !a.date.isAfter(finJour)).toList();
     }
+    final min =
+        double.tryParse((_filtres['montant_min'] as String?) ?? '');
+    final max =
+        double.tryParse((_filtres['montant_max'] as String?) ?? '');
+    if (min != null) {
+      liste = liste.where((a) => a.montantTTC >= min).toList();
+    }
+    if (max != null) {
+      liste = liste.where((a) => a.montantTTC <= max).toList();
+    }
+    switch ((_filtres['tri'] as String?) ?? 'date_desc') {
+      case 'date_asc':
+        liste.sort((a, b) => a.date.compareTo(b.date));
+      case 'montant_desc':
+        liste.sort((a, b) => a.montantTTC.compareTo(b.montantTTC));
+      case 'montant_asc':
+        liste.sort((a, b) => b.montantTTC.compareTo(a.montantTTC));
+      case 'statut':
+        liste.sort((a, b) => a.statut.compareTo(b.statut));
+      default:
+        liste.sort((a, b) => b.date.compareTo(a.date));
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Achats fournisseurs'),
         actions: [
+          IconButton(
+            tooltip: _grille ? 'Vue liste' : 'Vue grille',
+            icon: Icon(_grille
+                ? Icons.view_list_outlined
+                : Icons.grid_view_outlined),
+            onPressed: () => setState(() => _grille = !_grille),
+          ),
           PopupMenuButton<String>(
             tooltip: 'Exporter (vue filtrée ou tout)',
             icon: const Icon(Icons.ios_share_outlined),
@@ -178,6 +212,21 @@ class _AchatListScreenState extends State<AchatListScreen> {
                     for (final f in fournisseurs) (f, f),
                   ]),
               const FiltreConfig(
+                  cle: 'montant',
+                  kind: FiltreKind.minMax,
+                  label: 'Montant TTC (min-max)'),
+              const FiltreConfig(
+                  cle: 'tri',
+                  kind: FiltreKind.dropdown,
+                  label: 'Tri',
+                  options: [
+                    ('date_desc', 'Date ↓'),
+                    ('date_asc', 'Date ↑'),
+                    ('montant_desc', 'Montant ↓'),
+                    ('montant_asc', 'Montant ↑'),
+                    ('statut', 'Statut'),
+                  ]),
+              const FiltreConfig(
                   cle: '', kind: FiltreKind.dates, label: ''),
             ],
             valeurs: _filtres,
@@ -186,20 +235,41 @@ class _AchatListScreenState extends State<AchatListScreen> {
         ),
         const SizedBox(height: 4),
         Expanded(
-          child: liste.isEmpty
-              ? const EmptyView(
-                  icon: Icons.shopping_cart_outlined,
-                  message: 'Aucun achat',
-                  hint: 'Demandes, bons de commande et réceptions fournisseurs')
-              : ListView.separated(
-                  padding: EdgeInsets.fromLTRB(
-                      16, 8, 16, peutCreer ? 90 : 24),
-                  itemCount: liste.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: 8),
-                  itemBuilder: (_, i) =>
-                      _LigneAchat(achat: liste[i]),
-                ),
+          child: RefreshIndicator(
+            onRefresh: store.rafraichir,
+            child: liste.isEmpty
+                ? ListView(children: const [
+                    EmptyView(
+                        icon: Icons.shopping_cart_outlined,
+                        message: 'Aucun achat',
+                        hint:
+                            'Demandes, bons de commande et réceptions fournisseurs'),
+                  ])
+                : _grille
+                    ? GridView.builder(
+                        padding: EdgeInsets.fromLTRB(
+                            16, 8, 16, peutCreer ? 90 : 24),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 8,
+                          mainAxisExtent: 380,
+                        ),
+                        itemCount: liste.length,
+                        itemBuilder: (_, i) => _carte(
+                            context, store, liste[i]),
+                      )
+                    : ListView.separated(
+                        padding: EdgeInsets.fromLTRB(
+                            16, 8, 16, peutCreer ? 90 : 24),
+                        itemCount: liste.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 8),
+                        itemBuilder: (_, i) => _carte(
+                            context, store, liste[i]),
+                      ),
+          ),
         ),
       ]),
       floatingActionButton: peutCreer
@@ -215,6 +285,101 @@ class _AchatListScreenState extends State<AchatListScreen> {
     );
   }
 
+  /// Carte commande + actions rapides (voir, payer, annuler, exporter).
+  Widget _carte(BuildContext context, Store store, Achat a) {
+    final gere = store.peut(Permission.gererAchats);
+    return AchatCard(
+      achat: a,
+      onVoir: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => AchatDetailScreen(achatId: a.id))),
+      onPayer: gere && a.peutPayer
+          ? () => _payerRapide(context, store, a)
+          : null,
+      onAnnuler: gere && a.peutAnnuler
+          ? () => _annulerRapide(context, store, a)
+          : null,
+      onExporter: () => _exporter(context, store, [a], 'pdf'),
+    );
+  }
+
+  Future<void> _payerRapide(
+      BuildContext context, Store store, Achat a) async {
+    final ctrl =
+        TextEditingController(text: a.montantRestant.toStringAsFixed(0));
+    final montant = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        scrollable: true,
+        title: const Text('Paiement fournisseur'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+              labelText:
+                  'Montant (dû : ${a.montantRestant.toStringAsFixed(0)})'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+                ctx, V.prixValue(ctrl.text)),
+            child: const Text('Valider'),
+          ),
+        ],
+      ),
+    );
+    if (montant == null || montant <= 0 || !context.mounted) return;
+    final erreur = await store.payerAchat(a.id, montant);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(erreur == null
+              ? '✅ Paiement enregistré'
+              : '⚠️ $erreur')));
+    }
+  }
+
+  Future<void> _annulerRapide(
+      BuildContext context, Store store, Achat a) async {
+    final ctrl = TextEditingController();
+    final motif = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        scrollable: true,
+        title: const Text('Annuler cet achat ?'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLines: 2,
+          decoration: const InputDecoration(
+              labelText: 'Motif (obligatoire)'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Retour')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(ctx,
+                ctrl.text.trim().isEmpty ? null : ctrl.text.trim()),
+            child: const Text('Annuler l\'achat'),
+          ),
+        ],
+      ),
+    );
+    if (motif == null || !context.mounted) return;
+    final erreur = await store.annulerAchat(a.id, motif);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              erreur == null ? 'Achat annulé' : '⚠️ $erreur')));
+    }
+  }
+
   /// Lignes d'export de la vue filtrée (mêmes colonnes partout).
   static List<List<dynamic>> _lignesExport(
       List<Achat> liste, String devise) => [
@@ -223,7 +388,7 @@ class _AchatListScreenState extends State<AchatListScreen> {
             a.date,
             a.numero,
             a.fournisseurNom,
-            _LigneAchat.libelle(a.statut),
+            AchatCard.libelleStatut(a.statut),
             a.lignes.length,
             a.lignes
                 .map((l) =>
@@ -269,68 +434,5 @@ class _AchatListScreenState extends State<AchatListScreen> {
             const SnackBar(content: Text('⚠️ Export impossible')));
       }
     }
-  }
-}
-
-class _LigneAchat extends StatelessWidget {
-  final Achat achat;
-  const _LigneAchat({required this.achat});
-
-  static const _couleurs = {
-    Achat.statutDemande: Color(0xFF7E57C2),
-    Achat.statutEnAttente: Color(0xFFEF6C00),
-    Achat.statutValide: Color(0xFF3D6FB4),
-    Achat.statutRecu: Color(0xFF3E9D8F),
-    Achat.statutAnnule: Color(0xFF9E9E9E),
-  };
-
-  static const _libelles = {
-    Achat.statutDemande: 'DEMANDE',
-    Achat.statutEnAttente: 'EN ATTENTE',
-    Achat.statutValide: 'VALIDÉ',
-    Achat.statutRecu: 'REÇU',
-    Achat.statutAnnule: 'ANNULÉ',
-  };
-
-  static String libelle(String statut) =>
-      _libelles[statut] ?? statut.toUpperCase();
-
-  @override
-  Widget build(BuildContext context) {
-    final couleur = _couleurs[achat.statut] ?? Colors.grey;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(14),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x10000000), blurRadius: 8, offset: Offset(0, 3))
-        ],
-      ),
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        leading: Container(
-          padding: const EdgeInsets.all(9),
-          decoration: BoxDecoration(
-              color: couleur.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12)),
-          child: Icon(Icons.shopping_cart_outlined,
-              size: 18, color: couleur),
-        ),
-        title: Text('${achat.numero} · ${achat.fournisseurNom}',
-            maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(
-          '${_libelles[achat.statut]}${achat.montantRestant > 0.001 && achat.statut != Achat.statutAnnule ? ' · dû : ${achat.montantRestant.toStringAsFixed(0)}' : ''}',
-          maxLines: 1, overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-              fontSize: 12, color: couleur, fontWeight: FontWeight.w700),
-        ),
-        trailing: MoneyText(achat.montantTTC,
-            style: const TextStyle(fontSize: 14)),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => AchatDetailScreen(achatId: achat.id))),
-      ),
-    );
   }
 }
