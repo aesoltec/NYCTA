@@ -21,6 +21,28 @@ données de démo réalistes — aucune configuration Firebase requise.
 | 🧾 Comptabilité | Journal immuable auto (VT/AC/BQ/OD), balance, résultat, **TVA par mois, balance âgée, rapprochement pointé** |
 | 🏬 Multi-boutiques | Sélecteur dans l'AppBar, toutes les données filtrées par boutique |
 
+## UX e-commerce (Stock, Tarifs, Achats)
+
+Interfaces cartes style e-commerce (même style, bordures 14px, ombres
+douces) : grille responsive (2 mobile / 3 tablette / 4 desktop via
+`LayoutBuilder`), bascule grille/liste, recherche as-you-type,
+filtres `FiltrePanel` (catégorie, boutique, prix/montant min-max, tri
+multiple), pull-to-refresh, carrousel multi-images (max 5, plein écran
+`photo_view`), Hero carte→détail, fade-in (`cached_network_image`),
+shimmer pendant le chargement réseau, Ripple au tap. (Écart :
+carrousel en `PageView` natif — `carousel_slider` installé mais non
+utilisé.)
+
+**Badges : 3 UNIQUEMENT** (tout badge marketing supprimé) — 🟢
+« Nouveau » (< 7 jours, `dateAjout`), ⚠️ « Stock faible »
+(stock ≤ seuil), 🚫 « Rupture » (stock = 0). Détail au tap
+(fiche + historique mouvements/ventes + actions rapides).
+Écrans : `StockScreen` (grille + `ProduitDetailScreen`), `TarifsScreen`
+(arbre catégories + `TarifDetailScreen`), `AchatListScreen` (cartes
+commande + timeline) + `AchatDetailScreen` (en-tête, lignes avec
+images, historique, export PDF). Tout défile en `CustomScrollView`
+(slivers) : 320/360/768/1024px × TextScaler 1.0–2.0 sans overflow.
+
 ## Règles anti-overflow appliquées (senior)
 
 1. **TextScaler borné à 115 %** globalement — cause n°1 de débordement en production (accessibilité système).

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:provider/provider.dart';
 import '../../core/validators.dart';
 import '../../data/store.dart';
@@ -178,10 +179,15 @@ class _AchatListScreenState extends State<AchatListScreen> {
           ),
         ],
       ),
-      body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: FiltrePanel(
+      // CustomScrollView : filtres + liste défilent ensemble — aucun
+      // overflow même avec 7 filtres en 320px @2.0x.
+      body: RefreshIndicator(
+        onRefresh: store.rafraichir,
+        child: CustomScrollView(slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: FiltrePanel(
             filtres: [
               const FiltreConfig(
                   cle: 'q',
@@ -232,46 +238,45 @@ class _AchatListScreenState extends State<AchatListScreen> {
             valeurs: _filtres,
             onFiltreChange: (m) => setState(() => _filtres = m),
           ),
-        ),
-        const SizedBox(height: 4),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: store.rafraichir,
-            child: liste.isEmpty
-                ? ListView(children: const [
-                    EmptyView(
-                        icon: Icons.shopping_cart_outlined,
-                        message: 'Aucun achat',
-                        hint:
-                            'Demandes, bons de commande et réceptions fournisseurs'),
-                  ])
-                : _grille
-                    ? GridView.builder(
-                        padding: EdgeInsets.fromLTRB(
-                            16, 8, 16, peutCreer ? 90 : 24),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 8,
-                          crossAxisSpacing: 8,
-                          mainAxisExtent: 380,
-                        ),
-                        itemCount: liste.length,
-                        itemBuilder: (_, i) => _carte(
-                            context, store, liste[i]),
-                      )
-                    : ListView.separated(
-                        padding: EdgeInsets.fromLTRB(
-                            16, 8, 16, peutCreer ? 90 : 24),
-                        itemCount: liste.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 8),
-                        itemBuilder: (_, i) => _carte(
-                            context, store, liste[i]),
-                      ),
+            ),
           ),
-        ),
-      ]),
+          const SliverToBoxAdapter(child: SizedBox(height: 4)),
+          if (liste.isEmpty)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: EmptyView(
+                  icon: Icons.shopping_cart_outlined,
+                  message: 'Aucun achat',
+                  hint:
+                      'Demandes, bons de commande et réceptions fournisseurs'),
+            )
+          else if (_grille)
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                  16, 8, 16, peutCreer ? 90 : 24),
+              sliver: SliverMasonryGrid.count(
+                crossAxisCount: 2,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                childCount: liste.length,
+                itemBuilder: (_, i) =>
+                    _carte(context, store, liste[i]),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                  16, 8, 16, peutCreer ? 90 : 24),
+              sliver: SliverList.separated(
+                itemCount: liste.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (_, i) =>
+                    _carte(context, store, liste[i]),
+              ),
+            ),
+        ]),
+      ),
       floatingActionButton: peutCreer
           ? FloatingActionButton.extended(
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(

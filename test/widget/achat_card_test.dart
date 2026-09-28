@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:pme_gestion_pro/data/store.dart';
@@ -134,7 +135,7 @@ void main() {
       await _pomper(tester, const AchatListScreen(), s);
       await tester.tap(find.byTooltip('Vue grille'));
       await tester.pumpAndSettle();
-      expect(find.byType(GridView), findsOneWidget);
+      expect(find.byType(SliverMasonryGrid), findsOneWidget);
     });
   });
 

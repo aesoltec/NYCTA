@@ -380,3 +380,39 @@ Contexte : 2 Notifiers créés, testés, NON branchés (Store intact).
 10. Contre-expertise finale ✅ — NON branchés (volontaire) : zéro régression ; branchement + façade Phase 5.
 
 ### Phase 5 — À venir (façade Store + branchement)
+
+### Refonte UX e-commerce — Stock (R1, 2026-09-28)
+1. Fonctionnelle OK — grille 2/3/4 + liste, recherche, 6 filtres, tri 10 modes, détail, vendre/modifier/ajuster/archiver/partager, exports inchangés.
+2. Métier OK — `dateAjout` remplie à la création, jamais écrasée (notifier + Store) ; seuils/badges conformes (rupture=0, faible≤seuil, nouveau<7j) ; aucune règle inventée.
+3. Sécurité OK — permissions inchangées (gererStock/vendre/admin-retrait) ; matrice + RLS intacts.
+4. Overflow OK — CustomScrollView + Masonry ; 320/360/768/1024 × 1.0/1.5/2.0 verts (24 tests).
+5. Performance OK — slivers paresseux (pas de shrinkWrap global) ; images `take(5)`.
+6. Tests OK — 11 widget + 3 goldens ; suite 375/375.
+7. Documentation OK — README + CHANGELOG 1.10.0 + MISSION_STATUS R1 + SQL (schema/migration/à-exécuter).
+8. Régression OK — suite complète verte (écrans_test adapté : message vide filtres).
+9. UX OK — Hero, fade-in, shimmer réseau seul (déterministe), Ripple, badges 3.
+10. Contre-expertise OK — `carousel_slider` non utilisé (PageView natif, écart noté) ; sous-catégorie absente du modèle (non inventée, notée).
+
+### Refonte UX e-commerce — Tarifs (R2, 2026-09-28)
+1. Fonctionnelle OK — grille + arbre (drawer/latéral), recherche, prix, tri, détail, utiliser/modifier/désactiver/partager ; formulaire existant conservé.
+2. Métier OK — `Tarif.dateAjout` (création/sync, conservée en modif) ; badge Nouveau seul.
+3. Contre-expertise OK — seed catalogue vide connu (tests ajoutent leurs articles) ; `onUtiliser` = pop(id) comme avant (pas de navigation inventée).
+4. Sécurité OK — gestion admin/gérant inchangée.
+5. Overflow OK — slivers + Masonry ; grille reprise dans les 24 tests overflow.
+6. Cycle de vie OK — widgets < 200 lignes.
+7. Persistance OK — `date_ajout` (toJson/cloud/load + repli base non migrée).
+8. Analyze OK — 0 erreur.
+9. Tests OK — 7 widget + 1 golden ; suite 375/375.
+10. Contre-expertise finale OK — `MoneyText` Provider requis (goldens wrappés Store).
+
+### Refonte UX e-commerce — Achats (R3, 2026-09-28)
+1. Fonctionnelle OK — cartes commande, liste/grille, 7 filtres + tri, détail enrichi, payer/annuler rapides, export PDF unitaire.
+2. Métier OK — cycle/statuts/CUMP/paiements intacts (délégation Notifier) ; timeline inférée honnête (dates d'étapes non stockées — non inventées, noté).
+3. Contre-expertise OK — `_LigneAchat` supprimé (remplacé par widgets, export rerouté) ; `MoneyText` import mort retiré.
+4. Sécurité OK — `gererAchats` requis (payer/annuler masqués sinon).
+5. Overflow OK — CustomScrollView + SliverMasonryGrid (fix 320@1.5x 80px constaté puis corrigé).
+6. Cycle de vie OK — dialogues avec `mounted`, contrôleurs locaux.
+7. Persistance OK — aucune migration (modèle inchangé, images lignes déjà JSON).
+8. Analyze OK — 0 erreur.
+9. Tests OK — 7 widget + 1 golden + 3 parcours intégration (code OK, émulateur ADB absent : non exécutés).
+10. Contre-expertise finale OK — suite 375/375 ; push interdit (commits locaux).

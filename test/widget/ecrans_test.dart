@@ -85,7 +85,7 @@ void main() {
           find.widgetWithText(TextField, 'Rechercher un produit…'),
           'zzz-introuvable');
       await tester.pumpAndSettle();
-      expect(find.text('Aucun produit dans cette boutique'),
+      expect(find.text('Aucun produit pour ces filtres'),
           findsOneWidget);
       expect(
           find.byTooltip('Exporter la liste filtrée'), findsOneWidget);

@@ -45,9 +45,13 @@ class ProductCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Stack(children: [
-                ImageCarousel([...p.images, if (p.imagePath != null) p.imagePath!]
-                    .toSet()
-                    .toList()),
+                Hero(
+                  tag: 'produit_${p.id}',
+                  child: ImageCarousel(
+                      [...p.images, if (p.imagePath != null) p.imagePath!]
+                          .toSet()
+                          .toList()),
+                ),
                 if (badges.isNotEmpty)
                   Positioned(
                     top: 6,

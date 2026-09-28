@@ -418,6 +418,7 @@ créer votre compte dans Authentication → Add user ; exécuter `supabase_schem
 | **P9 Rapports avancés** | Historique ✅ · devis→facture ✅ · CA par jour ✅ · rapport journalier ✅ · Excel/CSV ✅ · sauvegarde/restauration ✅ — **P9 TERMINÉE** | ✅ |
 | **P10 Missions (v1.8.0)** | Sélecteur de date robuste ✅ · module Achats ✅ · mouvements stock + CUMP + valorisation ✅ · analytique CA/dépenses ✅ · BL sans prix ✅ · pull-to-refresh ✅ · RLS critiques ✅ · reset mdp ✅ · comptabilité SYSCOHADA (journal/balance/résultat) ✅ | ✅ |
 | **P11 Clôture v3 (v1.9.0)** | Workflow documents complet ✅ · Edge Function admin ✅ · CAGR mois/dépenses ✅ · export CSV+PDF analytique ✅ · mini-graphe Dépenses ✅ · tests widget/parcours/concurrence ✅ · rapprochement pointé ✅ · TextScaler 4×4 ✅ | ✅ |
+| **P12 UX e-commerce (v1.10.0)** | Stock/Tarifs/Achats en cartes (grille responsive, badges Nouveau/Stock faible/Rupture, carrousel 5 images, détails, arbre catégories, timeline achats) ✅ · `date_ajout` produits/tarifs ✅ · slivers anti-overflow 4×3 ✅ | ✅ |
 
 ## 10. Roadmap modules lourds (jalons formels)
 

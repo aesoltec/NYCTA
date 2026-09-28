@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/validators.dart';
@@ -12,7 +13,7 @@ import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
 import 'mouvements_screen.dart';
 import 'widgets/produit_detail_screen.dart';
-import 'widgets/product_grid.dart';
+import 'widgets/product_card.dart';
 import 'widgets/product_list.dart';
 
 import '../../services/export_service.dart';
@@ -147,11 +148,16 @@ class _StockScreenState extends State<StockScreen> {
               ],
             )
           : null,
-      body: Column(children: [
-        // Valorisation + accès historique (mission 1, §1.3).
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Container(
+      // CustomScrollView : en-tête + filtres + cartes défilent ensemble
+      // — aucun overflow même avec 6 filtres en 320px @2.0x.
+      body: RefreshIndicator(
+        onRefresh: store.rafraichir,
+        child: CustomScrollView(slivers: [
+          SliverToBoxAdapter(
+            // Valorisation + accès historique (mission 1, §1.3).
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -210,11 +216,13 @@ class _StockScreenState extends State<StockScreen> {
                 ],
               ),
             ]),
+              ),
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-          child: FiltrePanel(
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              child: FiltrePanel(
             filtres: [
               const FiltreConfig(
                   cle: 'q',
@@ -269,45 +277,64 @@ class _StockScreenState extends State<StockScreen> {
             valeurs: _filtres,
             onFiltreChange: (m) => setState(() => _filtres = m),
           ),
-        ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: store.rafraichir,
-            child: produits.isEmpty
-                ? ListView(children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 64),
-                      child: EmptyView(
-                          icon: Icons.inventory_2_outlined,
-                          message: _filtresActifs()
-                              ? 'Aucun produit pour ces filtres'
-                              : 'Aucun produit dans cette boutique',
-                          hint:
-                              'Ajoutez votre premier produit avec le bouton +'),
-                    ),
-                  ])
-                : _grille
-                    ? ProductGrid(
-                        produits: produits,
-                        onTap: (p) => _ouvrirDetail(context, p),
-                        onVendre: peutVendre
-                            ? (p) => _vendreRapide(context, store, p)
-                            : null,
-                        onMenu: (p, a) => _menuProduit(
-                            context, store, p, a, peutGererStock),
-                      )
-                    : ProductList(
-                        produits: produits,
-                        onTap: (p) => _ouvrirDetail(context, p),
-                        onVendre: peutVendre
-                            ? (p) => _vendreRapide(context, store, p)
-                            : null,
-                        onMenu: (p, a) => _menuProduit(
-                            context, store, p, a, peutGererStock),
-                      ),
+            ),
           ),
-        ),
-      ]),
+          const SliverToBoxAdapter(child: SizedBox(height: 4)),
+          if (produits.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 64),
+                child: EmptyView(
+                    icon: Icons.inventory_2_outlined,
+                    message: _filtresActifs()
+                        ? 'Aucun produit pour ces filtres'
+                        : 'Aucun produit dans cette boutique',
+                    hint:
+                        'Ajoutez votre premier produit avec le bouton +'),
+              ),
+            )
+          else if (_grille)
+            SliverPadding(
+              padding: const EdgeInsets.all(8),
+              sliver: SliverMasonryGrid.count(
+                crossAxisCount: 2,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                childCount: produits.length,
+                itemBuilder: (_, i) => ProductCard(
+                  produit: produits[i],
+                  onTap: () => _ouvrirDetail(context, produits[i]),
+                  onVendre: peutVendre
+                      ? () => _vendreRapide(
+                          context, store, produits[i])
+                      : null,
+                  onMenu: (a) => _menuProduit(context, store,
+                      produits[i], a, peutGererStock),
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.all(8),
+              sliver: SliverList.separated(
+                itemCount: produits.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: 6),
+                itemBuilder: (_, i) => ProductListTile(
+                  produit: produits[i],
+                  onTap: () => _ouvrirDetail(context, produits[i]),
+                  onVendre: peutVendre
+                      ? () => _vendreRapide(
+                          context, store, produits[i])
+                      : null,
+                  onMenu: (a) => _menuProduit(context, store,
+                      produits[i], a, peutGererStock),
+                ),
+              ),
+            ),
+        ]),
+      ),
       floatingActionButton: peutGererStock
           ? FloatingActionButton.extended(
               onPressed: () => _formProduit(context, store, null),

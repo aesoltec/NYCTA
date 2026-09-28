@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:pme_gestion_pro/data/store.dart';
@@ -9,6 +10,7 @@ import 'package:pme_gestion_pro/screens/stock/stock_screen.dart';
 import 'package:pme_gestion_pro/screens/stock/widgets/badge_produit.dart';
 import 'package:pme_gestion_pro/screens/stock/widgets/product_card.dart';
 import 'package:pme_gestion_pro/screens/stock/widgets/product_grid.dart';
+import 'package:pme_gestion_pro/screens/stock/widgets/product_list.dart';
 
 /// Phase 1 — refonte UX e-commerce Stock : badges, cartes, grille.
 Produit _p(String id, String libelle,
@@ -154,10 +156,11 @@ void main() {
   group('StockScreen refondu', () {
     testWidgets('grille + bascule liste', (tester) async {
       await _pomper(tester, const StockScreen());
-      expect(find.byType(ProductGrid), findsOneWidget);
+      expect(find.byType(SliverMasonryGrid), findsOneWidget);
       await tester.tap(find.byTooltip('Vue liste'));
       await tester.pumpAndSettle();
-      expect(find.byType(ProductGrid), findsNothing);
+      expect(find.byType(SliverMasonryGrid), findsNothing);
+      expect(find.byType(ProductListTile), findsWidgets);
     });
 
     testWidgets('recherche as-you-type filtre', (tester) async {

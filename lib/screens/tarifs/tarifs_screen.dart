@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/validators.dart';
@@ -100,10 +101,12 @@ class _TarifsScreenState extends State<TarifsScreen> {
         if (MediaQuery.sizeOf(context).width >= 700)
           SizedBox(width: 240, child: Card(child: arbre)),
         Expanded(
-          child: Column(children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: FiltrePanel(
+          // Tout défile ensemble : aucun overflow même en 320px @2.0x.
+          child: CustomScrollView(slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: FiltrePanel(
                 filtres: [
                   const FiltreConfig(
                       cle: 'q',
@@ -136,48 +139,50 @@ class _TarifsScreenState extends State<TarifsScreen> {
                 valeurs: _filtres,
                 onFiltreChange: (m) => setState(() => _filtres = m),
               ),
+              ),
             ),
-            const SizedBox(height: 4),
-            Expanded(
-              child: tarifs.isEmpty
-                  ? const Center(
-                      child: Text('Aucun article (filtre sans résultat)',
-                          style: TextStyle(color: Colors.grey)))
-                  : LayoutBuilder(builder: (ctx, contraintes) {
-                      final colonnes =
-                          contraintes.maxWidth >= 1100
-                              ? 4
-                              : contraintes.maxWidth >= 700
-                                  ? 3
-                                  : 2;
-                      return GridView.builder(
-                        padding: EdgeInsets.fromLTRB(
-                            16, 8, 16, peutGerer ? 90 : 24),
-                        gridDelegate:
-                            SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: colonnes,
-                          mainAxisSpacing: 8,
-                          crossAxisSpacing: 8,
-                          mainAxisExtent: 340,
-                        ),
-                        itemCount: tarifs.length,
-                        itemBuilder: (_, i) {
-                          final t = tarifs[i];
-                          return TarifCard(
-                            tarif: t,
-                            onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                    builder: (_) => TarifDetailScreen(
-                                        tarifId: t.id))),
-                            onUtiliser: () =>
-                                Navigator.of(context).pop(t.id),
-                            onMenu: (a) => _menu(
-                                context, store, t, a, peutGerer),
-                          );
-                        },
+            const SliverToBoxAdapter(child: SizedBox(height: 4)),
+            if (tarifs.isEmpty)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                    child: Text('Aucun article (filtre sans résultat)',
+                        style: TextStyle(color: Colors.grey))),
+              )
+            else
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                    16, 8, 16, peutGerer ? 90 : 24),
+                sliver: SliverLayoutBuilder(builder: (ctx, contraintes) {
+                  final colonnes = contraintes.crossAxisExtent >= 1100
+                      ? 4
+                      : contraintes.crossAxisExtent >= 700
+                          ? 3
+                          : 2;
+                  // Masonry (hauteur libre) : jamais d'overflow
+                  // vertical même à TextScaler 2.0x.
+                  return SliverMasonryGrid.count(
+                    crossAxisCount: colonnes,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childCount: tarifs.length,
+                    itemBuilder: (_, i) {
+                      final t = tarifs[i];
+                      return TarifCard(
+                        tarif: t,
+                        onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => TarifDetailScreen(
+                                    tarifId: t.id))),
+                        onUtiliser: () =>
+                            Navigator.of(context).pop(t.id),
+                        onMenu: (a) => _menu(
+                            context, store, t, a, peutGerer),
                       );
-                    }),
-            ),
+                    },
+                  );
+                }),
+              ),
           ]),
         ),
       ]),

@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
+import 'package:shimmer/shimmer.dart';
 
 /// Carrousel multi-images (max 5) avec pagination par points.
 /// Local d'abord, URL cloud ensuite, placeholder sinon.
@@ -87,7 +88,18 @@ class _ImageCarouselState extends State<ImageCarousel> {
         width: double.infinity,
         height: widget.height,
         fit: BoxFit.cover,
-        placeholder: (_, __) => _placeholder(),
+        // Shimmer pendant le chargement réseau uniquement : à l'arrêt
+        // (placeholder statique, image locale ou erreur), aucun ticker
+        // ne tourne — `pumpAndSettle` et les goldens restent stables.
+        placeholder: (_, __) => Shimmer.fromColors(
+          baseColor: const Color(0xFFECEFF3),
+          highlightColor: Colors.white,
+          child: Container(
+            width: double.infinity,
+            height: widget.height,
+            color: const Color(0xFFECEFF3),
+          ),
+        ),
         errorWidget: (_, __, ___) => _placeholder(),
         fadeInDuration: const Duration(milliseconds: 250),
       );

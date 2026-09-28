@@ -2,6 +2,17 @@
 
 > Historique des versions livrées (voir `CAHIER_DES_CHARGES.md` §9 pour le détail).
 
+## 1.10.0 — 2026-09-28 (refonte UX e-commerce : Stock, Tarifs, Achats)
+- Badges : UNIQUEMENT Nouveau (< 7 j, `dateAjout`) / Stock faible / Rupture — tout badge marketing supprimé ; `ProduitExtension` (rupture/faible/nouveau) + `Tarif.nouveau`
+- Modèle : `Produit.dateAjout` + `Tarif.dateAjout` (remplie à la création, jamais écrasée ; rétrocompatible null) + persistance locale/cloud/file + SQL `date_ajout` (schema + migration + SUPABASE_A_EXECUTER)
+- Stock : grille cartes responsive 2/3/4 + bascule liste (`ProductListTile`), recherche as-you-type, FiltrePanel (boutique/catégorie/stock/prix/tri 10 modes), `ProduitDetailScreen` (galerie Hero, fiche, mouvements, 5 dernières ventes), carrousel + photo_view, Hero, fade-in, shimmer réseau
+- Tarifs : grille + arbre catégories (drawer mobile / latéral ≥700px) + prix/tri, `TarifDetailScreen`, badge Nouveau seul
+- Achats : cartes commande (statut, totaux, 3 lignes + voir plus, Voir/Payer/Annuler/Exporter) + bascule grille + montant/tri, détail enrichi (en-tête statut, lignes avec images, timeline inférée — dates exactes non stockées, export PDF)
+- Anti-overflow : 3 écrans en CustomScrollView (slivers) + Masonry (hauteur libre) — 320/360/768/1024 × 1.0–2.0 verts
+- Écarts documentés : pas de sous-catégorie produit, pas de filtre boutique Stock→portée courante+option, timeline achat inférée (modèle sans dates d'étapes)
+- Tests : +54 (11 Stock + 3 goldens + 7 Tarifs + 7 Achats + 24 overflow + 2 goldens commerce) — suite 375/375 ; `flutter analyze` 0 erreur ; intégration `commerce_flow_test.dart` (émulateur requis — ADB absent en CI)
+- Deps : flutter_staggered_grid_view, cached_network_image, photo_view, carousel_slider, shimmer (écart : carrousel implémenté en `PageView` natif — `carousel_slider` installé mais non utilisé, `photo_view`/`cached_network_image`/`shimmer`/`staggered` utilisés)
+
 ## 1.9.2 — 2026-09-28 (plan de correction totale + vérification AppBar)
 - ExportService durci : protection formules CSV/Excel (`'` sur `=+-@`), en-tête entreprise (nom + RCCM/IFU) + date de génération + filtres appliqués sur tous les PDF, `enteteEntreprise()` réutilisable — API rétrocompatible
 - LigneAchat.images (max 5, optionnel) + galerie dans le formulaire d'achat (aperçu + ajout + retrait) ; JSON rétrocompatible (clé absente → [])
