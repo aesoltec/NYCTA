@@ -11,7 +11,7 @@
 | 7 | Corriger bug impression/export PDF vide | ✅ | ExportService.pdfTableau (ligne « Aucune donnée » garantie) + menu export Journal ; export_service_test.dart 3/3 | 2026-09-26 |
 | 8 | Filtres catégorie/sous-catégorie Stock | ✅ | stock_screen.dart (recherche + dropdown catégorie) ; ecrans_test 10/10 | 2026-09-26 |
 | 9 | Export PDF/Excel/CSV Stock | ✅ | ExportService + menu export (valorisation incluse) | 2026-09-26 |
-| 10 | Corriger persistance images Stock | ✅ | Bucket `produits` + colonne JSON + upload cloud + recharge au démarrage (plus de chemins cache) | 2026-09-26 |
+| 10 | Corriger persistance images Stock | ✅ | Bucket `produits` + colonne JSON + upload cloud + recharge au démarrage (plus de chemins cache) + **renforcé 2026-09-28** : noms uniques `entite_id_ts_hash`, compression < 300 Ko, `media/<entite>/`, migration anciens noms, re-téléchargement cloud ; `image_persistence_test.dart` 10/10 | 2026-09-26 |
 | 11 | Multi-images produits (max 05) | ✅ | Galerie (ajout/aperçu/principal/suppression), Produit.images, produit_images_test 4/4 | 2026-09-26 |
 | 12 | Filtres catégorie/sous-catégorie Dépenses | ✅ | charges_screen.dart (recherche + dropdown catégorie) ; ecrans_test | 2026-09-26 |
 | 13 | Export PDF/Excel/CSV Dépenses | ✅ | ExportService + menu export (total inclus) | 2026-09-26 |
