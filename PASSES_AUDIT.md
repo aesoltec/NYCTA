@@ -326,3 +326,16 @@ Contexte : images disparaissant après redémarrage (collisions `millisecondes.j
 8. Analyze ✅ — 0 erreur, 0 warning nouveau.
 9. Tests ✅ — `image_persistence_test.dart` 10/10 (schéma, unicité ×500, compression bruit pur, migration, reload Store, MockClient download/404) ; suite 168/168.
 10. Contre-expertise finale ✅ — écarts assumés : hash `Random.secure` (pas SHA-1, unicité équivalente, documenté) ; loopback HTTP bloqué dans l'environnement de test → `MockClient` + injection `@visibleForTesting` (téléchargement réel à valider en manuel/cloud) ; redémarrage physique = test manuel checklist.
+
+### Phase 1 — Notifiers autonomes du découpage Store (2026-09-28)
+Contexte : 5 Notifiers créés, testés, NON branchés (Store intact).
+1. Fonctionnelle ✅ — Session (user/rôle/permissions/CRUD comptes), Boutique (courante/CRUD/siège/fermer/rouvrir), Profile (update + fonds/budgets), Categorie (CRUD + listes dynamiques + cascade), Collab (messages/événements/notes/feedbacks + getters).
+2. Métier ✅ — règles recopiées à l'identique (garde dernière boutique, siège unique, anti-doublon accents, garde-fou suppression, seuils validation) ; `fileUpsert` injecté pour la persistance collab (no-op en test).
+3. Contre-expertise ✅ — dépendances par constructeur (`SessionNotifier`, `genererId`, listes partagées) ; `Normalisation` extrait (pas de dépendance au monolithe) ; `CloudRepository.rouvrirBoutique` dans try (hors cloud → erreur, état inchangé, testé).
+4. Sécurité ✅ — gardes rôle conservées (admin/gérant réouverture, admin protégé) ; aucune policy touchée.
+5. Overflow ✅ — aucun layout (notifiers purs).
+6. Cycle de vie ✅ — ChangeNotifier standards, aucun timer.
+7. Persistance ✅ — aucune directe (cloud via CloudRepository, façade en Phase 5).
+8. Analyze ✅ — 0 erreur (`Note` dans `evenement.dart`, pas de `note.dart` — import corrigé).
+9. Tests ✅ — `test/data/notifiers/` 39 tests (7 session + 8 boutique + 6 profile + 9 catégorie + 9 collab) ; suite 249/249.
+10. Contre-expertise finale ✅ — NON branchés (volontaire) : zéro régression possible ; branchement en Phase 5 uniquement.
