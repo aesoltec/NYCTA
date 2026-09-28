@@ -68,6 +68,12 @@ class _StockScreenState extends State<StockScreen> {
     }
 
     return Scaffold(
+      // AppBar seulement en navigation push (menu Plus) : en onglet,
+      // l'AppBar globale du AppShell s'en charge déjà. Sans elle, aucun
+      // titre ni bouton retour quand l'écran est poussé depuis le menu.
+      appBar: (ModalRoute.of(context)?.canPop ?? false)
+          ? AppBar(title: const Text('Stock'))
+          : null,
       body: Column(children: [
         // Valorisation + accès historique (mission 1, §1.3).
         Padding(

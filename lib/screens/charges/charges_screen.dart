@@ -50,6 +50,12 @@ class _ChargesScreenState extends State<ChargesScreen> {
     }
 
     return Scaffold(
+      // AppBar seulement en navigation push (menu Plus) : en onglet,
+      // l'AppBar globale du AppShell s'en charge déjà. Sans elle, aucun
+      // titre ni bouton retour quand l'écran est poussé depuis le menu.
+      appBar: (ModalRoute.of(context)?.canPop ?? false)
+          ? AppBar(title: const Text('Dépenses'))
+          : null,
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),

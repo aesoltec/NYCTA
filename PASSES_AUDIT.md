@@ -284,5 +284,18 @@ Contexte : audit d'écarts entre le plan de correction et l'état du code.
 6. Cycle de vie ✅ — `_EditeurLigne` Stateful (galerie locale), `mounted` gardé.
 7. Persistance ✅ — chemins locaux stables (MediaService) + JSONB lignes ; IFU en toJson/loaders/cloud/SQL.
 8. Analyze ✅ — 0 erreur, 0 warning nouveau.
-9. Tests ✅ — export_service 5/5, achat_test (images), clients_test (IFU/crédit) ; suite 157/157.
+9. Tests ✅ — export_service 5/5, achat_test (images), clients_test (IFU/crédit) ; suite 158/158.
 10. Contre-expertise finale ✅ — AppImage limite : URLs http non affichées (fallback) — local-first assumé et documenté (plan A2 : jamais dépendre uniquement du cloud).
+
+### Vérification AppBar écrans/vues (2026-09-28)
+Audit : 36 Scaffold dans `lib/screens/` — 33 avec AppBar, 3 sans.
+1. Fonctionnelle ✅ — `login_screen.dart` sans AppBar : normal (écran de connexion).
+2. Métier ✅ — `StockScreen`/`ChargesScreen` sans AppBar en onglet : normal (AppBar globale du AppShell avec sélecteur boutique).
+3. Contre-expertise ✅ — **écart réel** : ces 2 écrans sont aussi poussés depuis le menu Plus → ni titre ni bouton retour. Fix : AppBar conditionnelle (`ModalRoute.canPop`), zéro changement d'API, pas de double barre en onglet.
+4. Sécurité ✅ — aucun changement de permission/navigation.
+5. Overflow ✅ — AppBar standard, aucun layout touché.
+6. Cycle de vie ✅ — lecture synchrone `ModalRoute.of` dans build.
+7. Persistance ✅ — aucune donnée.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — nouveau test widget (AppBar absente en onglet, présente + BackButton en push) ; suite 158/158.
+10. Contre-expertise finale ✅ — `AchatListScreen` garde sa double barre en onglet (pré-existant, hors périmètre de cette vérification).

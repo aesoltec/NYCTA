@@ -294,6 +294,45 @@ void main() {
       await tester.pump(const Duration(milliseconds: 700));
     });
 
+    testWidgets('Stock/Charge : AppBar en push, pas en onglet', (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      // En onglet (pas de route poussée) : pas d'AppBar locale.
+      await tester.pumpWidget(_hote(const StockScreen()));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(AppBar, 'Stock'), findsNothing);
+      // En push (menu Plus) : AppBar avec titre + bouton retour.
+      // Note : le provider est AU-DESSUS du MaterialApp car les routes
+      // poussées sont sœurs de `home`, pas ses enfants.
+      await tester.pumpWidget(ChangeNotifierProvider.value(
+        value: Store(const AppUser(
+            id: 'u', nom: 'Test', role: Role.admin)),
+        child: MaterialApp(
+          home: Builder(builder: (ctx) => Scaffold(
+                body: Center(
+                  child: TextButton(
+                    child: const Text('Ouvrir'),
+                    onPressed: () => Navigator.of(ctx).push(
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                const StockScreen())),
+                  ),
+                ),
+              )),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ouvrir'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(AppBar, 'Stock'), findsOneWidget);
+      expect(find.byType(BackButton), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 700));
+    });
+
     testWidgets('Analytique : onglets CA et Dépenses', (tester) async {
       await tester.pumpWidget(MaterialApp(
         home: ChangeNotifierProvider.value(
