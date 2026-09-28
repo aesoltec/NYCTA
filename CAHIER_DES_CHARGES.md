@@ -457,6 +457,10 @@ Filtres livrés (point 22) : recherche nom/adresse, statut actives/fermées/tout
 | 22bis Réouverture boutique | RPC `reouvrir_boutique` (garde admin/gérant) + bouton « Rouvrir » sur carte FERMÉE | 0,5 j | 🟡 | ✅ Fait 2026-09-26 (RPC + UI + test 4/4 + MATRICE) |
 | 22ter Champs étendus | `ville`, `responsable`, `code` (+ migration SQL + formulaire + recherche) | 1 j | 🟢 | **Hors périmètre v1** — aucun flux actuel n'exige ces champs ; prévus v1.10.0 après validation métier |
 | 23bis Catégories table dédiée | Modèle String → table SQL (id, nom, type, parent_id, actif) + migration données + formulaires | 1-2 j | 🟢 | **Hors périmètre v1** — table `categories` existe (v1.2) ; migration du modèle Dart planifiée v1.10.0 (impact : article, charge, tarifs, analytique) |
+| 40bis Filtre boutique documents | `boutiqueId` sur `DocumentBati` + filtre + index | 0,5 j | 🟢 | **v1.10.0** — `DocumentBati` ne porte pas de `boutiqueId` ; sans lui, un filtre boutique serait un faux-filtre (non inventé) |
+| 40ter Journal mouvements trésorerie | Modèle `MouvementTresorerie` + journal + filtres type + export | 1-2 j | 🟢 | **v1.10.0** — l'écran actuel est une synthèse (soldes + budgets), pas un journal ; aucun modèle de mouvement n'existe |
+| 40quater Référentiel catégories achats | Référentiel catégorie/sous-catégorie lignes d'achat + filtre | 1 j | 🟢 | **v1.10.0** — lignes d'achat libres sans référentiel ; filtre non applicable en l'état |
+| 40quinquies Filtre boutique mono-écrans | Sélecteur boutique par écran (Stock, Charges, Compta…) | 0,5 j | 🟢 | **v1.10.0** — le sélecteur global AppShell fait office de filtre ; doublon inutile en v1 |
 
 - TVA configurable et factures normalisées (normes fiscales du pays)
 - Gestion des fournisseurs & réapprovisionnement

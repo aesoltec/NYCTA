@@ -1,7 +1,8 @@
-# AUDIT FINAL v4 — NYCTA (mission 2026-09-26 — finalisation)
+# AUDIT FINAL v4 — NYCTA (mission 2026-09-26 + plan correction totale 2026-09-28)
 
 > Remplace `AUDIT_FINAL_NYCTA_v3.md` (gardé pour historique).
-> Couvre : mission 2026-09-26 (37 points + 25bis) + dettes fonctionnelles.
+> Couvre : mission 2026-09-26 (37 points + 25bis) + dettes fonctionnelles
+> + plan de correction totale 2026-09-28 (A2/A3/A5-A7/A9/A13/A14).
 
 ## Mapping exigences ↔ points mission
 
@@ -59,11 +60,11 @@ La mission 2026-09-26 a restructuré le suivi en **41 lignes** :
 |---|---|
 | Lignes mission | 41 (37 points + 22bis + 22ter + 23bis + 25bis) |
 | ✅ | **39** |
-| ⬜ hors périmètre v1 | 2 (22ter, 23bis — CDC §8bis, v1.10.0) |
+| ⬜ hors périmètre v1 | 6 (22ter, 23bis, 40bis, 40ter, 40quater, 40quinquies — CDC §8bis, v1.10.0) |
 | ⚠️ résiduelle | 0 |
-| **Score mission** | **39/41 = 95,1 % ✅** |
+| **Score mission** | **39/41 = 95,1 % ✅** (41 lignes suivies ; 6 dettes v1.10.0 hors compteur v1) |
 | `flutter analyze` | 0 erreur (105 warnings pré-existants, ticket `refactor/lints`) |
-| `flutter test` | 154/154 |
+| `flutter test` | 158/158 |
 | Golden | documents_emis_360.png (déterministe Roboto embarqué) |
 | Supabase | SQL prêt (`SUPABASE_A_EXECUTER.sql`), **à exécuter** |
 | Émulateur | commande prête, **à exécuter** |
@@ -76,8 +77,15 @@ La mission 2026-09-26 a restructuré le suivi en **41 lignes** :
 2. **Émulateur physique** : `flutter test integration_test/app_flow_test.dart`
    + captures. Miroir VM `parcours_test.dart` vert.
 3. **Dettes CDC v1.10.0** : 22ter (ville/responsable/code), 23bis
-   (catégories String → table dédiée) — hors périmètre v1 assumé,
-   tracées §8bis du CDC.
+   (catégories String → table dédiée), 40bis (boutiqueId documents),
+   40ter (journal mouvements trésorerie), 40quater (référentiel
+   catégories achats), 40quinquies (filtre boutique mono-écrans) —
+   hors périmètre v1 assumé, tracées §8bis du CDC.
+4. **Plan correction totale 2026-09-28** : enrichissements livrés et
+   testés (ExportService durci, LigneAchat.images, FiltrePanel
+   Stock/Charges/Trésorerie, intervalles Achats, statut+export
+   Documents, IFU+crédit Clients, recherche Listes, AppBar push
+   Stock/Dépenses) — suite 158/158.
 
 ## Verdict : ⚠️ PARTIEL — 2 actions non automatisables restantes
 

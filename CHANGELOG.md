@@ -2,6 +2,16 @@
 
 > Historique des versions livrées (voir `CAHIER_DES_CHARGES.md` §9 pour le détail).
 
+## 1.9.2 — 2026-09-28 (plan de correction totale + vérification AppBar)
+- ExportService durci : protection formules CSV/Excel (`'` sur `=+-@`), en-tête entreprise (nom + RCCM/IFU) + date de génération + filtres appliqués sur tous les PDF, `enteteEntreprise()` réutilisable — API rétrocompatible
+- LigneAchat.images (max 5, optionnel) + galerie dans le formulaire d'achat (aperçu + ajout + retrait) ; JSON rétrocompatible (clé absente → [])
+- Filtres homogènes FiltrePanel : Stock (+ stock bas), Charges (+ récurrente), Trésorerie (recherche), Achats (intervalles 7j/30j/mois/année + fournisseur)
+- Documents historique : filtre statut (Brouillon/Émis/Payé/Annulé) + export PDF/Excel/CSV de l'historique filtré ; golden régénéré
+- Clients : champ IFU (modèle + SQL + formulaire + export) + filtre avec/sans crédit (impayés) ; Listes dynamiques : recherche
+- Non-applicables documentés (pas inventés) : catégorie achats, boutique mono-écrans, type mouvement trésorerie, boutique documents → dettes 40bis-40quinquies (CDC §8bis, 🟢 v1.10.0)
+- AppBar conditionnelle Stock/Dépenses en navigation push (menu Plus) ; test widget dédié
+- Tests : suite complète 158/158 verts ; `flutter analyze` 0 erreur
+
 ## 1.9.0 — 2026-09-26 (lot MISSION : SQL regroupé + Journal/Stock/Dépenses/Partenaires/Trésorerie/Rapports/Analytique/Documents)
 - SQL regroupé : `supabase_schema.sql` + `supabase_migration.sql` + `supabase_fonctions_rls.sql` + `supabase_apply_all.sql` (généré, régénéré le 2026-09-26 : colonne `produits.images` + bucket `produits`) + `supabase_verify.sql` ; 13 fichiers obsolètes supprimés (points 1-2)
 - Navigation : Journal → onglet Plus, Achat → barre principale (points 3-4)
