@@ -365,3 +365,18 @@ Contexte : 4 Notifiers créés, testés, NON branchés (Store intact).
 8. Analyze ✅ — 0 erreur (`Note`→evenement, `DocumentBati`→document_service, record patterns nommés).
 9. Tests ✅ — 27 tests (7 produit + 6 transaction + 8 achat + 6 document) ; suite 300/300.
 10. Contre-expertise finale ✅ — NON branchés (volontaire) : zéro régression ; branchement Phase 5.
+
+### Phase 4 — Notifiers transverses (2026-09-28)
+Contexte : 2 Notifiers créés, testés, NON branchés (Store intact).
+1. Fonctionnelle ✅ — Compta (journal immuable, postage, contre-passations, pointage, rapprochement, balance, résultat), Analytique (séries 7j/mois/années CA + dépenses, années présentes).
+2. Métier ✅ — recopié à l'identique (immuabilité, D=C, pointage = suivi seul, fenêtres 7j/12 mois/toutes années) ; ComptaNotifier délègue la génération à ComptaService (rôle ÉCRITURE déjà testé Phase 0).
+3. Contre-expertise ✅ — dépendances par constructeur ; callbacks compta/fileUpsert injectés ; date testée hors fenêtre corrigée (erreur de test, pas de code).
+4. Sécurité ✅ — aucune policy touchée.
+5. Overflow ✅ — aucun layout.
+6. Cycle de vie ✅ — ChangeNotifier standards, aucun timer.
+7. Persistance ✅ — aucune directe (cloud via CloudRepository).
+8. Analyze ✅ — 0 erreur.
+9. Tests ✅ — 13 tests (8 compta + 5 analytique) ; suite 313/313.
+10. Contre-expertise finale ✅ — NON branchés (volontaire) : zéro régression ; branchement + façade Phase 5.
+
+### Phase 5 — À venir (façade Store + branchement)
