@@ -167,6 +167,7 @@ create table if not exists public.produits (
   seuil_alerte    integer not null default 3,
   image_path      text,                        -- URL bucket « media »
   images          jsonb not null default '[]'::jsonb, -- galerie (max 05)
+  date_ajout      timestamptz,                   -- badge « Nouveau » (< 7 j)
   actif           boolean not null default true,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
@@ -428,6 +429,7 @@ create table if not exists public.tarifs (
   description text default '',
   actif       boolean not null default true,
   images      jsonb not null default '[]'::jsonb, -- galerie (max 05)
+  date_ajout  timestamptz,                   -- badge « Nouveau » (< 7 j)
   created_at  timestamptz not null default now()
 );
 

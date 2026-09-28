@@ -87,6 +87,8 @@ class ProduitNotifier extends ChangeNotifier {
       seuil: p.seuil,
       imagePath: p.imagePath,
       images: p.images,
+      // Remplie au premier ajout, jamais écrasée ensuite (badge Nouveau).
+      dateAjout: p.dateAjout ?? DateTime.now(),
     );
     produits.add(produit);
     notifyListeners();
@@ -105,6 +107,7 @@ class ProduitNotifier extends ChangeNotifier {
         'prix_vente': p.prixVente,
         'quantite_stock': p.stock,
         'seuil_alerte': p.seuil,
+        'date_ajout': p.dateAjout?.toIso8601String(),
         'actif': true,
       };
 
@@ -119,20 +122,25 @@ class ProduitNotifier extends ChangeNotifier {
       return 'Un autre produit porte déjà ce nom dans cette boutique';
     }
     final avant = produits[i].stock;
-    produits[i] = p;
+    // La date d'ajout d'origine est conservée (jamais écrasée en modif).
+    var maj = p;
+    if (maj.dateAjout == null && produits[i].dateAjout != null) {
+      maj = p.copyWith(dateAjout: produits[i].dateAjout);
+    }
+    produits[i] = maj;
     notifyListeners();
-    await CloudRepository.upsertProduit(p);
-    await fileUpsert?.call('produits', _payload(p));
-    await syncCatalogueDepuisProduit(p);
+    await CloudRepository.upsertProduit(maj);
+    await fileUpsert?.call('produits', _payload(maj));
+    await syncCatalogueDepuisProduit(maj);
     // Correction manuelle du stock via la fiche : tracée.
-    if (p.stock != avant) {
+    if (maj.stock != avant) {
       await journaliserMouvement?.call(
-        produitId: p.id,
-        produitNom: p.libelle,
+        produitId: maj.id,
+        produitNom: maj.libelle,
         type: MouvementStock.ajustement,
-        quantite: p.stock - avant,
-        stockApres: p.stock,
-        boutiqueId: p.boutiqueId,
+        quantite: maj.stock - avant,
+        stockApres: maj.stock,
+        boutiqueId: maj.boutiqueId,
         motif: 'Correction fiche produit',
       );
     }
@@ -194,6 +202,7 @@ class ProduitNotifier extends ChangeNotifier {
       prix: p.prixVente,
       description: 'Depuis le stock',
       actif: true,
+      dateAjout: DateTime.now(),
     );
     catalogue.add(t);
     notifyListeners();

@@ -13,6 +13,9 @@ class Produit {
   /// Galerie (max 05, optionnelle) : imagePath vaut images.firstOrNull
   /// pour compatibilité avec l'existant.
   final List<String> images;
+  /// Date de création de la fiche (badge « Nouveau » < 7 jours).
+  /// Nullable pour rétrocompatibilité (anciennes fiches sans date).
+  final DateTime? dateAjout;
 
   const Produit({
     required this.id,
@@ -25,6 +28,7 @@ class Produit {
     this.seuil = 3,
     this.imagePath,
     this.images = const [],
+    this.dateAjout,
   });
 
   bool get alerte => stock <= seuil;
@@ -40,6 +44,7 @@ class Produit {
     double? prixVente,
     int? seuil,
     String? boutiqueId,
+    DateTime? dateAjout,
   }) {
     final imgs = images ?? this.images;
     return Produit(
@@ -53,6 +58,7 @@ class Produit {
       seuil: seuil ?? this.seuil,
       imagePath: imagePath ?? (imgs.isNotEmpty ? imgs.first : this.imagePath),
       images: imgs,
+      dateAjout: dateAjout ?? this.dateAjout,
     );
   }
 
@@ -68,5 +74,23 @@ class Produit {
         seuil: seuil,
         imagePath: null,
         images: const [],
+        dateAjout: dateAjout,
       );
+}
+
+/// Badges INFORMATIFS e-commerce (refonte UX) : seuls 3 badges existent —
+/// « Nouveau » (< 7 jours), « Stock faible » (stock ≤ seuil), « Rupture »
+/// (stock = 0). Tout badge marketing (rotation, marge, promo,
+/// best-seller…) est définitivement supprimé.
+extension ProduitExtension on Produit {
+  /// Rupture : aucun article disponible.
+  bool get enRupture => stock <= 0;
+
+  /// Stock faible : il reste des articles mais sous le seuil d'alerte.
+  bool get stockFaible => stock > 0 && stock <= seuil;
+
+  /// Nouveau : fiche créée il y a moins de 7 jours.
+  bool get nouveau =>
+      dateAjout != null &&
+      DateTime.now().difference(dateAjout!).inDays < 7;
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/validators.dart';
 import '../../data/store.dart';
 import '../../models/enums.dart';
@@ -10,6 +11,9 @@ import '../../widgets/date_selector.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
 import 'mouvements_screen.dart';
+import 'widgets/produit_detail_screen.dart';
+import 'widgets/product_grid.dart';
+import 'widgets/product_list.dart';
 
 import '../../services/export_service.dart';
 import '../../widgets/filtre_panel.dart';
@@ -40,10 +44,76 @@ class StockScreen extends StatefulWidget {
 }
 
 class _StockScreenState extends State<StockScreen> {
-  // Filtres via FiltrePanel (plan A6) : recherche + catégorie + stock bas.
-  // Pas de filtre boutique : l'écran liste la boutique courante
-  // (produitsBoutique) — le sélecteur global fait office de filtre.
-  Map<String, dynamic> _filtres = const {'alerte': 'tous'};
+  // Refonte UX e-commerce : grille par défaut + bascule liste.
+  // Filtres via FiltrePanel (réutilisé) : recherche as-you-type,
+  // boutique, catégorie, statut stock (chips), prix min-max, tri.
+  // Pas de filtre sous-catégorie : le modèle Produit n'en a pas
+  // (non inventé — écart documenté).
+  var _grille = true;
+  Map<String, dynamic> _filtres = const {'alerte': 'tous', 'tri': 'nom_az'};
+
+  List<Produit> _filtrer(Store store, List<Produit> base) {
+    var produits = base;
+    final bq = (_filtres['boutique'] as String?) ?? '';
+    if (bq.isNotEmpty) {
+      produits = produits.where((p) => p.boutiqueId == bq).toList();
+    }
+    final cat = (_filtres['cat'] as String?) ?? '';
+    if (cat.isNotEmpty) {
+      produits = produits.where((p) => p.categorie == cat).toList();
+    }
+    switch ((_filtres['alerte'] as String?) ?? 'tous') {
+      case 'stock':
+        produits = produits.where((p) => !p.enRupture).toList();
+      case 'faible':
+        produits = produits.where((p) => p.stockFaible).toList();
+      case 'rupture':
+        produits = produits.where((p) => p.enRupture).toList();
+    }
+    final min =
+        double.tryParse((_filtres['prix_min'] as String?) ?? '');
+    final max =
+        double.tryParse((_filtres['prix_max'] as String?) ?? '');
+    if (min != null) {
+      produits = produits.where((p) => p.prixVente >= min).toList();
+    }
+    if (max != null) {
+      produits = produits.where((p) => p.prixVente <= max).toList();
+    }
+    final rech = ((_filtres['q'] as String?) ?? '').trim().toLowerCase();
+    if (rech.isNotEmpty) {
+      produits = produits
+          .where((p) =>
+              p.libelle.toLowerCase().contains(rech) ||
+              p.categorie.toLowerCase().contains(rech))
+          .toList();
+    }
+    switch ((_filtres['tri'] as String?) ?? 'nom_az') {
+      case 'nom_za':
+        produits.sort((a, b) => b.libelle.compareTo(a.libelle));
+      case 'prix_asc':
+        produits.sort((a, b) => a.prixVente.compareTo(b.prixVente));
+      case 'prix_desc':
+        produits.sort((a, b) => b.prixVente.compareTo(a.prixVente));
+      case 'achat_asc':
+        produits.sort((a, b) => a.prixAchat.compareTo(b.prixAchat));
+      case 'achat_desc':
+        produits.sort((a, b) => b.prixAchat.compareTo(a.prixAchat));
+      case 'stock_asc':
+        produits.sort((a, b) => a.stock.compareTo(b.stock));
+      case 'stock_desc':
+        produits.sort((a, b) => b.stock.compareTo(a.stock));
+      case 'date_desc':
+        produits.sort((a, b) => (b.dateAjout ?? DateTime(2000))
+            .compareTo(a.dateAjout ?? DateTime(2000)));
+      case 'date_asc':
+        produits.sort((a, b) => (a.dateAjout ?? DateTime(2000))
+            .compareTo(b.dateAjout ?? DateTime(2000)));
+      default:
+        produits.sort((a, b) => a.libelle.compareTo(b.libelle));
+    }
+    return produits;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,28 +121,31 @@ class _StockScreenState extends State<StockScreen> {
     final peutVendre = store.peut(Permission.vendre);
     final peutGererStock = store.peut(Permission.gererStock);
     final cats = store.catsProduit;
-    var produits = store.produitsBoutique;
-    final cat = (_filtres['cat'] as String?) ?? '';
-    if (cat.isNotEmpty) {
-      produits =
-          produits.where((p) => p.categorie == cat).toList();
-    }
-    if ((_filtres['alerte'] as String?) == 'alerte') {
-      produits = produits.where((p) => p.alerte).toList();
-    }
-    final rech = ((_filtres['q'] as String?) ?? '').trim().toLowerCase();
-    if (rech.isNotEmpty) {
-      produits = produits
-          .where((p) => p.libelle.toLowerCase().contains(rech))
-          .toList();
-    }
+    // Portée boutique : courante par défaut, globale au choix.
+    final boutiqueId = (_filtres['boutique'] as String?) ?? '';
+    final base = boutiqueId.isEmpty
+        ? store.produitsBoutique
+        : store.produits.where((p) => p.boutiqueId == boutiqueId).toList();
+    final produits = _filtrer(store, base);
 
     return Scaffold(
       // AppBar seulement en navigation push (menu Plus) : en onglet,
       // l'AppBar globale du AppShell s'en charge déjà. Sans elle, aucun
       // titre ni bouton retour quand l'écran est poussé depuis le menu.
       appBar: (ModalRoute.of(context)?.canPop ?? false)
-          ? AppBar(title: const Text('Stock'))
+          ? AppBar(
+              title: const Text('Stock'),
+              actions: [
+                IconButton(
+                  tooltip: _grille ? 'Vue liste' : 'Vue grille',
+                  icon: Icon(_grille
+                      ? Icons.view_list_outlined
+                      : Icons.grid_view_outlined),
+                  onPressed: () =>
+                      setState(() => _grille = !_grille),
+                ),
+              ],
+            )
           : null,
       body: Column(children: [
         // Valorisation + accès historique (mission 1, §1.3).
@@ -107,6 +180,15 @@ class _StockScreenState extends State<StockScreen> {
                               fontWeight: FontWeight.w800)),
                     ]),
               ),
+              // Bascule grille/liste (visible aussi en mode onglet).
+              IconButton(
+                tooltip: _grille ? 'Vue liste' : 'Vue grille',
+                icon: Icon(_grille
+                    ? Icons.view_list_outlined
+                    : Icons.grid_view_outlined),
+                onPressed: () =>
+                    setState(() => _grille = !_grille),
+              ),
               TextButton.icon(
                 icon: const Icon(Icons.history_rounded, size: 18),
                 label: const Text('Mouvements'),
@@ -139,6 +221,14 @@ class _StockScreenState extends State<StockScreen> {
                   kind: FiltreKind.recherche,
                   label: 'Rechercher un produit…'),
               FiltreConfig(
+                  cle: 'boutique',
+                  kind: FiltreKind.dropdown,
+                  label: 'Boutique',
+                  options: [
+                    ('', 'Boutique courante'),
+                    for (final b in store.boutiques) (b.id, b.nom),
+                  ]),
+              FiltreConfig(
                   cle: 'cat',
                   kind: FiltreKind.dropdown,
                   label: 'Catégorie',
@@ -151,7 +241,29 @@ class _StockScreenState extends State<StockScreen> {
                   label: 'Stock',
                   options: [
                     ('tous', 'Tous'),
-                    ('alerte', 'Stock bas ⚠️'),
+                    ('stock', 'En stock'),
+                    ('faible', 'Faible ⚠️'),
+                    ('rupture', 'Rupture 🚫'),
+                  ]),
+              const FiltreConfig(
+                  cle: 'prix',
+                  kind: FiltreKind.minMax,
+                  label: 'Prix vente (min-max)'),
+              const FiltreConfig(
+                  cle: 'tri',
+                  kind: FiltreKind.dropdown,
+                  label: 'Tri',
+                  options: [
+                    ('nom_az', 'Libellé A→Z'),
+                    ('nom_za', 'Libellé Z→A'),
+                    ('prix_asc', 'Prix vente ↑'),
+                    ('prix_desc', 'Prix vente ↓'),
+                    ('achat_asc', 'Prix achat ↑'),
+                    ('achat_desc', 'Prix achat ↓'),
+                    ('stock_asc', 'Stock ↑'),
+                    ('stock_desc', 'Stock ↓'),
+                    ('date_desc', 'Récents d\u2019abord'),
+                    ('date_asc', 'Anciens d\u2019abord'),
                   ]),
             ],
             valeurs: _filtres,
@@ -162,27 +274,37 @@ class _StockScreenState extends State<StockScreen> {
           child: RefreshIndicator(
             onRefresh: store.rafraichir,
             child: produits.isEmpty
-                ? ListView(children: const [
+                ? ListView(children: [
                     Padding(
-                      padding: EdgeInsets.only(top: 64),
+                      padding: const EdgeInsets.only(top: 64),
                       child: EmptyView(
                           icon: Icons.inventory_2_outlined,
-                          message: 'Aucun produit dans cette boutique',
+                          message: _filtresActifs()
+                              ? 'Aucun produit pour ces filtres'
+                              : 'Aucun produit dans cette boutique',
                           hint:
                               'Ajoutez votre premier produit avec le bouton +'),
                     ),
                   ])
-                : ListView.separated(
-                    padding: EdgeInsets.fromLTRB(
-                        16, 8, 16, peutGererStock ? 90 : 24),
-                    itemCount: produits.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: 8),
-                    itemBuilder: (_, i) => _LigneProduit(
-                        produit: produits[i],
-                        peutVendre: peutVendre,
-                        peutGererStock: peutGererStock),
-                  ),
+                : _grille
+                    ? ProductGrid(
+                        produits: produits,
+                        onTap: (p) => _ouvrirDetail(context, p),
+                        onVendre: peutVendre
+                            ? (p) => _vendreRapide(context, store, p)
+                            : null,
+                        onMenu: (p, a) => _menuProduit(
+                            context, store, p, a, peutGererStock),
+                      )
+                    : ProductList(
+                        produits: produits,
+                        onTap: (p) => _ouvrirDetail(context, p),
+                        onVendre: peutVendre
+                            ? (p) => _vendreRapide(context, store, p)
+                            : null,
+                        onMenu: (p, a) => _menuProduit(
+                            context, store, p, a, peutGererStock),
+                      ),
           ),
         ),
       ]),
@@ -194,6 +316,96 @@ class _StockScreenState extends State<StockScreen> {
             )
           : null,
     );
+  }
+
+  /// Vrai si au moins un filtre restreint la vue (message vide adapté).
+  bool _filtresActifs() {
+    if (((_filtres['q'] as String?) ?? '').trim().isNotEmpty) return true;
+    if (((_filtres['cat'] as String?) ?? '').isNotEmpty) return true;
+    if (((_filtres['boutique'] as String?) ?? '').isNotEmpty) return true;
+    if (((_filtres['alerte'] as String?) ?? 'tous') != 'tous') return true;
+    if (((_filtres['prix_min'] as String?) ?? '').isNotEmpty) return true;
+    if (((_filtres['prix_max'] as String?) ?? '').isNotEmpty) return true;
+    return false;
+  }
+
+  void _ouvrirDetail(BuildContext context, Produit p) {
+    Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ProduitDetailScreen(produitId: p.id)));
+  }
+
+  /// Vente rapide (1 unité, date du jour) depuis la carte.
+  Future<void> _vendreRapide(
+      BuildContext context, Store store, Produit p) async {
+    try {
+      await store.vendreProduit(p, 1);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('✅ 1× ${p.libelle} vendu')));
+      }
+    } on StateError catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('⚠️ ${e.message}')));
+      }
+    }
+  }
+
+  /// Menu contextuel carte (⋮) : Modifier, Ajuster, Archiver, Partager.
+  Future<void> _menuProduit(BuildContext context, Store store,
+      Produit p, String action, bool peutGererStock) async {
+    switch (action) {
+      case 'modifier':
+      case 'ajuster':
+        if (!peutGererStock) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('⚠️ Gestion du stock réservée')));
+          }
+          return;
+        }
+        if (context.mounted) formProduit(context, store, p);
+      case 'archiver':
+        if (store.role != Role.admin && store.role != Role.gerant) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content:
+                    Text('⚠️ Retrait réservé (admin, gérant)')));
+          }
+          return;
+        }
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text('Archiver « ${p.libelle} » ?'),
+            content: Text(p.stock > 0
+                ? 'Il reste ${p.stock} unité(s).'
+                : 'Le produit sera retiré de la liste.'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Annuler')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Archiver')),
+            ],
+          ),
+        );
+        if (ok == true && context.mounted) {
+          final erreur =
+              await store.supprimerProduit(p.id, forcerArchive: true);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(erreur == null
+                    ? '« ${p.libelle} » archivé'
+                    : '⚠️ $erreur')));
+          }
+        }
+      case 'partager':
+        await SharePlus.instance.share(ShareParams(
+            text:
+                '${p.libelle} — ${p.prixVente.toStringAsFixed(0)} F (${store.profile.devise})'));
+    }
   }
 
   static void formProduit(BuildContext context, Store store, Produit? produit) {
@@ -262,133 +474,6 @@ class _StockScreenState extends State<StockScreen> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('⚠️ Export impossible')));
-      }
-    }
-  }
-}
-
-class _LigneProduit extends StatelessWidget {
-  final Produit produit;
-  final bool peutVendre;
-  final bool peutGererStock;
-  const _LigneProduit({
-    required this.produit, required this.peutVendre, required this.peutGererStock,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final store = context.read<Store>();
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 8, offset: Offset(0, 3))],
-      ),
-      child: Material(
-        // Ancêtre Material transparent : l'encre du ListTile reste
-        // visible (assertion debug) sans changer le visuel (fond blanc
-        // porté par le Container parent).
-        type: MaterialType.transparency,
-        borderRadius: BorderRadius.circular(16),
-        child: ListTile(
-          tileColor: Colors.white.withValues(alpha: 0),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        // Photo produit (fallback : icône catégorie / alerte)
-        leading: AppImage(
-          produit.imagePath,
-          size: 44,
-          fallbackIcon: produit.alerte
-              ? Icons.warning_amber_rounded
-              : Icons.category_outlined,
-          fallbackColor: produit.alerte
-              ? const Color(0xFFD97706)
-              : const Color(0xFF3D6FB4),
-          fallbackBackground: produit.alerte
-              ? const Color(0xFFFFE9D6)
-              : const Color(0xFFE8F0FB),
-        ),
-        title: Text(produit.libelle,
-            maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(produit.categorie,
-            maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-        trailing: FittedBox(
-          // Anti-overflow TextScaler 2.0x : la colonne prix/stock se
-          // réduit au lieu de déborder de la tuile (56 px max).
-          fit: BoxFit.scaleDown,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              MoneyText(produit.prixVente,
-                  style: const TextStyle(fontSize: 14)),
-              Text(
-                  'Stock : ${produit.stock}${produit.alerte ? ' ⚠️' : ''}',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: produit.alerte
-                          ? const Color(0xFFD97706)
-                          : Colors.grey.shade600,
-                      fontWeight: FontWeight.w600)),
-            ],
-          ),
-        ),
-        // Tap = modifier la fiche (admin/gérant/vendeur)
-        onTap: peutGererStock ? () => StockScreen.formProduit(context, store, produit) : null,
-        onLongPress: peutVendre && produit.stock > 0
-            ? () => _vendre(context, store)
-            : null,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _vendre(BuildContext context, Store store) async {
-    var date = DateTime.now();
-    final qte = await showDialog<int>(
-      context: context,
-      builder: (ctx) {
-        final ctrl = TextEditingController(text: '1');
-        return StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
-          scrollable: true,
-          title: Text('Vendre « ${produit.libelle} »'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(
-              controller: ctrl,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Quantité'),
-            ),
-            const SizedBox(height: 12),
-            ChampDate(
-              valeur: date,
-              onChanged: (d) => setDlg(() => date = d),
-            ),
-          ]),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx),
-                child: const Text('Annuler')),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, int.tryParse(ctrl.text) ?? 0),
-              child: const Text('Valider'),
-            ),
-          ],
-        ));
-      },
-    );
-    if (qte == null || qte <= 0) return;
-    try {
-      await store.vendreProduit(produit, qte, date: date);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('✅ $qte× ${produit.libelle} vendu(s)')));
-      }
-    } on StateError catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('⚠️ ${e.message}')));
       }
     }
   }

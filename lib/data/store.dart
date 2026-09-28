@@ -377,6 +377,8 @@ class Store extends ChangeNotifier {
             prixVente: (r['prix_vente'] as num?)?.toDouble() ?? 0,
             stock: (r['quantite_stock'] as num?)?.toInt() ?? 0,
             seuil: (r['seuil_alerte'] as num?)?.toInt() ?? 3,
+            dateAjout: DateTime.tryParse(
+                r['date_ajout']?.toString() ?? ''),
             imagePath: MediaService.normaliserChemin(
                 r['image_path']?.toString(),
                 entite: 'produit',
@@ -627,6 +629,8 @@ class Store extends ChangeNotifier {
             prix: (r['prix'] as num?)?.toDouble() ?? 0,
             description: r['description']?.toString() ?? '',
             actif: r['actif'] != false,
+            dateAjout: DateTime.tryParse(
+                r['date_ajout']?.toString() ?? ''),
             images: [
               for (final u in (r['images'] as List? ?? const []))
                 MediaService.normaliserChemin(u.toString(),
@@ -1400,6 +1404,7 @@ class Store extends ChangeNotifier {
     final t = Tarif(
       id: _nid(), libelle: p.libelle.trim(), categorie: p.categorie,
       prix: p.prixVente, description: 'Depuis le stock', actif: true,
+      dateAjout: DateTime.now(),
     );
     catalogue.add(t);
     notifyListeners();
@@ -1411,6 +1416,7 @@ class Store extends ChangeNotifier {
         'id': t.id, 'libelle': t.libelle, 'categorie': t.categorie,
         'prix': t.prix, 'description': t.description, 'actif': t.actif,
         'images': t.images,
+        'date_ajout': t.dateAjout?.toIso8601String(),
       };
 
   // ---------- Mouvements (délégué à `stockMouvements`, Phase 5) ----------
@@ -1461,6 +1467,7 @@ class Store extends ChangeNotifier {
         'prix_vente': p.prixVente,
         'quantite_stock': p.stock,
         'seuil_alerte': p.seuil,
+        'date_ajout': p.dateAjout?.toIso8601String(),
         'actif': true,
       };
 
@@ -1628,7 +1635,8 @@ class Store extends ChangeNotifier {
           for (final t in catalogue)
             {'id': t.id, 'libelle': t.libelle, 'categorie': t.categorie,
              'prix': t.prix, 'description': t.description, 'actif': t.actif,
-             'images': t.images},
+             'images': t.images,
+             'date_ajout': t.dateAjout?.toIso8601String()},
         ],
         'feedbacks': [
           for (final f in feedbacks)
@@ -1650,7 +1658,8 @@ class Store extends ChangeNotifier {
             {'id': p.id, 'boutique_id': p.boutiqueId, 'libelle': p.libelle,
              'categorie': p.categorie, 'prix_achat': p.prixAchat,
              'prix_vente': p.prixVente, 'stock': p.stock, 'seuil': p.seuil,
-             'image_path': p.imagePath, 'images': p.images},
+             'image_path': p.imagePath, 'images': p.images,
+             'date_ajout': p.dateAjout?.toIso8601String()},
         ],
         'partenaires': [
           for (final p in partenaires)
@@ -1852,6 +1861,8 @@ class Store extends ChangeNotifier {
             prix: (t['prix'] as num?)?.toDouble() ?? 0,
             description: t['description']?.toString() ?? '',
             actif: t['actif'] != false,
+            dateAjout: DateTime.tryParse(
+                t['date_ajout']?.toString() ?? ''),
             images: [
               for (final u in (t['images'] as List? ?? const []))
                 MediaService.normaliserChemin(u.toString(),
@@ -1902,6 +1913,8 @@ class Store extends ChangeNotifier {
             prixVente: (p['prix_vente'] as num?)?.toDouble() ?? 0,
             stock: (p['stock'] as num?)?.toInt() ?? 0,
             seuil: (p['seuil'] as num?)?.toInt() ?? 3,
+            dateAjout: DateTime.tryParse(
+                p['date_ajout']?.toString() ?? ''),
             imagePath: MediaService.normaliserChemin(
                 p['image_path']?.toString(),
                 entite: 'produit',
@@ -2041,11 +2054,11 @@ class Store extends ChangeNotifier {
       const Partenaire(id: 'pt_2', nom: 'Traoré Awa', telephone: '05 06 07 08 09', localisation: 'Gare routière', taux: 0.55),
     ]);
     produits.addAll([
-      Produit(id: 'pr_1', boutiqueId: 'bt_siege', libelle: 'Câble RJ45 (305m)', categorie: 'Télécom & Réseau', prixAchat: 18000, prixVente: 25000, stock: 4, seuil: 3),
-      Produit(id: 'pr_2', boutiqueId: 'bt_siege', libelle: 'Disjoncteur 32A', categorie: 'Électricité', prixAchat: 2500, prixVente: 4000, stock: 25, seuil: 5),
-      Produit(id: 'pr_3', boutiqueId: 'bt_siege', libelle: 'Écran 24 pouces', categorie: 'Accessoire PC', prixAchat: 45000, prixVente: 60000, stock: 2, seuil: 2),
-      Produit(id: 'pr_4', boutiqueId: 'bt_siege', libelle: 'Chargeur type-C 25W', categorie: 'Accessoire téléphone', prixAchat: 3000, prixVente: 5500, stock: 40, seuil: 8),
-      Produit(id: 'pr_5', boutiqueId: 'bt_marche', libelle: 'Caméra IP Hikvision', categorie: 'Télécom & Réseau', prixAchat: 22000, prixVente: 32000, stock: 6, seuil: 2),
+      Produit(id: 'pr_1', boutiqueId: 'bt_siege', libelle: 'Câble RJ45 (305m)', categorie: 'Télécom & Réseau', prixAchat: 18000, prixVente: 25000, stock: 4, seuil: 3, dateAjout: DateTime.now().subtract(const Duration(days: 2))),
+      Produit(id: 'pr_2', boutiqueId: 'bt_siege', libelle: 'Disjoncteur 32A', categorie: 'Électricité', prixAchat: 2500, prixVente: 4000, stock: 25, seuil: 5, dateAjout: DateTime.now().subtract(const Duration(days: 60))),
+      Produit(id: 'pr_3', boutiqueId: 'bt_siege', libelle: 'Écran 24 pouces', categorie: 'Accessoire PC', prixAchat: 45000, prixVente: 60000, stock: 2, seuil: 2, dateAjout: DateTime.now().subtract(const Duration(days: 60))),
+      Produit(id: 'pr_4', boutiqueId: 'bt_siege', libelle: 'Chargeur type-C 25W', categorie: 'Accessoire téléphone', prixAchat: 3000, prixVente: 5500, stock: 40, seuil: 8, dateAjout: DateTime.now().subtract(const Duration(days: 60))),
+      Produit(id: 'pr_5', boutiqueId: 'bt_marche', libelle: 'Caméra IP Hikvision', categorie: 'Télécom & Réseau', prixAchat: 22000, prixVente: 32000, stock: 6, seuil: 2, dateAjout: DateTime.now().subtract(const Duration(days: 60))),
     ]);
     depenses.addAll([
       Charge(id: _nid(), boutiqueId: 'bt_siege', categorie: 'Loyer', libelle: 'Loyer local siège', montant: 150000, date: DateTime.now().subtract(const Duration(days: 8))),

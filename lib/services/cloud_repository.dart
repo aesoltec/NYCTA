@@ -222,6 +222,9 @@ class CloudRepository {
               for (final chemin in p.images.take(Produit.maxImages))
                 await _urlProduits(chemin),
             ],
+            // Base non migrée (colonne absente) : le repli ci-dessous
+            // renvoie sans les colonnes récentes.
+            'date_ajout': p.dateAjout?.toIso8601String(),
           });
         } catch (_) {
           // Base non migrée (colonne absente) : repli sans la colonne.
@@ -817,6 +820,7 @@ class CloudRepository {
               for (final chemin in t.images.take(Tarif.maxImages))
                 await _urlProduits(chemin),
             ],
+            'date_ajout': t.dateAjout?.toIso8601String(),
           });
         } catch (_) {
           await _c!.from('tarifs').upsert(base);

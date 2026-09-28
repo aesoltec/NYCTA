@@ -14,6 +14,10 @@ class Tarif {
   /// Galerie (max 05, optionnelle — point 36) : mêmes règles que Produit.
   final List<String> images;
 
+  /// Date de création de la fiche (badge « Nouveau », tri par date).
+  /// Nullable pour rétrocompatibilité.
+  final DateTime? dateAjout;
+
   const Tarif({
     required this.id,
     required this.libelle,
@@ -22,7 +26,13 @@ class Tarif {
     this.description = '',
     this.actif = true,
     this.images = const [],
+    this.dateAjout,
   });
+
+  /// Badge « Nouveau » (< 7 jours) — seul badge du catalogue.
+  bool get nouveau =>
+      dateAjout != null &&
+      DateTime.now().difference(dateAjout!).inDays < 7;
 
   Tarif copyWith(
           {bool? actif,
@@ -30,7 +40,8 @@ class Tarif {
           String? categorie,
           String? libelle,
           String? description,
-          List<String>? images}) =>
+          List<String>? images,
+          DateTime? dateAjout}) =>
       Tarif(
         id: id,
         libelle: libelle ?? this.libelle,
@@ -39,5 +50,6 @@ class Tarif {
         description: description ?? this.description,
         actif: actif ?? this.actif,
         images: images ?? this.images,
+        dateAjout: dateAjout ?? this.dateAjout,
       );
 }

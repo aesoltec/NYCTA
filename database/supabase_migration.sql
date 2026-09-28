@@ -191,4 +191,14 @@ alter table public.clients
 alter table public.tarifs
   add column if not exists images jsonb not null default '[]'::jsonb;
 
+-- ---------------------------------------------------------------------------
+-- Refonte UX e-commerce : date d'ajout (badge « Nouveau » < 7 jours).
+-- Nullable : les fiches existantes restent sans badge (rétrocompatible).
+-- Idempotent : rejouable sur base existante.
+-- ---------------------------------------------------------------------------
+alter table public.produits
+  add column if not exists date_ajout timestamptz;
+alter table public.tarifs
+  add column if not exists date_ajout timestamptz;
+
 -- FIN DE LA MIGRATION — suite : supabase_fonctions_rls.sql

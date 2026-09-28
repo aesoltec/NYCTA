@@ -31,7 +31,16 @@ alter table public.tarifs
 
 
 -- ---------------------------------------------------------------------------
--- 3. RPC RÉOUVERTURE BOUTIQUE (point 22bis) — admin/gérant, SECURITY DEFINER
+-- 3. REFONTE UX — date d'ajout produits + tarifs (badge « Nouveau »)
+-- ---------------------------------------------------------------------------
+alter table public.produits
+  add column if not exists date_ajout timestamptz;
+alter table public.tarifs
+  add column if not exists date_ajout timestamptz;
+
+
+-- ---------------------------------------------------------------------------
+-- 4. RPC RÉOUVERTURE BOUTIQUE (point 22bis) — admin/gérant, SECURITY DEFINER
 --    Vérifie l'état « fermée » et journalise dans journal_activite.
 -- ---------------------------------------------------------------------------
 create or replace function public.reouvrir_boutique(p_id uuid)
