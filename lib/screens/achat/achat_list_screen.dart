@@ -52,14 +52,51 @@ class _AchatListScreenState extends State<AchatListScreen> {
               a.fournisseurNom.toLowerCase().contains(rech))
           .toList();
     }
-    // Point 25 : filtre par période / intervalle (manquait).
-    final debut = _filtres['debut'] as DateTime?;
-    final fin = _filtres['fin'] as DateTime?;
-    if (debut != null) {
-      liste = liste.where((a) => !a.date.isBefore(debut)).toList();
+    // Point 25 + plan A5 : période (intervalles prédéfinis ou
+    // dates personnalisées) + filtre fournisseur.
+    // Catégorie/sous-catégorie : non applicables (lignes d'achat libres,
+    // sans référentiel catégorie — non inventé).
+    final fournisseurs = {
+      for (final a in store.achatsBoutique)
+        if (a.fournisseurNom.trim().isNotEmpty)
+          a.fournisseurNom.trim(),
+    }.toList()
+      ..sort();
+    final fourn = (_filtres['fourn'] as String?) ?? '';
+    if (fourn.isNotEmpty) {
+      liste = liste.where((a) => a.fournisseurNom == fourn).toList();
     }
-    if (fin != null) {
-      final finJour = DateTime(fin.year, fin.month, fin.day, 23, 59, 59);
+    final periode = (_filtres['periode'] as String?) ?? 'tout';
+    final maintenant = DateTime.now();
+    DateTime? debut;
+    DateTime? fin;
+    switch (periode) {
+      case '7j':
+        debut = maintenant.subtract(const Duration(days: 6));
+        fin = null;
+      case '30j':
+        debut = maintenant.subtract(const Duration(days: 29));
+        fin = null;
+      case 'mois':
+        debut = DateTime(maintenant.year, maintenant.month);
+        fin = null;
+      case 'annee':
+        debut = DateTime(maintenant.year);
+        fin = null;
+      case 'custom':
+        debut = _filtres['debut'] as DateTime?;
+        fin = _filtres['fin'] as DateTime?;
+      default:
+        debut = null;
+        fin = null;
+    }
+    final d0 = debut;
+    if (d0 != null) {
+      liste = liste.where((a) => !a.date.isBefore(d0)).toList();
+    }
+    final f0 = fin;
+    if (f0 != null) {
+      final finJour = DateTime(f0.year, f0.month, f0.day, 23, 59, 59);
       liste = liste.where((a) => !a.date.isAfter(finJour)).toList();
     }
     return Scaffold(
@@ -121,6 +158,25 @@ class _AchatListScreenState extends State<AchatListScreen> {
                   kind: FiltreKind.chips,
                   label: 'Statut',
                   options: _statuts),
+              const FiltreConfig(
+                  cle: 'periode',
+                  kind: FiltreKind.chips,
+                  label: 'Période',
+                  options: [
+                    ('tout', 'Tout'),
+                    ('7j', '7 jours'),
+                    ('30j', '30 jours'),
+                    ('mois', 'Mois'),
+                    ('annee', 'Année'),
+                    ('custom', 'Personnalisé'),
+                  ]),
+              FiltreConfig(
+                  cle: 'fourn',
+                  kind: FiltreKind.dropdown,
+                  label: 'Fournisseur',
+                  options: [
+                    for (final f in fournisseurs) (f, f),
+                  ]),
               const FiltreConfig(
                   cle: '', kind: FiltreKind.dates, label: ''),
             ],
