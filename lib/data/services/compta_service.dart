@@ -6,6 +6,10 @@ import '../../models/transaction.dart';
 
 /// Construction des écritures SYSCOHADA (Phase 0 — PUR) : partie double,
 /// TVA, contre-passation, balance, résultat.
+/// Rôle ÉCRITURE seule : génère des lignes (dont 443/445). L'agrégation
+/// de ces lignes (TVA par mois, balance, résultat lus depuis le journal)
+/// relève de `AnalytiqueService` (rôle LECTURE). Les deux ne sont pas
+/// redondants.
 /// Extraites à l'identique de `Store` (l.1686-1814). Les ids/boutique/auteur
 /// sont fournis par l'appelant (le service ne touche ni clock externe ni
 /// I/O — `maintenant` est injecté pour la testabilité).

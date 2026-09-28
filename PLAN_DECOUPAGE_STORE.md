@@ -41,3 +41,15 @@ du monolithe. `store.dart` < 200 lignes.
 - Chaque Notifier testable indépendamment (tests dédiés).
 - 10 passes d'audit par phase (PASSES_AUDIT.md).
 - Diagramme : Store (façade) → Notifiers → Services purs → Modèles.
+
+## Frontières (vérifié Phase 1)
+- Un service ne connaît PAS les Notifiers (fonctions statiques pures).
+- `StockService` (calculs purs : CUMP, valorisation, quantités) vs
+  futur `ProduitNotifier` (état liste + CRUD + cloud + notify).
+- `ComptaService` (génération lignes + balance + résultat, rôle
+  ÉCRITURE/lecture) vs futur `ComptaNotifier` (état journal + poster).
+- `AnalytiqueService.tvaParMois` (LECTURE du journal) vs
+  `ComptaService.lignesVente/lignesReception` (ÉCRITURE des 443/445) :
+  distincts, non redondants.
+- Cas limites Phase 0 déjà couverts : CUMP stock=0, partage taux 0/100,
+  caisse solde négatif (vérifié, aucun ajout requis).

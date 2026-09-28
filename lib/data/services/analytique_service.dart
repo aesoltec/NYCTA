@@ -114,6 +114,9 @@ class AnalytiqueService {
   }
 
   /// TVA par mois : collectée (443) − déductible (445), depuis le journal.
+  /// Rôle LECTURE seule : agrège des écritures existantes (ne génère rien).
+  /// La génération des lignes 443/445 relève de `ComptaService`
+  /// (rôle ÉCRITURE). Les deux ne sont pas redondants.
   static Map<int, (double, double)> tvaParMois(
       Iterable<Ecriture> ecritures, int annee) {
     final map = <int, (double, double)>{};
