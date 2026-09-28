@@ -28,14 +28,215 @@ import '../services/local_persistence.dart';
 import '../services/media_service.dart';
 import '../services/supabase_service.dart';
 import '../services/sync_service.dart';
+import 'notifiers/analytique_notifier.dart';
+import 'notifiers/boutique_notifier.dart';
+import 'notifiers/categorie_notifier.dart';
+import 'notifiers/charge_notifier.dart';
+import 'notifiers/client_notifier.dart';
+import 'notifiers/collab_notifier.dart';
+import 'notifiers/compta_notifier.dart';
+import 'notifiers/document_notifier.dart';
+import 'notifiers/fournisseur_notifier.dart';
+import 'notifiers/partenaire_notifier.dart';
+import 'notifiers/produit_notifier.dart';
+import 'notifiers/profile_notifier.dart';
+import 'notifiers/session_notifier.dart';
+import 'notifiers/stock_mouvement_notifier.dart';
+import 'notifiers/achat_notifier.dart';
+import 'notifiers/transaction_notifier.dart';
+import 'normalisation.dart';
+import 'services/analytique_service.dart';
+import 'services/caisse_service.dart';
+import 'services/partage_service.dart';
+import 'services/stock_service.dart';
 
 /// Cœur de l'application : état global + calculs métier.
 /// Persistance : l'état complet est sauvegardé localement (Hive) à chaque
 /// mutation — les données et les photos survivent aux redémarrages en mode
 /// démo. Avec Supabase configuré, la synchro cloud reprend le relais.
 class Store extends ChangeNotifier {
-  AppUser user;
-  Store(this.user) {
+  // ---------- Notifiers câblés (Phase 5) ----------
+  late final SessionNotifier session;
+  late final BoutiqueNotifier boutique;
+  late final ProfileNotifier profil;
+  late final CategorieNotifier categories;
+  late final CollabNotifier collab;
+  late final ClientNotifier client;
+  late final FournisseurNotifier fournisseur;
+  late final PartenaireNotifier partenaire;
+  late final ChargeNotifier charge;
+  late final StockMouvementNotifier stockMouvements;
+  late final ProduitNotifier produit;
+  late final TransactionNotifier transaction;
+  late final AchatNotifier achat;
+  late final DocumentNotifier document;
+  late final ComptaNotifier compta;
+  late final AnalytiqueNotifier analytique;
+
+  Store(AppUser user) {
+    session = SessionNotifier(user, users: users);
+    boutique = BoutiqueNotifier(
+        session: session, genererId: _nid, boutiques: boutiques);
+    profil = ProfileNotifier();
+    categories = CategorieNotifier(
+        produits: produits, depenses: depenses);
+    collab = CollabNotifier(
+        session: session,
+        genererId: _nid,
+        fileUpsert: _fileUpsert,
+        messages: messages,
+        evenements: evenements,
+        notesPerso: notesPerso,
+        feedbacks: feedbacks);
+    client = ClientNotifier(genererId: _nid, clients: clients);
+    fournisseur = FournisseurNotifier(
+        genererId: _nid, fournisseurs: fournisseurs);
+    partenaire = PartenaireNotifier(
+        genererId: _nid,
+        transactions: transactions,
+        partages: partages,
+        fileUpsert: _fileUpsert,
+        partenaires: partenaires);
+    charge = ChargeNotifier(
+        genererId: _nid,
+        profile: profil,
+        fileUpsert: _fileUpsert,
+        depenses: depenses,
+        comptabiliser: (c) => compta.comptabiliserCharge(c),
+        contrePasser: (ref, motif) => compta.contrePasser(ref, motif));
+    stockMouvements = StockMouvementNotifier(
+        session: session,
+        genererId: _nid,
+        produits: produits,
+        fileUpsert: _fileUpsert,
+        mouvements: mouvements);
+    produit = ProduitNotifier(
+        session: session,
+        genererId: _nid,
+        produits: produits,
+        catalogue: catalogue,
+        transactions: transactions,
+        mouvements: mouvements,
+        fileUpsert: _fileUpsert,
+        ajouterVente: _ajouterVenteProduit,
+        journaliserMouvement: (
+            {required String produitId,
+            required String produitNom,
+            required String type,
+            required int quantite,
+            required int stockApres,
+            required String boutiqueId,
+            String motif = '',
+            String refId = '',
+            DateTime? date}) =>
+            stockMouvements.journaliser(
+                produitId: produitId,
+                produitNom: produitNom,
+                type: type,
+                quantite: quantite,
+                stockApres: stockApres,
+                boutiqueId: boutiqueId,
+                motif: motif,
+                refId: refId,
+                date: date));
+    transaction = TransactionNotifier(
+        session: session,
+        genererId: _nid,
+        transactions: transactions,
+        produits: produits,
+        fileUpsert: _fileUpsert,
+        comptabiliserVente: (tx) =>
+            compta.comptabiliserVente(tx, profil.profile.tva),
+        contrePasser: (ref, motif) => compta.contrePasser(ref, motif),
+        posterEncaissement: (tx) =>
+            compta.comptabiliserEncaissement(tx));
+    achat = AchatNotifier(
+        session: session,
+        genererId: _nid,
+        numeroDocument: numeroDocument,
+        achats: achats,
+        produits: produits,
+        catalogue: catalogue,
+        depenses: depenses,
+        mouvements: mouvements,
+        fileUpsert: _fileUpsert,
+        upsertProduitLocal: (p) async {
+          await CloudRepository.upsertProduit(p);
+          await _fileUpsert('produits', _payloadProduit(p));
+        },
+        syncCatalogue: _syncCatalogueDepuisProduit,
+        journaliser: (
+            {required String produitId,
+            required String produitNom,
+            required String type,
+            required int quantite,
+            required int stockApres,
+            required String boutiqueId,
+            String motif = '',
+            String refId = '',
+            DateTime? date}) =>
+            stockMouvements.journaliser(
+                produitId: produitId,
+                produitNom: produitNom,
+                type: type,
+                quantite: quantite,
+                stockApres: stockApres,
+                boutiqueId: boutiqueId,
+                motif: motif,
+                refId: refId,
+                date: date),
+        ajouterChargeDepense: (c) async {
+          // Le Notifier a DÉJÀ inséré dans la liste partagée : ici,
+          // persistance seule (cloud + file), sinon double-insert.
+          await CloudRepository.upsertCharge(c);
+          await _fileUpsert('charges', {
+            'id': c.id,
+            'boutique_id': c.boutiqueId,
+            'categorie': c.categorie,
+            'libelle': c.libelle,
+            'montant': c.montant,
+            'date_charge': c.date.toIso8601String(),
+            'recurrente': c.recurrente,
+          });
+        },
+        comptabiliserReception: (a) =>
+            compta.comptabiliserReception(a),
+        comptabiliserPaiement: (a, montant, mode) =>
+            compta.comptabiliserPaiementAchat(a, montant, mode),
+        contrePasser: (ref, motif) =>
+            compta.contrePasser(ref, motif));
+    document = DocumentNotifier(
+        session: session,
+        numeroDocument: numeroDocument,
+        deduireStock: (lignes) => produit.deduireStockPourLignes([
+              for (final l in lignes)
+                {'libelle': l.libelle, 'quantite': l.quantite}
+            ]),
+        documentsEmis: documentsEmis);
+    compta = ComptaNotifier(
+        genererId: _nid, ecritures: ecritures, fileUpsert: _fileUpsert);
+    analytique = AnalytiqueNotifier(
+        transactions: transactions, depenses: depenses);
+    for (final n in <ChangeNotifier>[
+      session,
+      boutique,
+      profil,
+      categories,
+      collab,
+      client,
+      fournisseur,
+      partenaire,
+      charge,
+      stockMouvements,
+      produit,
+      transaction,
+      achat,
+      document,
+      compta,
+      analytique,
+    ]) {
+      n.addListener(_relayer);
+    }
     if (CloudRepository.actif) {
       // ===== PRODUCTION : aucune donnée démo — tout vient de Supabase
       // via chargerDuCloud() après authentification. La génération des
@@ -43,7 +244,7 @@ class Store extends ChangeNotifier {
       // avant tout chargement, `depenses` est encore vide et l'appel ne
       // ferait donc jamais rien — c'est ce qui rendait la fonctionnalité
       // inopérante en production.
-      profile = const CompanyProfile();
+      profil.profile = const CompanyProfile();
       return;
     }
     // ===== MODE DÉMO (sans Supabase) : données fictives + persistance locale.
@@ -58,10 +259,56 @@ class Store extends ChangeNotifier {
     // Ici, `depenses` est déjà peuplé (démo ou sauvegarde locale restaurée) :
     // contrairement à la branche cloud, l'appel est donc utile dès ce point.
     genererChargesRecurrentesSiNouveauMois();
+    _syncBoutiqueId();
+  }
+
+  /// Relai : toute mutation d'un Notifier rebuild l'UI ET persiste
+  /// (via le timer 600 ms de `notifyListeners` ci-dessous).
+  void _relayer() => notifyListeners();
+
+  /// Pont vente-produit (évite la référence croisée produit→transaction
+  /// au moment de la construction : `transaction` n'existe pas encore
+  /// quand `produit` est créé).
+  Future<String> _ajouterVenteProduit({
+    required TypeTransaction type,
+    required double montant,
+    double cout = 0,
+    String? clientNom,
+    DateTime? date,
+    Map<String, dynamic> details = const {},
+  }) =>
+      transaction.ajouterTransaction(
+        type: type,
+        montant: montant,
+        cout: cout,
+        clientNom: clientNom,
+        date: date,
+        details: details,
+      );
+
+  /// Propage la boutique courante aux Notifiers qui filtrent par boutique.
+  void _syncBoutiqueId() {
+    boutique.boutiqueId = _boutiqueId;
+    transaction.boutiqueId = _boutiqueId;
+    charge.boutiqueId = _boutiqueId;
+    produit.boutiqueId = _boutiqueId;
+    achat.boutiqueId = _boutiqueId;
+    document.boutiqueId = _boutiqueId;
+    compta.boutiqueId = _boutiqueId;
+    analytique.boutiqueId = _boutiqueId;
+    client.boutiqueId = _boutiqueId;
   }
 
   /// Identifiant du partenaire lié au compte connecté (rôle partenaire).
-  String? monPartenaireId;
+  /// Délégué à `session` (façade Phase 5).
+  String? get monPartenaireId => session.monPartenaireId;
+  set monPartenaireId(String? v) => session.monPartenaireId = v;
+
+  /// Utilisateur connecté — délégué à `session` (façade Phase 5).
+  /// Le getter/setter préservent toutes les lectures/écritures existantes
+  /// (`store.user.nom`, `user = ...` dans le chargement).
+  AppUser get user => session.user;
+  set user(AppUser u) => session.user = u;
 
   /// Vrai si la connexion Supabase Auth a réussi mais qu'aucune ligne
   /// correspondante n'existe dans public.users (compte non provisionné —
@@ -71,13 +318,15 @@ class Store extends ChangeNotifier {
   /// silencieusement l'identité locale factice 'u_admin' (permissions
   /// admin illusoires côté client) alors que le serveur refuse tout —
   /// c'est ce qui produisait les erreurs RLS/UUID invisibles jusqu'ici.
-  bool profilCloudManquant = false;
+  bool get profilCloudManquant => session.profilCloudManquant;
+  set profilCloudManquant(bool v) => session.profilCloudManquant = v;
 
   /// Vrai quand l'app a démarré sur le snapshot local faute de réseau
 /// (voir CloudLoader) : bandeau « hors-ligne » dans AppShell + bouton
 /// Reconnecter. Les saisies/modifs/suppressions restent possibles :
 /// elles partent en file SyncService et sont rejouées au retour réseau.
-  bool demarrageHorsLigne = false;
+  bool get demarrageHorsLigne => session.demarrageHorsLigne;
+  set demarrageHorsLigne(bool v) => session.demarrageHorsLigne = v;
 
   /// Chargement initial production : remplit l'app depuis Supabase.
   Future<bool> chargerDuCloud() async {
@@ -663,40 +912,23 @@ class Store extends ChangeNotifier {
   final notesPerso = <Note>[];               // notes & rappels
   final feedbacks = <Feedback>[];            // suggestions & signalements
   final catalogue = <Tarif>[];               // tarifs & catalogue (hors stock)
-  /// Catégories dynamiques (éditables) — initialisées depuis les valeurs
-  /// par défaut, remplacées par le cloud si présentes.
-  final catsProduit = List<String>.of(C.categoriesProduit);
-  final catsCharge = List<String>.of(categoriesCharge);
-  /// Listes dynamiques du formulaire "Nouvelle opération" — mêmes règles
-  /// que catsProduit/catsCharge : valeurs par défaut locales, remplacées
-  /// par le cloud dès qu'au moins une valeur y existe pour ce type.
-  final opsMobileMoney = List<String>.of(C.operateurs);
-  final opsCredit = List<String>.of(C.operateursCredit);
-  final domainesPresta = List<String>.of(C.domaines);
-  final dureesForfaitListe = List<String>.of(C.dureesForfait);
   final documentsEmis = <DocumentBati>[];
   final achats = <Achat>[];                // achats fournisseurs (Phase 2)
   final mouvements = <MouvementStock>[];   // historique des stocks (mission 1)
   final ecritures = <Ecriture>[];          // journal comptable (mission §3.3)
-  CompanyProfile profile = const CompanyProfile();
+  CompanyProfile get profile => profil.profile;
+  set profile(CompanyProfile p) => profil.profile = p;
   int _seq = 0;
   Timer? _persistTimer;
   String _nid() => CloudRepository.actif
       ? CloudRepository.uuid()
       : 'id_${++_seq}_${DateTime.now().millisecondsSinceEpoch}';
 
-  Boutique get boutiqueCourante =>
-      boutiques.firstWhere((b) => b.id == _boutiqueId);
-
   void changerBoutique(String id) {
-    // N'accepte que les boutiques auxquelles l'utilisateur a réellement
-    // accès (cf. boutiquesAccessibles) — sinon les ventes saisies dans une
-    // boutique hors accès s'inséraient (RLS écriture ne vérifie que le
-    // rôle) mais devenaient invisibles au rechargement (RLS lecture
-    // vérifie l'accès à la boutique), donnant l'impression qu'elles
-    // avaient disparu.
-    if (!user.accedeA(id)) return;
-    _boutiqueId = id;
+    final avant = _boutiqueId;
+    boutique.changerBoutique(id);
+    _boutiqueId = boutique.boutiqueId;
+    if (_boutiqueId != avant) _syncBoutiqueId();
     notifyListeners();
   }
 
@@ -719,205 +951,61 @@ class Store extends ChangeNotifier {
     super.dispose();
   }
 
-  // ---------- Utilisateurs (gestion) ----------
-  Role get role => user.role;
-  bool peut(Permission p) => user.peut(p);
+  // ---------- Utilisateurs (gestion, délégué à `session`) ----------
+  Role get role => session.role;
+  bool peut(Permission p) => session.peut(p);
 
-  void changerRole(Role r) {
-    user = AppUser(id: user.id, nom: user.nom, role: r, boutiqueIds: user.boutiqueIds);
-    notifyListeners();
-  }
+  void changerRole(Role r) => session.changerRole(r);
 
-  Future<void> ajouterUtilisateur(AppUser u) async {
-    users.add(u);
-    notifyListeners();
-  }
+  Future<void> ajouterUtilisateur(AppUser u) =>
+      session.ajouterUtilisateur(u);
 
-  Future<void> majUtilisateur(AppUser u) async {
-    final i = users.indexWhere((x) => x.id == u.id);
-    if (i >= 0) {
-      users[i] = u;
-      notifyListeners();
-      await CloudRepository.majUtilisateur(u);
-    }
-  }
+  Future<void> majUtilisateur(AppUser u) =>
+      session.majUtilisateur(u);
 
-  /// "Supprimer" = désactivation (l'anon key ne peut pas supprimer un
-  /// compte Auth). La désactivation cloud manquait ici : le compte
-  /// disparaissait de la liste locale mais restait ACTIF côté Supabase —
-  /// l'utilisateur "supprimé" pouvait donc continuer à se connecter
-  /// normalement malgré le message "Ce compte n'aura plus accès".
-  Future<void> supprimerUtilisateur(String id) async {
-    final u = users.where((x) => x.id == id).firstOrNull;
-    if (u == null || u.role == Role.admin) return;
-    users.removeWhere((x) => x.id == id);
-    notifyListeners();
-    await CloudRepository.desactiverUtilisateur(id);
-  }
+  Future<void> supprimerUtilisateur(String id) =>
+      session.supprimerUtilisateur(id);
 
-  // ---------- Catégories (dynamiques) ----------
-  /// Ajoute une catégorie ; retourne une erreur ou null si OK.
-  Future<String?> ajouterCategorie(String nom, {required bool produit}) async {
-    final n = nom.trim();
-    if (n.length < 2) return 'Nom trop court (2 caractères min.)';
-    final liste = produit ? catsProduit : catsCharge;
-    // Anti-doublon insensible casse + accents (point 35) : « Électricité »
-    // existe déjà si « electricite » est saisie — on garde le canonique.
-    final existant = liste.where((c) => memeCategorie(c, n)).firstOrNull;
-    if (existant != null) {
-      return 'Cette catégorie existe déjà (« $existant »)';
-    }
-    liste.add(n);
-    notifyListeners();
-    await CloudRepository.upsertCategorie(produit ? 'produit' : 'charge', n);
-    return null;
-  }
+  // ---------- Catégories (délégué à `categories`, Phase 5) ----------
+  List<String> get catsProduit => categories.catsProduit;
+  List<String> get catsCharge => categories.catsCharge;
+  List<String> get opsMobileMoney => categories.opsMobileMoney;
+  List<String> get opsCredit => categories.opsCredit;
+  List<String> get domainesPresta => categories.domainesPresta;
+  List<String> get dureesForfaitListe => categories.dureesForfaitListe;
+
+  Future<String?> ajouterCategorie(String nom,
+          {required bool produit}) =>
+      categories.ajouterCategorie(nom, produit: produit);
 
   Future<String?> renommerCategorie(String ancien, String nouveau,
-      {required bool produit}) async {
-    final liste = produit ? catsProduit : catsCharge;
-    final n = nouveau.trim();
-    if (n.length < 2) return 'Nom trop court';
-    if (liste.any((c) => c != ancien && memeCategorie(c, n))) {
-      return 'Cette catégorie existe déjà';
-    }
-    final i = liste.indexOf(ancien);
-    if (i < 0) return 'Catégorie introuvable';
-    liste[i] = n;
-    // Renommage en cascade sur les fiches existantes.
-    if (produit) {
-      for (var j = 0; j < produits.length; j++) {
-        if (produits[j].categorie == ancien) {
-          final p = produits[j];
-          produits[j] = Produit(
-            id: p.id, boutiqueId: p.boutiqueId, libelle: p.libelle,
-            categorie: n, prixAchat: p.prixAchat, prixVente: p.prixVente,
-            stock: p.stock, seuil: p.seuil, imagePath: p.imagePath,
-            images: p.images,
-          );
-        }
-      }
-    } else {
-      for (var j = 0; j < depenses.length; j++) {
-        if (depenses[j].categorie == ancien) {
-          final c = depenses[j];
-          depenses[j] = Charge(
-            id: c.id, boutiqueId: c.boutiqueId, categorie: n,
-            libelle: c.libelle, montant: c.montant, date: c.date,
-            recurrente: c.recurrente,
-          );
-        }
-      }
-    }
-    notifyListeners();
-    await CloudRepository.upsertCategorie(produit ? 'produit' : 'charge', n);
-    await CloudRepository.supprimerCategorie(
-        produit ? 'produit' : 'charge', ancien);
-    return null;
-  }
+          {required bool produit}) =>
+      categories.renommerCategorie(ancien, nouveau, produit: produit);
 
-  /// Suppression avec garde-fou : catégorie en cours d'utilisation.
   Future<String?> supprimerCategorie(String nom,
-      {required bool produit}) async {
-    final utilisee = produit
-        ? produits.any((p) => p.categorie == nom)
-        : depenses.any((c) => c.categorie == nom);
-    if (utilisee) {
-      return 'Catégorie utilisée par des fiches existantes — renommez-la '
-          'pour préserver l\'historique.';
-    }
-    (produit ? catsProduit : catsCharge).remove(nom);
-    notifyListeners();
-    await CloudRepository.supprimerCategorie(
-        produit ? 'produit' : 'charge', nom);
-    return null;
-  }
+          {required bool produit}) =>
+      categories.supprimerCategorie(nom, produit: produit);
 
-  // ---------- Listes dynamiques : opérateurs, domaines, durées ----------
-  /// Types valides : 'operateur_momo', 'operateur_credit',
-  /// 'domaine_prestation', 'duree_forfait'. Réutilise la table `categories`
-  /// (même mécanisme que catsProduit/catsCharge ci-dessus).
-  List<String> _listeDynamique(String type) => switch (type) {
-        'operateur_momo' => opsMobileMoney,
-        'operateur_credit' => opsCredit,
-        'domaine_prestation' => domainesPresta,
-        'duree_forfait' => dureesForfaitListe,
-        _ => throw ArgumentError('Type de liste inconnu : $type'),
-      };
-
-  Future<String?> ajouterValeurListe(String type, String nom) async {
-    final n = nom.trim();
-    if (n.isEmpty) return 'Valeur requise';
-    final liste = _listeDynamique(type);
-    if (liste.any((v) => v.toLowerCase() == n.toLowerCase())) {
-      return 'Cette valeur existe déjà';
-    }
-    liste.add(n);
-    notifyListeners();
-    await CloudRepository.upsertCategorie(type, n);
-    return null;
-  }
+  Future<String?> ajouterValeurListe(String type, String nom) =>
+      categories.ajouterValeurListe(type, nom);
 
   Future<String?> renommerValeurListe(
-      String type, String ancien, String nouveau) async {
-    final liste = _listeDynamique(type);
-    final n = nouveau.trim();
-    if (n.isEmpty) return 'Valeur requise';
-    if (liste.any((v) => v != ancien && v.toLowerCase() == n.toLowerCase())) {
-      return 'Cette valeur existe déjà';
-    }
-    final i = liste.indexOf(ancien);
-    if (i < 0) return 'Valeur introuvable';
-    liste[i] = n;
-    notifyListeners();
-    await CloudRepository.upsertCategorie(type, n);
-    await CloudRepository.supprimerCategorie(type, ancien);
-    return null;
-  }
+          String type, String ancien, String nouveau) =>
+      categories.renommerValeurListe(type, ancien, nouveau);
 
-  Future<String?> supprimerValeurListe(String type, String nom) async {
-    _listeDynamique(type).remove(nom);
-    notifyListeners();
-    await CloudRepository.supprimerCategorie(type, nom);
-    return null;
-  }
+  Future<String?> supprimerValeurListe(String type, String nom) =>
+      categories.supprimerValeurListe(type, nom);
 
-  // ---------- Clients ----------
-  List<Client> get clientsBoutique =>
-      clients.where((c) => c.boutiqueId == _boutiqueId).toList();
+  // ---------- Clients (délégué à `client`, Phase 5) ----------
+  List<Client> get clientsBoutique => client.clientsBoutique;
 
-  Future<String?> ajouterClient(Client c) async {
-    if (c.nom.trim().length < 2) return 'Nom trop court';
-    if (clients.any((x) =>
-        x.boutiqueId == c.boutiqueId &&
-        x.nom.toLowerCase() == c.nom.trim().toLowerCase())) {
-      return 'Ce client existe déjà dans cette boutique';
-    }
-    // Id régénéré en uuid v4 : la colonne Postgres est de type uuid, un id
-    // local (ex. horodatage) ferait échouer silencieusement l'écriture cloud
-    // (voir _nid()) — le client semblerait ajouté puis disparaîtrait au
-    // prochain chargement depuis Supabase.
-    final client = Client(
-      id: _nid(), boutiqueId: c.boutiqueId, nom: c.nom,
-      telephone: c.telephone, email: c.email, adresse: c.adresse,
-      rccm: c.rccm, ifu: c.ifu, rib: c.rib, logoPath: c.logoPath,
-    );
-    clients.add(client);
-    notifyListeners();
-    await CloudRepository.upsertClient(client);
-    return null;
-  }
+  Future<String?> ajouterClient(Client c) =>
+      client.ajouterClient(c);
 
-  Future<void> majClient(Client c) async {
-    final i = clients.indexWhere((x) => x.id == c.id);
-    if (i >= 0) {
-      clients[i] = c;
-      notifyListeners();
-      await CloudRepository.upsertClient(c);
-    }
-  }
+  Future<void> majClient(Client c) => client.majClient(c);
 
   /// Noms des clients avec impayé en cours (filtre « Avec crédit »).
+  /// Façade : aucun Notifier ne porte ce calcul transverse.
   Set<String> get clientsAvecCredit => {
         for (final t in transactions)
           if (t.statut != StatutPaiement.paye &&
@@ -925,171 +1013,57 @@ class Store extends ChangeNotifier {
             t.clientNom!.trim(),
       };
 
-  // ---------- Fournisseurs ----------
-  Future<String?> ajouterFournisseur(Fournisseur f) async {
-    if (f.nom.trim().length < 2) return 'Nom trop court';
-    if (fournisseurs.any((x) => x.nom.toLowerCase() == f.nom.trim().toLowerCase())) {
-      return 'Ce fournisseur existe déjà';
-    }
-    final fournisseur = Fournisseur(
-      id: _nid(), nom: f.nom, telephone: f.telephone, email: f.email,
-      adresse: f.adresse, specialite: f.specialite, notes: f.notes,
-    );
-    fournisseurs.add(fournisseur);
-    notifyListeners();
-    await CloudRepository.upsertFournisseur(fournisseur);
-    return null;
-  }
+  // ---------- Fournisseurs (délégué à `fournisseur`, Phase 5) ----------
+  Future<String?> ajouterFournisseur(Fournisseur f) =>
+      fournisseur.ajouterFournisseur(f);
 
-  Future<void> majFournisseur(Fournisseur f) async {
-    final i = fournisseurs.indexWhere((x) => x.id == f.id);
-    if (i >= 0) {
-      fournisseurs[i] = f;
-      notifyListeners();
-      await CloudRepository.upsertFournisseur(f);
-    }
-  }
+  Future<void> majFournisseur(Fournisseur f) =>
+      fournisseur.majFournisseur(f);
 
-  Future<void> supprimerFournisseur(String id) async {
-    fournisseurs.removeWhere((f) => f.id == id);
-    notifyListeners();
-    await CloudRepository.supprimerFournisseur(id);
-  }
+  Future<void> supprimerFournisseur(String id) =>
+      fournisseur.supprimerFournisseur(id);
 
-  // ---------- Messagerie ----------
-  /// Messages visibles par l'utilisateur connecté (reçus + envoyés).
-  List<Message> get messagesVisibles => messages
-      .where((m) => m.mEstDestineA(user.id) || m.expediteurId == user.id)
-      .toList();
+  // ---------- Messagerie / Événements / Notes (délégué à `collab`) ----------
+  List<Message> get messagesVisibles => collab.messagesVisibles;
 
-  int get messagesNonLus => messages
-      .where((m) => !m.lu && m.mEstDestineA(user.id) && m.expediteurId != user.id)
-      .length;
+  int get messagesNonLus => collab.messagesNonLus;
 
   Future<void> envoyerMessage({
     required String sujet,
     required String contenu,
-    String? destinataireId, // null = tous
-  }) async {
-    final m = Message(
-      id: _nid(),
-      expediteurId: user.id,
-      expediteurNom: user.nom,
-      destinataireId: destinataireId,
-      sujet: sujet.trim(),
-      contenu: contenu.trim(),
-      date: DateTime.now(),
-    );
-    messages.insert(0, m);
-    notifyListeners();
-    await CloudRepository.envoyerMessage(m);
-  }
+    String? destinataireId,
+  }) =>
+      collab.envoyerMessage(
+          sujet: sujet,
+          contenu: contenu,
+          destinataireId: destinataireId);
 
-  Future<void> marquerMessageLu(String id) async {
-    final i = messages.indexWhere((m) => m.id == id);
-    if (i >= 0 && !messages[i].lu) {
-      messages[i] = messages[i].copyWith(lu: true);
-      notifyListeners();
-      await CloudRepository.marquerMessageLu(id);
-    }
-  }
+  Future<void> marquerMessageLu(String id) =>
+      collab.marquerMessageLu(id);
 
-  Future<void> marquerTousMessagesLus() async {
-    for (var i = 0; i < messages.length; i++) {
-      if (!messages[i].lu && messages[i].mEstDestineA(user.id)) {
-        messages[i] = messages[i].copyWith(lu: true);
-      }
-    }
-    notifyListeners();
-    await CloudRepository.marquerTousMessagesLus();
-  }
+  Future<void> marquerTousMessagesLus() =>
+      collab.marquerTousMessagesLus();
 
-  /// Correction d'un message (auteur ou admin/gérant — l'écran masque
-  /// le bouton aux autres, en miroir des policies RLS).
-  Future<String?> majMessage(Message maj) async {
-    final i = messages.indexWhere((m) => m.id == maj.id);
-    if (i < 0) return 'Message introuvable';
-    if (maj.sujet.trim().length < 3) return 'Sujet trop court';
-    if (maj.contenu.trim().length < 3) return 'Message trop court';
-    messages[i] = maj;
-    notifyListeners();
-    await CloudRepository.majMessage(maj);
-    await _fileUpsert('messages', {
-      'id': maj.id, 'expediteur_id': maj.expediteurId,
-      'expediteur_nom': maj.expediteurNom,
-      'destinataire_id': maj.destinataireId,
-      'sujet': maj.sujet, 'contenu': maj.contenu,
-    });
-    return null;
-  }
+  Future<String?> majMessage(Message maj) => collab.majMessage(maj);
 
-  /// Suppression d'un message (auteur ou admin/gérant).
-  Future<void> supprimerMessage(String id) async {
-    messages.removeWhere((m) => m.id == id);
-    notifyListeners();
-    await CloudRepository.supprimerMessage(id);
-    if (CloudRepository.actif) {
-      await SyncService().mettreEnFile({'id': id}, table: 'messages__delete');
-    }
-  }
+  Future<void> supprimerMessage(String id) =>
+      collab.supprimerMessage(id);
 
-  // ---------- Événements ----------
-  List<Evenement> get evenementsAVenir {
-    final l = evenements.where((e) => !e.estPasse).toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
-    return l;
-  }
+  List<Evenement> get evenementsAVenir => collab.evenementsAVenir;
 
-  Future<void> ajouterEvenement(Evenement e) async {
-    final evenement = Evenement(
-      id: _nid(), titre: e.titre, date: e.date, heure: e.heure,
-      lieu: e.lieu, description: e.description, createurId: e.createurId,
-    );
-    evenements.add(evenement);
-    notifyListeners();
-    await CloudRepository.upsertEvenement(evenement);
-  }
+  Future<void> ajouterEvenement(Evenement e) =>
+      collab.ajouterEvenement(e);
 
-  Future<void> majEvenement(Evenement e) async {
-    final i = evenements.indexWhere((x) => x.id == e.id);
-    if (i >= 0) {
-      evenements[i] = e;
-      notifyListeners();
-      await CloudRepository.upsertEvenement(e);
-    }
-  }
+  Future<void> majEvenement(Evenement e) => collab.majEvenement(e);
 
-  Future<void> supprimerEvenement(String id) async {
-    evenements.removeWhere((e) => e.id == id);
-    notifyListeners();
-    await CloudRepository.supprimerEvenement(id);
-  }
+  Future<void> supprimerEvenement(String id) =>
+      collab.supprimerEvenement(id);
 
-  // ---------- Notes ----------
-  Future<void> ajouterNote(Note n) async {
-    final note = Note(
-      id: _nid(), titre: n.titre, contenu: n.contenu, date: n.date,
-      rappelLe: n.rappelLe, createurId: n.createurId,
-    );
-    notesPerso.add(note);
-    notifyListeners();
-    await CloudRepository.upsertNote(note);
-  }
+  Future<void> ajouterNote(Note n) => collab.ajouterNote(n);
 
-  Future<void> majNote(Note n) async {
-    final i = notesPerso.indexWhere((x) => x.id == n.id);
-    if (i >= 0) {
-      notesPerso[i] = n;
-      notifyListeners();
-      await CloudRepository.upsertNote(n);
-    }
-  }
+  Future<void> majNote(Note n) => collab.majNote(n);
 
-  Future<void> supprimerNote(String id) async {
-    notesPerso.removeWhere((n) => n.id == id);
-    notifyListeners();
-    await CloudRepository.supprimerNote(id);
-  }
+  Future<void> supprimerNote(String id) => collab.supprimerNote(id);
 
   // ---------- Tarifs & catalogue ----------
   List<Tarif> get tarifsActifs => catalogue.where((t) => t.actif).toList();
@@ -1135,156 +1109,45 @@ class Store extends ChangeNotifier {
     }
   }
 
-  // ---------- Suggestions & signalements ----------
-  int get nouveauxFeedbacks => feedbacks
-      .where((f) => f.statut == StatutFeedback.nouveau)
-      .length;
+  // ---------- Suggestions (délégué à `collab`, Phase 5) ----------
+  int get nouveauxFeedbacks => collab.nouveauxFeedbacks;
 
-  Future<String?> ajouterFeedback(Feedback f) async {
-    if (f.titre.trim().length < 3) return 'Titre trop court';
-    if (f.contenu.trim().length < 5) return 'Description trop courte';
-    final feedback = Feedback(
-      id: _nid(), auteurId: f.auteurId, auteurNom: f.auteurNom,
-      boutiqueId: f.boutiqueId, type: f.type, priorite: f.priorite,
-      titre: f.titre, contenu: f.contenu, statut: f.statut, date: f.date,
-    );
-    feedbacks.insert(0, feedback);
-    notifyListeners();
-    await CloudRepository.ajouterFeedback(feedback);
-    return null;
-  }
+  Future<String?> ajouterFeedback(Feedback f) =>
+      collab.ajouterFeedback(f);
 
-  Future<void> changerStatutFeedback(String id, StatutFeedback statut) async {
-    final i = feedbacks.indexWhere((f) => f.id == id);
-    if (i >= 0) {
-      feedbacks[i] = feedbacks[i].copyWith(statut: statut);
-      notifyListeners();
-      await CloudRepository.majStatutFeedback(id, statut);
-    }
-  }
+  Future<void> changerStatutFeedback(
+          String id, StatutFeedback statut) =>
+      collab.changerStatutFeedback(id, statut);
 
-  /// Correction d'une contribution (auteur ou admin/gérant — l'écran
-  /// masque le bouton aux autres, en miroir des policies RLS).
-  Future<String?> majFeedback(Feedback maj) async {
-    final i = feedbacks.indexWhere((f) => f.id == maj.id);
-    if (i < 0) return 'Contribution introuvable';
-    if (maj.titre.trim().length < 3) return 'Titre trop court';
-    if (maj.contenu.trim().length < 5) return 'Description trop courte';
-    feedbacks[i] = maj;
-    notifyListeners();
-    await CloudRepository.majFeedback(maj);
-    await _fileUpsert('feedbacks', {
-      'id': maj.id, 'type': maj.type.name, 'priorite': maj.priorite.name,
-      'titre': maj.titre, 'contenu': maj.contenu, 'statut': maj.statut.name,
-    });
-    return null;
-  }
+  Future<String?> majFeedback(Feedback maj) =>
+      collab.majFeedback(maj);
 
-  /// Suppression d'une contribution (auteur ou admin/gérant).
-  Future<void> supprimerFeedback(String id) async {
-    feedbacks.removeWhere((f) => f.id == id);
-    notifyListeners();
-    await CloudRepository.supprimerFeedback(id);
-    if (CloudRepository.actif) {
-      await SyncService()
-          .mettreEnFile({'id': id}, table: 'feedbacks__delete');
-    }
-  }
+  Future<void> supprimerFeedback(String id) =>
+      collab.supprimerFeedback(id);
 
-  // ---------- Boutiques ----------
-  List<Boutique> get boutiquesActives =>
-      boutiques.where((b) => b.actif).toList();
+  // ---------- Boutiques (délégué à `boutique`, Phase 5) ----------
+  List<Boutique> get boutiquesActives => boutique.boutiquesActives;
 
-  /// Boutiques actives que l'utilisateur courant peut effectivement choisir.
-  /// Le sélecteur de boutique (barre du haut) proposait TOUTES les
-  /// boutiques à tout le monde, sans vérifier l'accès (user_boutiques) —
-  /// un non-admin pouvait ainsi basculer sur une boutique où il n'a pas de
-  /// ligne user_boutiques, y saisir des ventes (l'écriture n'est bloquée
-  /// que par rôle, pas par boutique), puis ne plus jamais les revoir : la
-  /// policy RLS "transactions select" (accede_boutique()) les lui cachait
-  /// silencieusement au rechargement suivant — elles semblaient disparaître.
   List<Boutique> get boutiquesAccessibles =>
-      boutiquesActives.where((b) => user.accedeA(b.id)).toList();
+      boutique.boutiquesAccessibles;
 
-  /// Crée une boutique et donne accès aux utilisateurs choisis.
-  Future<String?> ajouterBoutique(Boutique b, List<String> userIds) async {
-    if (b.nom.trim().length < 2) return 'Nom trop court';
-    if (boutiques.any((x) =>
-        x.actif && x.nom.toLowerCase() == b.nom.trim().toLowerCase())) {
-      return 'Une boutique porte déjà ce nom';
-    }
-    if (b.siege) {
-      // Un seul siège : on démet les autres.
-      for (var i = 0; i < boutiques.length; i++) {
-        if (boutiques[i].siege) boutiques[i] = boutiques[i].copyWith(siege: false);
-      }
-    }
-    final boutique = Boutique(
-      id: _nid(), nom: b.nom, adresse: b.adresse,
-      siege: b.siege, actif: b.actif,
-    );
-    boutiques.add(boutique);
-    notifyListeners();
-    await CloudRepository.upsertBoutique(boutique, userIds);
-    return null;
-  }
+  Boutique get boutiqueCourante => boutique.boutiqueCourante;
 
-  Future<String?> majBoutique(Boutique b, List<String> userIds) async {
-    final i = boutiques.indexWhere((x) => x.id == b.id);
-    if (i < 0) return 'Boutique introuvable';
-    if (b.siege) {
-      for (var j = 0; j < boutiques.length; j++) {
-        if (boutiques[j].siege && boutiques[j].id != b.id) {
-          boutiques[j] = boutiques[j].copyWith(siege: false);
-        }
-      }
-    }
-    boutiques[i] = b;
-    notifyListeners();
-    await CloudRepository.upsertBoutique(b, userIds);
-    return null;
-  }
+  Future<String?> ajouterBoutique(Boutique b, List<String> userIds) =>
+      boutique.ajouterBoutique(b, userIds);
 
-  /// Désactivation (jamais de suppression dure : l'historique financier
-  /// y est rattaché). La dernière boutique active est protégée.
-  Future<String?> fermerBoutique(String id) async {
-    if (boutiquesActives.length <= 1) {
-      return 'Impossible : il doit rester au moins une boutique active.';
-    }
-    if (id == _boutiqueId) {
-      return 'Changez d\'abord de boutique courante (menu en haut).';
-    }
-    final i = boutiques.indexWhere((x) => x.id == id);
-    if (i < 0) return 'Boutique introuvable';
-    boutiques[i] = boutiques[i].copyWith(actif: false, siege: false);
-    notifyListeners();
-    await CloudRepository.desactiverBoutique(id);
-    return null;
-  }
+  Future<String?> majBoutique(Boutique b, List<String> userIds) =>
+      boutique.majBoutique(b, userIds);
 
-  /// Réouverture d'une boutique fermée (point 22bis) : admin/gérant
-  /// uniquement (miroir de la RPC `reouvrir_boutique`). Retourne null
-  /// si OK, sinon le motif du refus.
-  Future<String?> rouvrirBoutique(String id) async {
-    if (role != Role.admin && role != Role.gerant) {
-      return 'Réouverture réservée (admin, gérant)';
-    }
-    final i = boutiques.indexWhere((x) => x.id == id);
-    if (i < 0) return 'Boutique introuvable';
-    if (boutiques[i].actif) return 'Boutique déjà active';
-    final erreur = await CloudRepository.rouvrirBoutique(id);
-    if (erreur != null) return erreur;
-    boutiques[i] = boutiques[i].copyWith(actif: true);
-    notifyListeners();
-    return null;
-  }
+  Future<String?> fermerBoutique(String id) =>
+      boutique.fermerBoutique(id);
 
-  // ---------- Configuration entreprise ----------
-  Future<void> updateProfile(CompanyProfile p) async {
-    profile = p;
-    notifyListeners();
-    await CloudRepository.updateProfile(p);
-  }
+  Future<String?> rouvrirBoutique(String id) =>
+      boutique.rouvrirBoutique(id);
+
+  // ---------- Configuration entreprise (délégué à `profil`) ----------
+  Future<void> updateProfile(CompanyProfile p) =>
+      profil.updateProfile(p);
 
   // ---------- Transactions ----------
   Map<String, dynamic> _payloadTx(Tx tx) => {
@@ -1308,510 +1171,134 @@ class Store extends ChangeNotifier {
     String? clientNom,
     String? partenaireId,
     Map<String, dynamic> details = const {},
-    // Date de l'opération choisie dans le formulaire (saisie d'hier,
-    // d'avant-hier…) — par défaut l'instant présent. C'est elle qui
-    // alimente journal, rapports et synchro (date_transaction).
     DateTime? date,
-    // Crédit client : une vente peut naître impayée (créance suivie
-    // dans Relances + balance âgée) puis être encaissée (encaisserVente).
     StatutPaiement statut = StatutPaiement.paye,
-  }) async {
-    final tx = Tx(
-      id: _nid(),
-      boutiqueId: _boutiqueId,
-      employeId: user.id,
-      type: type,
-      montant: montant,
-      cout: cout,
-      statut: statut,
-      clientNom: clientNom,
-      partenaireId: partenaireId,
-      details: details,
-      date: date ?? DateTime.now(),
-    );
-    transactions.insert(0, tx);
-    notifyListeners();
-    // L'id local (uuid en production) est envoyé tel quel : création et
-    // correction partagent le même identifiant, ce qui rend l'upsert
-    // idempotent (pas de doublon si la file rejoue l'opération).
-    await CloudRepository.upsertTransaction(tx);
-    if (SupabaseService.client != null) {
-      await SyncService().mettreEnFile(_payloadTx(tx));
-    }
-    // Journal comptable automatique (mission §3.3/§4).
-    await _comptabiliserVente(tx);
-    return tx.id;
-  }
+  }) =>
+      transaction.ajouterTransaction(
+        type: type,
+        montant: montant,
+        cout: cout,
+        clientNom: clientNom,
+        partenaireId: partenaireId,
+        details: details,
+        date: date,
+        statut: statut,
+      );
 
-  /// Modification d'une vente existante (journal → Modifier).
-  /// Retourne null si OK, sinon un message d'erreur.
-  /// Vente matériel : seules client/date/montant/coût sont modifiables
-  /// (les lignes + quantités restent gérées par l'écran Stock pour garder
-  /// le stock cohérent) — l'écran d'édition applique déjà cette règle.
-  Future<String?> majTransaction(Tx maj) async {
-    final i = transactions.indexWhere((t) => t.id == maj.id);
-    if (i < 0) return 'Vente introuvable';
-    if (maj.montant <= 0) return 'Le montant doit être > 0';
-    if (maj.cout < 0) return 'Le coût ne peut pas être négatif';
-    transactions[i] = maj;
-    notifyListeners();
-    await CloudRepository.upsertTransaction(maj);
-    await _fileUpsert('transactions', _payloadTx(maj));
-    // Journal tenu à jour : annule l'historique de la vente puis
-    // re-comptabilise les nouvelles valeurs (point 30 — la modification
-    // laissait sinon le journal sur les anciens montants).
-    await _contrePasser(maj.id, 'correction vente');
-    await _comptabiliserVente(maj);
-    return null;
-  }
+  Future<String?> majTransaction(Tx maj) =>
+      transaction.majTransaction(maj);
 
-  /// Suppression définitive d'une vente (journal → Supprimer).
-  /// Vente matériel : le stock des produits liés est restauré
-  /// (quantités remises en rayon) avant suppression.
-  Future<void> supprimerTransaction(String id) async {
-    final i = transactions.indexWhere((t) => t.id == id);
-    if (i < 0) return;
-    final tx = transactions[i];
-    if (tx.type == TypeTransaction.venteMateriel) {
-      final lignes = (tx.details['lignes'] as List?) ?? const [];
-      for (final l in lignes) {
-        if (l is! Map) continue;
-        final pid = l['produitId']?.toString();
-        final qte = (l['quantite'] as num?)?.toInt() ?? 0;
-        if (pid == null || qte <= 0) continue;
-        final pi = produits.indexWhere((p) => p.id == pid);
-        if (pi >= 0) {
-          final restaure = produits[pi].copyWith(
-              stock: produits[pi].stock + qte);
-          produits[pi] = restaure;
-          await CloudRepository.upsertProduit(restaure);
-          await _fileUpsert('produits', _payloadProduit(restaure));
-          await _journaliser(
-            produitId: restaure.id, produitNom: restaure.libelle,
-            type: MouvementStock.retour, quantite: qte,
-            stockApres: restaure.stock,
-            motif: 'Vente supprimée (remise en rayon)', refId: id,
-          );
-        }
-      }
-    }
-    transactions.removeAt(i);
-    notifyListeners();
-    await CloudRepository.supprimerTransaction(id);
-    if (CloudRepository.actif) {
-      await SyncService()
-          .mettreEnFile({'id': id}, table: 'transactions__delete');
-    }
-    // Annulation comptable par contre-écriture (jamais de suppression).
-    await _contrePasser(id, 'vente supprimée');
-  }
+  Future<void> supprimerTransaction(String id) =>
+      transaction.supprimerTransaction(id);
 
-  /// Encaissement d'une vente à crédit : impayé/partiel → payé +
-  /// écriture BQ (D 571 / C 411). Retourne null si OK.
-  Future<String?> encaisserVente(String id) async {
-    if (!peut(Permission.vendre)) return 'Encaissement réservé à la vente';
-    final i = transactions.indexWhere((t) => t.id == id);
-    if (i < 0) return 'Vente introuvable';
-    if (transactions[i].statut == StatutPaiement.paye) {
-      return 'Déjà encaissée';
-    }
-    final tx = transactions[i].copyWith(statut: StatutPaiement.paye);
-    transactions[i] = tx;
-    notifyListeners();
-    await CloudRepository.upsertTransaction(tx);
-    await _fileUpsert('transactions', _payloadTx(tx));
-    await _poster([
-      _ligne('BQ', DateTime.now(), '571',
-          'Encaissement ${tx.clientNom ?? tx.id}', tx.montant, 0, tx.id),
-      _ligne('BQ', DateTime.now(), '411',
-          'Encaissement ${tx.clientNom ?? tx.id}', 0, tx.montant, tx.id),
-    ]);
-    return null;
-  }
+  /// Encaissement d'une vente à crédit (délégué à `transaction`).
+  Future<String?> encaisserVente(String id) =>
+      transaction.encaisserVente(id);
 
-  /// Créances clients : ventes non soldées (boutique courante, anciennes
-  /// d'abord — priorités de relance).
-  List<Tx> get creances {
-    final l = txBoutique
-        .where((t) => t.statut != StatutPaiement.paye)
-        .toList();
-    l.sort((a, b) => a.date.compareTo(b.date));
-    return l;
-  }
+  /// Créances clients : ventes non soldées (délégué à `transaction`).
+  List<Tx> get creances => transaction.creances;
 
-  double get totalCreances =>
-      creances.fold(0.0, (s, t) => s + t.montant);
+  double get totalCreances => transaction.totalCreances;
 
-  /// Balance âgée : encours impayé par tranche d'ancienneté.
-  Map<String, double> get balanceAgee {
-    final map = {'0-30 j': 0.0, '31-60 j': 0.0, '61-90 j': 0.0, '+90 j': 0.0};
-    final now = DateTime.now();
-    for (final t in creances) {
-      final jours = now.difference(t.date).inDays;
-      final cle = jours <= 30
-          ? '0-30 j'
-          : jours <= 60
-              ? '31-60 j'
-              : jours <= 90
-                  ? '61-90 j'
-                  : '+90 j';
-      map[cle] = map[cle]! + t.montant;
-    }
-    return map;
-  }
+  /// Balance âgée : encours impayé par tranche (délégué, Phase 5).
+  Map<String, double> get balanceAgee =>
+      AnalytiqueService.balanceAgee(creances, DateTime.now());
 
-  /// TVA par mois (année) : collectée (443) − déductible (445), depuis
-  /// le journal (boutique courante).
-  Map<int, (double, double)> tvaParMois(int annee) {
-    final map = <int, (double, double)>{};
-    for (var m = 1; m <= 12; m++) {
-      var collectee = 0.0, deductible = 0.0;
-      for (final e in ecrituresBoutique) {
-        if (e.date.year != annee || e.date.month != m) continue;
-        if (e.compte == '443') collectee += e.credit - e.debit;
-        if (e.compte == '445') deductible += e.debit - e.credit;
-      }
-      map[m] = (collectee, deductible);
-    }
-    return map;
-  }
+  /// TVA par mois (délégué à `AnalytiqueService`, Phase 5).
+  Map<int, (double, double)> tvaParMois(int annee) =>
+      AnalytiqueService.tvaParMois(ecrituresBoutique, annee);
 
   // ---------- Tableau de bord ----------
-  bool _memeJour(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
+  List<Tx> get txBoutique => transaction.txBoutique;
 
-  List<Tx> get txBoutique =>
-      transactions.where((t) => t.boutiqueId == _boutiqueId).toList();
+  List<Tx> get txJour => AnalytiqueService.duJour(
+      transactions, _boutiqueId, DateTime.now());
 
-  List<Tx> get txJour => txBoutique.where((t) => _memeJour(t.date, DateTime.now())).toList();
+  double get caJour =>
+      AnalytiqueService.caJour(transactions, _boutiqueId, DateTime.now());
 
-  double get caJour => txJour.fold(0.0, (s, t) => s + t.montant);
-  double get margeJour => txJour.fold(0.0, (s, t) => s + t.marge);
+  double get margeJour => AnalytiqueService.margeJour(
+      transactions, _boutiqueId, DateTime.now());
 
   String get moisCourant => C.moisKey(DateTime.now());
+
   List<Tx> get txMois =>
-      txBoutique.where((t) => C.moisKey(t.date) == moisCourant).toList();
-  double get caMois => txMois.fold(0.0, (s, t) => s + t.montant);
-  double get margeMois => txMois.fold(0.0, (s, t) => s + t.marge);
+      AnalytiqueService.duMois(transactions, _boutiqueId, moisCourant);
 
-  Map<TypeTransaction, double> get caParType {
-    final map = <TypeTransaction, double>{};
-    for (final t in txMois) {
-      map[t.type] = (map[t.type] ?? 0) + t.montant;
-    }
-    return map;
-  }
+  double get caMois =>
+      AnalytiqueService.caMois(transactions, _boutiqueId, moisCourant);
 
-  Map<String, double> get caParJour {
-    final map = <String, double>{};
-    final maintenant = DateTime.now();
-    for (var i = 29; i >= 0; i--) {
-      final jour = maintenant.subtract(Duration(days: i));
-      map['${jour.day.toString().padLeft(2, '0')}/${jour.month.toString().padLeft(2, '0')}'] = 0;
-    }
-    for (final t in txBoutique) {
-      final cle = '${t.date.day.toString().padLeft(2, '0')}/${t.date.month.toString().padLeft(2, '0')}';
-      if (map.containsKey(cle)) map[cle] = map[cle]! + t.montant;
-    }
-    return map;
-  }
+  double get margeMois =>
+      AnalytiqueService.margeMois(transactions, _boutiqueId, moisCourant);
 
-  Map<String, double> get fraisMoMoMois {
-    final map = <String, double>{};
-    for (final t in txMois.where((t) => t.type == TypeTransaction.mobileMoney)) {
-      final op = (t.details['operateur'] ?? 'Autre').toString();
-      final frais = (t.details['frais'] as num?)?.toDouble() ?? 0;
-      map[op] = (map[op] ?? 0) + frais;
-    }
-    return map;
-  }
+  Map<TypeTransaction, double> get caParType =>
+      AnalytiqueService.caParType(txMois);
 
-  // ---------- Charges ----------
-  Future<void> ajouterCharge(Charge c) async {
-    final charge = Charge(
-      id: _nid(), boutiqueId: c.boutiqueId, categorie: c.categorie,
-      libelle: c.libelle, montant: c.montant, date: c.date,
-      recurrente: c.recurrente,
-    );
-    depenses.insert(0, charge);
-    notifyListeners();
-    await CloudRepository.upsertCharge(charge);
-    await _fileUpsert('charges', {
-      'id': charge.id, 'boutique_id': charge.boutiqueId,
-      'categorie': charge.categorie, 'libelle': charge.libelle,
-      'montant': charge.montant,
-      'date_charge': charge.date.toIso8601String(),
-      'recurrente': charge.recurrente,
-    });
-    await _comptabiliserCharge(charge);
-  }
+  Map<String, double> get caParJour => AnalytiqueService.caParJour(
+      transaction.txBoutique, DateTime.now());
 
-  List<Charge> get depensesBoutique =>
-      depenses.where((c) => c.boutiqueId == _boutiqueId).toList();
+  Map<String, double> get fraisMoMoMois =>
+      AnalytiqueService.fraisMoMo(txMois);
 
-  /// Modification d'une dépense existante (écran Charges → Modifier).
-  Future<String?> majCharge(Charge maj) async {
-    final i = depenses.indexWhere((c) => c.id == maj.id);
-    if (i < 0) return 'Dépense introuvable';
-    if (maj.libelle.trim().isEmpty) return 'Libellé requis';
-    if (maj.montant <= 0) return 'Le montant doit être > 0';
-    depenses[i] = maj;
-    notifyListeners();
-    await CloudRepository.upsertCharge(maj);
-    await _fileUpsert('charges', {
-      'id': maj.id, 'boutique_id': maj.boutiqueId,
-      'categorie': maj.categorie, 'libelle': maj.libelle,
-      'montant': maj.montant,
-      'date_charge': maj.date.toIso8601String(),
-      'recurrente': maj.recurrente,
-    });
-    // Correction = contre-passation de l'ancienne + nouvelle écriture.
-    await _contrePasser(maj.id, 'correction dépense');
-    await _comptabiliserCharge(maj);
-    return null;
-  }
 
-  /// Suppression définitive d'une dépense (écran Charges → Supprimer).
-  Future<void> supprimerCharge(String id) async {
-    depenses.removeWhere((c) => c.id == id);
-    notifyListeners();
-    await CloudRepository.supprimerCharge(id);
-    if (CloudRepository.actif) {
-      await SyncService().mettreEnFile({'id': id}, table: 'charges__delete');
-    }
-    // Comme les ventes : annulation par contre-écriture (point 30).
-    await _contrePasser(id, 'charge supprimée');
-  }
+  // ---------- Charges (délégué à `charge`, Phase 5) ----------
+  Future<void> ajouterCharge(Charge c) => charge.ajouterCharge(c);
+
+  List<Charge> get depensesBoutique => charge.depensesBoutique;
+
+  Future<String?> majCharge(Charge maj) => charge.majCharge(maj);
+
+  Future<void> supprimerCharge(String id) =>
+      charge.supprimerCharge(id);
 
   List<Charge> get depensesMois =>
-      depensesBoutique.where((c) => C.moisKey(c.date) == moisCourant).toList();
+      charge.depensesMois(moisCourant);
 
-  double get totalDepensesMois => depensesMois.fold(0.0, (s, c) => s + c.montant);
+  double get totalDepensesMois =>
+      charge.totalDepensesMois(moisCourant);
 
-  double depensesCategorieMois(String categorie) => depensesMois
-      .where((c) => c.categorie == categorie)
-      .fold(0.0, (s, c) => s + c.montant);
+  double depensesCategorieMois(String categorie) =>
+      charge.depensesCategorieMois(categorie, moisCourant);
 
-  Map<String, (double, double)> get suiviBudgets {
-    final map = <String, (double, double)>{};
-    for (final entry in profile.budgetsMensuels.entries) {
-      if (entry.value > 0) {
-        map[entry.key] = (entry.value, depensesCategorieMois(entry.key));
-      }
-    }
-    return map;
-  }
+  Map<String, (double, double)> get suiviBudgets =>
+      charge.suiviBudgets(moisCourant);
 
-  /// Charges récurrentes : recopie à chaque nouveau mois (anti-double).
-  Future<void> genererChargesRecurrentesSiNouveauMois() async {
-    final mois = moisCourant;
-    if (profile.moisChargesGenerees == mois) return;
-    // Un "modèle" = (boutique, catégorie, libellé) récurrent : on ne garde
-    // que sa plus récente occurrence. Boucler sur CHAQUE ligne récurrente
-    // passée aurait dupliqué de façon exponentielle d'un mois sur l'autre
-    // (chaque copie générée est elle-même recurrente:true, donc reprise au
-    // mois suivant en plus de l'originale).
-    final parModele = <String, Charge>{};
-    for (final c in depenses.where((c) => c.recurrente)) {
-      final cle = '${c.boutiqueId}|${c.categorie}|${c.libelle}';
-      final actuel = parModele[cle];
-      if (actuel == null || c.date.isAfter(actuel.date)) parModele[cle] = c;
-    }
-    for (final c in parModele.values) {
-      if (C.moisKey(c.date) == mois) continue;
-      final charge = Charge(
-        id: _nid(), boutiqueId: c.boutiqueId, categorie: c.categorie,
-        libelle: c.libelle, montant: c.montant,
-        date: DateTime.now(), recurrente: true,
-      );
-      depenses.insert(0, charge);
-      await CloudRepository.upsertCharge(charge);
-      await _comptabiliserCharge(charge);
-    }
-    profile = profile.copyWith(moisChargesGenerees: mois);
-    notifyListeners();
-    await CloudRepository.majMoisChargesGenerees(mois);
-  }
+  Future<void> genererChargesRecurrentesSiNouveauMois() =>
+      charge.genererChargesRecurrentesSiNouveauMois(moisCourant);
 
-  // ---------- Trésorerie ----------
-  double get fondsRoulementCourant => profile.fondsRoulement[_boutiqueId] ?? 0;
+  // ---------- Trésorerie (délégué à `profil` + `CaisseService`) ----------
+  double get fondsRoulementCourant =>
+      profil.profile.fondsRoulement[_boutiqueId] ?? 0;
 
-  Future<void> definirFondsRoulement(String boutiqueId, double montant) =>
-      updateProfile(profile.copyWith(
-        fondsRoulement: {...profile.fondsRoulement, boutiqueId: montant},
-      ));
+  Future<void> definirFondsRoulement(
+          String boutiqueId, double montant) =>
+      profil.definirFonds(boutiqueId, montant);
 
-  double soldeCaisse(String boutiqueId) {
-    final ca = transactions
-        .where((t) => t.boutiqueId == boutiqueId && t.statut == StatutPaiement.paye)
-        .fold(0.0, (s, t) => s + t.montant);
-    final dep = depenses.where((c) => c.boutiqueId == boutiqueId)
-        .fold(0.0, (s, c) => s + c.montant);
-    return (profile.fondsRoulement[boutiqueId] ?? 0) + ca - dep;
-  }
+  double soldeCaisse(String boutiqueId) => CaisseService.solde(
+      transactions: transactions,
+      depenses: depenses,
+      boutiqueId: boutiqueId,
+      fondsRoulement:
+          profil.profile.fondsRoulement[boutiqueId] ?? 0);
 
   double get soldeCaisseCourant => soldeCaisse(_boutiqueId);
 
   // ---------- Comptabilité SYSCOHADA simplifiée (mission §3.3/§4) ----------
   /// Journal immuable : écritures auto-générées, corrections par
   /// contre-écriture uniquement (jamais de update/delete).
-  List<Ecriture> get ecrituresBoutique =>
-      ecritures.where((e) => e.boutiqueId == _boutiqueId).toList();
+  // ---------- Comptabilité (délégué à `compta`, Phase 5) ----------
+  // Journal immuable : écritures auto-générées, corrections par
+  // contre-écriture uniquement (jamais de update/delete).
+  List<Ecriture> get ecrituresBoutique => compta.ecrituresBoutique;
 
-  Future<void> _poster(List<Ecriture> lignes) async {
-    ecritures.insertAll(0, lignes);
-    notifyListeners();
-    for (final e in lignes) {
-      await CloudRepository.upsertEcriture(e);
-      await _fileUpsert('ecritures', _payloadEcriture(e));
-    }
-  }
+  Future<void> pointerEcriture(String id, bool pointee) =>
+      compta.pointerEcriture(id, pointee);
 
-  Map<String, dynamic> _payloadEcriture(Ecriture e) => {
-        'id': e.id, 'journal': e.journal,
-        'date_ecriture': e.date.toIso8601String(), 'compte': e.compte,
-        'libelle': e.libelle, 'debit': e.debit, 'credit': e.credit,
-        'ref_id': e.refId.isEmpty ? null : e.refId,
-        'boutique_id': e.boutiqueId, 'pointee': e.pointee,
-      };
+  List<Ecriture> get ecrituresARapprocher => compta.ecrituresARapprocher;
 
-  Ecriture _ligne(String journal, DateTime date, String compte,
-          String libelle, double debit, double credit, String refId) =>
-      Ecriture(
-        id: _nid(), journal: journal, date: date, compte: compte,
-        libelle: libelle, debit: debit, credit: credit, refId: refId,
-        boutiqueId: _boutiqueId, createdBy: user.id,
-      );
+  Map<String, double> get balance => compta.balance;
 
-  /// Vente (journal VT) : D 411 / C 70x + C 443 (TVA du profil).
-  /// Mobile Money (journal BQ) : flux caisse ↔ e-float + frais gagnés.
-  Future<void> _comptabiliserVente(Tx tx) async {
-    final tvaTx = profile.tva;
-    if (tx.type == TypeTransaction.mobileMoney) {
-      final op = (tx.details['operation']?.toString() ?? '').toLowerCase();
-      final frais =
-          (tx.details['frais'] as num?)?.toDouble() ?? 0;
-      final lignes = <Ecriture>[
-        if (op.startsWith('retrait'))
-          _ligne('BQ', tx.date, '571', 'Retrait MoMo ${tx.id}', tx.montant,
-              0, tx.id),
-        if (op.startsWith('retrait'))
-          _ligne('BQ', tx.date, '521', 'Retrait MoMo ${tx.id}', 0,
-              tx.montant, tx.id),
-        if (!op.startsWith('retrait'))
-          _ligne('BQ', tx.date, '521', 'Dépôt/Transfert MoMo ${tx.id}',
-              tx.montant, 0, tx.id),
-        if (!op.startsWith('retrait'))
-          _ligne('BQ', tx.date, '571', 'Dépôt/Transfert MoMo ${tx.id}', 0,
-              tx.montant, tx.id),
-        if (frais > 0)
-          _ligne('BQ', tx.date, '571', 'Frais MoMo ${tx.id}', frais, 0,
-              tx.id),
-        if (frais > 0)
-          _ligne('BQ', tx.date, '706', 'Frais MoMo ${tx.id}', 0, frais,
-              tx.id),
-      ];
-      await _poster(lignes);
-      return;
-    }
-    final ht = tvaTx > 0 ? tx.montant / (1 + tvaTx / 100) : tx.montant;
-    final tva = tx.montant - ht;
-    final cptProduit =
-        tx.type == TypeTransaction.venteMateriel ? '701' : '706';
-    await _poster([
-      _ligne('VT', tx.date, '411',
-          'Vente ${tx.id}${tx.clientNom != null ? ' — ${tx.clientNom}' : ''}',
-          tx.montant, 0, tx.id),
-      _ligne('VT', tx.date, cptProduit, 'Vente ${tx.id}', 0, ht, tx.id),
-      if (tva > 0.001)
-        _ligne('VT', tx.date, '443', 'TVA vente ${tx.id}', 0, tva, tx.id),
-    ]);
-  }
-
-  /// Réception achat (journal AC) : D 601 HT + D 445 TVA / C 401 TTC.
-  Future<void> _comptabiliserReception(Achat a) async {
-    await _poster([
-      _ligne('AC', a.date, '601', 'Achat ${a.numero}', a.montantHT, 0,
-          a.id),
-      if (a.montantTVA > 0.001)
-        _ligne('AC', a.date, '445', 'TVA achat ${a.numero}',
-            a.montantTVA, 0, a.id),
-      _ligne('AC', a.date, '401',
-          'Dette ${a.fournisseurNom} ${a.numero}', 0, a.montantTTC, a.id),
-    ]);
-  }
-
-  /// Paiement fournisseur (journal BQ) : D 401 / C 571 (ou 521 virement).
-  Future<void> _comptabiliserPaiementAchat(
-      Achat a, double montant, String mode) async {
-    final caisse = mode == 'virement' ? '521' : '571';
-    await _poster([
-      _ligne('BQ', DateTime.now(), '401',
-          'Paiement ${a.numero} — ${a.fournisseurNom}', montant, 0, a.id),
-      _ligne('BQ', DateTime.now(), caisse, 'Paiement ${a.numero}', 0,
-          montant, a.id),
-    ]);
-  }
-
-  /// Charge (journal OD/CA) : D 6xx / C 571.
-  Future<void> _comptabiliserCharge(Charge c) async {
-    await _poster([
-      _ligne('OD', c.date, PlanComptable.compteCharge(c.categorie),
-          c.libelle, c.montant, 0, c.id),
-      _ligne('OD', c.date, '571', c.libelle, 0, c.montant, c.id),
-    ]);
-  }
-
-  /// Contre-passation : inverse D/C de toutes les écritures liées à
-  /// [refId], avec motif. L'original reste lisible (audit trail).
-  Future<void> _contrePasser(String refId, String motif) async {
-    final origines =
-        ecritures.where((e) => e.refId == refId).toList();
-    if (origines.isEmpty) return;
-    await _poster([
-      for (final o in origines)
-        _ligne(o.journal, DateTime.now(), o.compte,
-            'Contre-passation : $motif', o.credit, o.debit, refId),
-    ]);
-  }
-
-  /// Rapprochement bancaire : pointe/dépointe une écriture (retrouvée
-  /// sur le relevé ou non). Ce n'est pas une correction comptable :
-  /// aucun montant ne change, seul le suivi de rapprochement évolue.
-  Future<void> pointerEcriture(String id, bool pointee) async {
-    final i = ecritures.indexWhere((e) => e.id == id);
-    if (i < 0) return;
-    ecritures[i] = ecritures[i].copyWith(pointee: pointee);
-    notifyListeners();
-    await CloudRepository.upsertEcriturePointee(id, pointee);
-    // Rejeu offline : payload COMPLET (l'upsert exige toutes les colonnes
-    // NOT NULL — un partiel {id, pointee} serait rejeté).
-    await _fileUpsert('ecritures', _payloadEcriture(ecritures[i]));
-  }
-
-  /// Écritures non rapprochées (journal BQ : banque/caisse).
-  List<Ecriture> get ecrituresARapprocher => ecrituresBoutique
-      .where((e) => (e.journal == 'BQ' || e.journal == 'CA') && !e.pointee)
-      .toList();
-
-  /// Balance : solde (D − C) par compte, boutique courante.
-  Map<String, double> get balance {
-    final map = <String, double>{};
-    for (final e in ecrituresBoutique) {
-      map[e.compte] = (map[e.compte] ?? 0) + e.solde;
-    }
-    return map;
-  }
-
-  /// Compte de résultat simplifié : produits (classe 7) − charges (6).
-  double get resultatExercice {
-    var produits = 0.0, charges = 0.0;
-    for (final e in balance.entries) {
-      if (e.key.startsWith('7')) produits += -e.value; // C au crédit
-      if (e.key.startsWith('6')) charges += e.value;
-    }
-    return produits - charges;
-  }
+  double get resultatExercice => compta.resultatExercice;
 
   // ---------- Documents ----------
   /// [date] = date d'émission réelle (formulaire) : affichée sur le
@@ -1821,102 +1308,23 @@ class Store extends ChangeNotifier {
   /// (à valider par admin/gérant/comptable) ; les rôles financiers
   /// émettent directement en `emis`.
   /// Retourne l'identifiant cloud (pour rattacher la signature client).
+  // ---------- Documents (délégué à `document`, Phase 5) ----------
   Future<String?> enregistrerDocument(DocumentBati d,
-      {DateTime? date}) async {
-    final doc = user.role == Role.vendeur
-        ? d.copyWith(statut: 'brouillon')
-        : d.copyWith(statut: 'emis');
-    documentsEmis.insert(0, doc);
-    notifyListeners();
-    // Copie cloud fidèle (en-tête + lignes) — ré-exploitable à volonté.
-    // La liaison signature se fait par `numero` (unique), voir
-    // joindreSignatureClient — pas besoin de conserver l'id cloud ici.
-    if (CloudRepository.actif) {
-      return CloudRepository.enregistrerDocument(doc, _boutiqueId,
-          date: date);
-    }
-    return null;
-  }
+          {DateTime? date}) =>
+      document.enregistrerDocument(d, date: date);
 
-  /// Validation manager d'un brouillon vendeur : `brouillon` → `emis`,
-  /// local + cloud. Réservé admin/gérant/comptable.
-  Future<String?> validerDocument(String numero) async {
-    if (!peut(Permission.gererDocuments) || role == Role.vendeur) {
-      return 'Validation réservée (admin, gérant, comptable)';
-    }
-    final i = documentsEmis.indexWhere((e) => e.numero == numero);
-    if (i < 0) return 'Document introuvable';
-    if (documentsEmis[i].statut == 'emis') return 'Déjà validé';
-    documentsEmis[i] = documentsEmis[i].copyWith(statut: 'emis');
-    notifyListeners();
-    await CloudRepository.majStatutDocument(
-      id: documentsEmis[i].id,
-      numero: numero,
-      statut: 'emis',
-    );
-    return null;
-  }
+  Future<String?> validerDocument(String numero) =>
+      document.validerDocument(numero);
 
-  /// Encaissement d'un document émis : `emis` → `paye` (comptabilité :
-  /// aucune écriture auto ici — l'encaissement passe par une vente).
-  /// Réservé aux détenteurs de gererDocuments (vendeur exclu).
-  Future<String?> payerDocument(String numero) async {
-    if (!peut(Permission.gererDocuments) || role == Role.vendeur) {
-      return 'Réservé (admin, gérant, comptable, caissier)';
-    }
-    final i = documentsEmis.indexWhere((e) => e.numero == numero);
-    if (i < 0) return 'Document introuvable';
-    if (documentsEmis[i].statut != 'emis') {
-      return 'Seul un document émis peut être marqué payé';
-    }
-    documentsEmis[i] = documentsEmis[i].copyWith(statut: 'paye');
-    notifyListeners();
-    await CloudRepository.majStatutDocument(
-      id: documentsEmis[i].id,
-      numero: numero,
-      statut: 'paye',
-    );
-    return null;
-  }
+  Future<String?> payerDocument(String numero) =>
+      document.payerDocument(numero);
 
-  /// Annulation avec motif : `brouillon`/`emis` → `annule` (admin/gérant).
-  /// Le document reste lisible (audit trail), jamais supprimé.
-  Future<String?> annulerDocument(String numero, String motif) async {
-    if (role != Role.admin && role != Role.gerant) {
-      return 'Annulation réservée (admin, gérant)';
-    }
-    if (motif.trim().length < 3) return 'Motif requis (3 car. min.)';
-    final i = documentsEmis.indexWhere((e) => e.numero == numero);
-    if (i < 0) return 'Document introuvable';
-    if (documentsEmis[i].statut == 'annule') return 'Déjà annulé';
-    documentsEmis[i] = documentsEmis[i].copyWith(
-        statut: 'annule', motifAnnulation: motif.trim());
-    notifyListeners();
-    await CloudRepository.majStatutDocument(
-      id: documentsEmis[i].id,
-      numero: numero,
-      statut: 'annule',
-    );
-    return null;
-  }
+  Future<String?> annulerDocument(String numero, String motif) =>
+      document.annulerDocument(numero, motif);
 
-  /// Joint la signature manuscrite du client à un document déjà émis :
-  /// mise à jour locale immédiate + upload et rattachement cloud.
   Future<void> joindreSignatureClient(
-      String numero, String cheminLocal) async {
-    final i = documentsEmis.indexWhere((e) => e.numero == numero);
-    if (i < 0) return;
-    documentsEmis[i] =
-        documentsEmis[i].copyWith(signatureClientPath: cheminLocal);
-    notifyListeners();
-    if (CloudRepository.actif) {
-      await CloudRepository.majSignatureDocument(
-        id: documentsEmis[i].id,
-        numero: numero,
-        cheminLocal: cheminLocal,
-      );
-    }
-  }
+          String numero, String cheminLocal) =>
+      document.joindreSignatureClient(numero, cheminLocal);
 
   /// Re-télécharge une signature client (chemin storage → fichier
   /// temporaire local) pour l'aperçu et la régénération PDF après
@@ -1928,35 +1336,9 @@ class Store extends ChangeNotifier {
     return CloudRepository.telechargerSignature(chemin);
   }
 
-  Future<DocumentBati> transformerDevisEnFacture(DocumentBati devis) async {
-    final facture = DocumentBati(
-      type: TypeDocument.facture,
-      numero: await numeroDocument('FACT'),
-      date: devis.date, client: devis.client, lignes: devis.lignes,
-      totalHT: devis.totalHT, tva: devis.tva,
-      totalTTC: devis.totalTTC, devise: devis.devise,
-      // La signature du client accompagne la transformation.
-      signatureClientPath: devis.signatureClientPath,
-    );
-    documentsEmis.insert(0, facture);
-    notifyListeners();
-    // La facture issue du devis est une vente ferme : sortie de stock.
-    await deduireStockPourLignes(facture.lignes);
-    // La facture garde la date du devis (y compris après rechargement).
-    if (CloudRepository.actif) {
-      await CloudRepository.enregistrerDocument(
-          facture, _boutiqueId,
-          date: DocumentService.parseAffichage(devis.date));
-    }
-    return facture;
-  }
+  Future<DocumentBati> transformerDevisEnFacture(DocumentBati devis) =>
+      document.transformerDevisEnFacture(devis);
 
-  /// Numéro de document. En production, délègue à la RPC atomique
-  /// `prochain_numero` (SECURITY DEFINER côté Supabase) : un compteur
-  /// purement local remis à zéro à chaque redémarrage de l'app aurait généré
-  /// des doublons de numéro de facture entre deux sessions ou deux appareils.
-  /// Le compteur local (CompanyProfile.prochainNumero) ne sert qu'en mode
-  /// démo/hors-ligne, ou en repli si le réseau est indisponible.
   Future<String> numeroDocument(String prefixe) async {
     if (CloudRepository.actif) {
       final numero = await CloudRepository.prochainNumero(prefixe);
@@ -1969,146 +1351,34 @@ class Store extends ChangeNotifier {
   }
 
   // ---------- Stock ----------
-  List<Produit> get produitsBoutique =>
-      produits.where((p) => p.boutiqueId == _boutiqueId).toList();
+  // ---------- Produits (délégué à `produit`, Phase 5) ----------
+  List<Produit> get produitsBoutique => produit.produitsBoutique;
 
-  List<Produit> get alertesStock => produitsBoutique.where((p) => p.alerte).toList();
+  List<Produit> get alertesStock => produit.alertesStock;
 
-  /// Mise en file offline-first générique : toute écriture directe
-  /// (produit, partenaire, charge, tarif…) est rejouée vers Supabase au
-  /// retour du réseau. Sans cela, seul ajouterTransaction() survivait au
-  /// hors-ligne — les autres écritures passaient par _silencieux et
-  /// étaient réellement perdues si l'appareil était hors-ligne.
-  Future<void> _fileUpsert(String table, Map<String, dynamic> payload) async {
-    if (!CloudRepository.actif) return;
-    await SyncService().mettreEnFile(payload, table: table);
-  }
+  Future<String?> ajouterProduit(Produit p) =>
+      produit.ajouterProduit(p);
 
-  bool _memeLibelle(String a, String b) =>
-      a.trim().toLowerCase() == b.trim().toLowerCase();
+  Future<String?> majProduit(Produit p) => produit.majProduit(p);
 
-  /// Normalisation anti-doublon (point 35) : casse + accents
-  /// (É=E, è=e, ç=c…) — les catégories « Électricité » et
-  /// « electricite » sont le même doublon.
-  static const _accents = {
-    'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a',
-    'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
-    'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i',
-    'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
-    'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
-    'ý': 'y', 'ÿ': 'y', 'ç': 'c', 'ñ': 'n',
-    'À': 'A', 'Á': 'A', 'Â': 'A', 'Ã': 'A', 'Ä': 'A', 'Å': 'A',
-    'È': 'E', 'É': 'E', 'Ê': 'E', 'Ë': 'E',
-    'Ì': 'I', 'Í': 'I', 'Î': 'I', 'Ï': 'I',
-    'Ò': 'O', 'Ó': 'O', 'Ô': 'O', 'Õ': 'O', 'Ö': 'O',
-    'Ù': 'U', 'Ú': 'U', 'Û': 'U', 'Ü': 'U',
-    'Ý': 'Y', 'Ÿ': 'Y', 'Ç': 'C', 'Ñ': 'N',
-  };
+  Future<void> archiverProduit(String id) =>
+      produit.archiverProduit(id);
 
-  static String sansAccents(String s) =>
-      s.split('').map((c) => _accents[c] ?? c).join();
+  Future<String?> supprimerProduit(String id,
+          {bool forcerArchive = false}) =>
+      produit.supprimerProduit(id, forcerArchive: forcerArchive);
 
-  static bool memeCategorie(String a, String b) =>
-      sansAccents(a.trim().toLowerCase()) ==
-      sansAccents(b.trim().toLowerCase());
+  Future<List<String>> deduireStockPourLignes(List<LigneDoc> lignes,
+          {String refId = '', DateTime? date}) =>
+      produit.deduireStockPourLignes(
+          [for (final l in lignes) {'libelle': l.libelle, 'quantite': l.quantite}],
+          refId: refId,
+          date: date);
 
-  /// Ajout produit : retourne un message d'erreur si doublon (même libellé
-  /// dans la même boutique), null si OK. L'appelant n'ajoute RIEN tant que
-  /// l'erreur est non-nulle — c'est ce qui empêchait les doublons lors des
-  /// corrections (l'écran re-soumettait après le dialogue marge négative).
-  Future<String?> ajouterProduit(Produit p) async {
-    if (p.libelle.trim().length < 2) return 'Libellé requis (2 car. min.)';
-    if (produits.any((x) =>
-        x.boutiqueId == p.boutiqueId && _memeLibelle(x.libelle, p.libelle))) {
-      return '« ${p.libelle.trim()} » existe déjà dans cette boutique — modifiez sa fiche au lieu de le recréer';
-    }
-    // Id régénéré en uuid v4 : la colonne Postgres est de type uuid ; un id
-    // fourni par l'écran (ex. horodatage) ferait échouer silencieusement
-    // l'upsert cloud (_silencieux avale l'erreur) — le produit semblerait
-    // ajouté puis disparaîtrait au prochain chargement depuis Supabase.
-    final produit = Produit(
-      id: _nid(), boutiqueId: p.boutiqueId, libelle: p.libelle.trim(),
-      categorie: p.categorie, prixAchat: p.prixAchat, prixVente: p.prixVente,
-      stock: p.stock, seuil: p.seuil, imagePath: p.imagePath,
-      images: p.images,
-    );
-    produits.add(produit);
-    notifyListeners();
-    await CloudRepository.upsertProduit(produit);
-    await _fileUpsert('produits', _payloadProduit(produit));
-    await _syncCatalogueDepuisProduit(produit);
-    return null;
-  }
-
-  Map<String, dynamic> _payloadProduit(Produit p) => {
-        'id': p.id, 'boutique_id': p.boutiqueId, 'libelle': p.libelle,
-        'categorie': p.categorie, 'prix_achat': p.prixAchat,
-        'prix_vente': p.prixVente, 'quantite_stock': p.stock,
-        'seuil_alerte': p.seuil, 'actif': true,
-      };
-
-  /// Modification complète d'un produit (tap sur la fiche stock).
-  /// Retourne une erreur si le nouveau libellé collide avec un AUTRE produit.
-  Future<String?> majProduit(Produit p) async {
-    final i = produits.indexWhere((x) => x.id == p.id);
-    if (i < 0) return 'Produit introuvable';
-    if (produits.any((x) =>
-        x.id != p.id &&
-        x.boutiqueId == p.boutiqueId &&
-        _memeLibelle(x.libelle, p.libelle))) {
-      return 'Un autre produit porte déjà ce nom dans cette boutique';
-    }
-    final avant = produits[i].stock;
-    produits[i] = p;
-    notifyListeners();
-    await CloudRepository.upsertProduit(p);
-    await _fileUpsert('produits', _payloadProduit(p));
-    await _syncCatalogueDepuisProduit(p);
-    // Correction manuelle du stock via la fiche : tracée (mission 1 §1.3).
-    if (p.stock != avant) {
-      await _journaliser(
-        produitId: p.id, produitNom: p.libelle,
-        type: MouvementStock.ajustement, quantite: p.stock - avant,
-        stockApres: p.stock, motif: 'Correction fiche produit',
-      );
-    }
-    return null;
-  }
-
-  Future<void> archiverProduit(String id) async {
-    final i = produits.indexWhere((x) => x.id == id);
-    if (i >= 0) {
-      produits.removeAt(i);
-      notifyListeners();
-      await CloudRepository.archiverProduit(id);
-      await _fileUpsert(
-          'produits', {'id': id, 'actif': false});
-    }
-  }
-
-  /// Suppression définitive avec garde-fou : si des transactions existantes
-  /// référencent le produit (détail produitId), la suppression est refusée
-  /// et l'archivage conseillé (l'historique financier reste cohérent).
-  /// Sécurité (mission §2.6) : seuls admin/gérant retirent un article —
-  /// un vendeur (gererStock) peut créer/modifier/vendre mais pas supprimer.
-  /// Retourne null si supprimé/archivé, sinon le motif du refus.
-  Future<String?> supprimerProduit(String id, {bool forcerArchive = false}) async {
-    if (role != Role.admin && role != Role.gerant) {
-      return 'Retrait d\'article réservé (admin, gérant)';
-    }
-    final i = produits.indexWhere((x) => x.id == id);
-    if (i < 0) return 'Produit introuvable';
-    final lie = transactions.any((t) {
-      final lignes = (t.details['lignes'] as List?) ?? const [];
-      return lignes.any((l) =>
-          l is Map && l['produitId']?.toString() == id);
-    });
-    if (lie && !forcerArchive) {
-      return 'Ce produit a déjà été vendu — archivez-le plutôt pour garder un historique cohérent';
-    }
-    await archiverProduit(id);
-    return null;
-  }
+  Future<void> vendreProduit(Produit p, int quantite,
+          {String? clientNom, DateTime? date}) =>
+      produit.vendreProduit(p, quantite,
+          clientNom: clientNom, date: date);
 
   /// Tout produit du stock est automatiquement présent au catalogue
   /// (même libellé, prix = prix de vente) : la vente sans stock et les
@@ -2143,88 +1413,16 @@ class Store extends ChangeNotifier {
         'images': t.images,
       };
 
-  /// Décrémente le stock pour chaque ligne dont le libellé correspond à un
-  /// produit de la boutique courante (facture, ticket, bordereau validé).
-  /// Les lignes sans correspondance sont ignorées (service, article libre).
-  /// Chaque sortie est journalisée ([refId] = id du document d'origine).
-  /// Retourne la liste des libellés ignorés faute de stock suffisant.
-  Future<List<String>> deduireStockPourLignes(List<LigneDoc> lignes,
-      {String refId = '', DateTime? date}) async {
-    final ignores = <String>[];
-    for (final l in lignes) {
-      final i = produits.indexWhere((p) =>
-          p.boutiqueId == _boutiqueId && _memeLibelle(p.libelle, l.libelle));
-      if (i < 0) continue;
-      final p = produits[i];
-      if (p.stock < l.quantite) {
-        ignores.add('${l.libelle} (stock ${p.stock})');
-        continue;
-      }
-      final maj = p.copyWith(stock: p.stock - l.quantite);
-      produits[i] = maj;
-      await CloudRepository.upsertProduit(maj);
-      await _fileUpsert('produits', _payloadProduit(maj));
-      await _journaliser(
-        produitId: maj.id, produitNom: maj.libelle,
-        type: MouvementStock.sortie, quantite: -l.quantite,
-        stockApres: maj.stock, motif: 'Document commercial', refId: refId,
-        date: date,
-      );
-    }
-    if (ignores.isEmpty) {
-      // notifyListeners déjà déclenché par les upserts ? non : on le fait.
-    }
-    notifyListeners();
-    return ignores;
-  }
+  // ---------- Mouvements (délégué à `stockMouvements`, Phase 5) ----------
+  List<MouvementStock> get mouvementsBoutique =>
+      stockMouvements.mouvementsBoutique(_boutiqueId);
 
-  Future<void> vendreProduit(Produit p, int quantite,
-      {String? clientNom, DateTime? date}) async {
-    if (quantite > p.stock) throw StateError('Stock insuffisant');
-    final idx = produits.indexWhere((x) => x.id == p.id);
-    if (idx < 0) throw StateError('Produit introuvable');
-    final produit = p.copyWith(stock: p.stock - quantite);
-    produits[idx] = produit;
-    notifyListeners();
-    // Sans cet upsert, seule la transaction de vente était synchronisée :
-    // le stock décrémenté restait local et revenait à son ancienne valeur
-    // au prochain chargement depuis Supabase.
-    await CloudRepository.upsertProduit(produit);
-    await _fileUpsert('produits', _payloadProduit(produit));
-    final txId = await ajouterTransaction(
-      type: TypeTransaction.venteMateriel,
-      montant: p.prixVente * quantite,
-      cout: p.prixAchat * quantite,
-      clientNom: clientNom,
-      date: date,
-      details: {'lignes': [
-        {'produitId': p.id, 'libelle': p.libelle,
-         'quantite': quantite, 'prixUnitaire': p.prixVente}
-      ]},
-    );
-    await _journaliser(
-      produitId: produit.id, produitNom: produit.libelle,
-      type: MouvementStock.sortie, quantite: -quantite,
-      stockApres: produit.stock,
-      motif: clientNom == null ? 'Vente directe' : 'Vente — $clientNom',
-      refId: txId, date: date,
-    );
-  }
-
-  // ---------- Mouvements de stock (mission 1, §1.3) ----------
-  /// Historique traçable : toute variation de quantité passe par ici
-  /// (vente, réception, document, annulation, ajustement manuel).
-  List<MouvementStock> get mouvementsBoutique => mouvements
-      .where((m) => m.boutiqueId == _boutiqueId)
-      .toList();
-
-  List<MouvementStock> mouvementsProduit(String produitId) => mouvements
-      .where((m) => m.produitId == produitId)
-      .toList();
+  List<MouvementStock> mouvementsProduit(String produitId) =>
+      stockMouvements.mouvementsProduit(produitId);
 
   /// Valorisation du stock (quantité × coût d'achat courant).
   double get valeurStock =>
-      produitsBoutique.fold(0.0, (s, p) => s + p.stock * p.prixAchat);
+      StockService.valorisation(produit.produitsBoutique);
 
   Future<void> _journaliser({
     required String produitId,
@@ -2235,529 +1433,128 @@ class Store extends ChangeNotifier {
     String motif = '',
     String refId = '',
     DateTime? date,
-  }) async {
-    final m = MouvementStock(
-      id: _nid(), boutiqueId: _boutiqueId, produitId: produitId,
-      produitNom: produitNom, type: type, quantite: quantite,
-      stockApres: stockApres, motif: motif, refId: refId,
-      date: date ?? DateTime.now(), createdBy: user.id,
-    );
-    mouvements.insert(0, m);
-    notifyListeners();
-    await CloudRepository.upsertMouvement(m);
-    await _fileUpsert('mouvements_stock', {
-      'id': m.id, 'boutique_id': m.boutiqueId, 'produit_id': m.produitId,
-      'produit_nom': m.produitNom, 'type': m.type, 'quantite': m.quantite,
-      'stock_apres': m.stockApres, 'motif': m.motif, 'ref_id': m.refId,
-      'date_mouvement': m.date.toIso8601String(),
-      'created_by': m.createdBy,
-    });
+  }) =>
+      stockMouvements.journaliser(
+        produitId: produitId,
+        produitNom: produitNom,
+        type: type,
+        quantite: quantite,
+        stockApres: stockApres,
+        boutiqueId: _boutiqueId,
+        motif: motif,
+        refId: refId,
+        date: date,
+      );
+
+  Future<void> _fileUpsert(
+      String table, Map<String, dynamic> payload) async {
+    if (!CloudRepository.actif) return;
+    await SyncService().mettreEnFile(payload, table: table);
   }
 
-  /// Ajustement manuel (correction, perte, casse, don) avec motif
-  /// obligatoire. Retourne null si OK, sinon un message d'erreur.
+  Map<String, dynamic> _payloadProduit(Produit p) => {
+        'id': p.id,
+        'boutique_id': p.boutiqueId,
+        'libelle': p.libelle,
+        'categorie': p.categorie,
+        'prix_achat': p.prixAchat,
+        'prix_vente': p.prixVente,
+        'quantite_stock': p.stock,
+        'seuil_alerte': p.seuil,
+        'actif': true,
+      };
+
+  bool _memeLibelle(String a, String b) =>
+      a.trim().toLowerCase() == b.trim().toLowerCase();
+
+  /// Normalisation anti-doublon (point 35) : casse + accents.
+  /// Conservée ici car `tarifs_screen.dart` l'utilise via `Store.*`
+  /// (la Phase 5 délèguera tout le module tarifs).
+  static String sansAccents(String s) =>
+      Normalisation.sansAccents(s);
+
+  static bool memeCategorie(String a, String b) =>
+      Normalisation.memeCategorie(a, b);
+
+  /// Ajustement manuel (délégué à `stockMouvements`, Phase 5).
   Future<String?> ajusterStock(String produitId, int nouveauStock,
-      String motif) async {
-    if (!peut(Permission.gererStock)) {
-      return 'Réservé à la gestion du stock';
-    }
-    if (motif.trim().length < 3) return 'Motif requis (3 car. min.)';
-    if (nouveauStock < 0) return 'Le stock ne peut pas être négatif';
-    final i = produits.indexWhere((x) => x.id == produitId);
-    if (i < 0) return 'Produit introuvable';
-    final avant = produits[i].stock;
-    if (avant == nouveauStock) return 'Aucun changement';
-    final maj = produits[i].copyWith(stock: nouveauStock);
-    produits[i] = maj;
-    notifyListeners();
-    await CloudRepository.upsertProduit(maj);
-    await _fileUpsert('produits', _payloadProduit(maj));
-    await _journaliser(
-      produitId: maj.id, produitNom: maj.libelle,
-      type: MouvementStock.ajustement, quantite: nouveauStock - avant,
-      stockApres: nouveauStock, motif: motif.trim(),
-    );
-    return null;
-  }
+          String motif) =>
+      stockMouvements.ajusterStock(
+          produitId, nouveauStock, motif, _boutiqueId);
 
   // ---------- Analytique CA & dépenses (mission 3, §3.1/3.2) ----------
   /// Jours calendaires couvrant [fin] et les [jours]-1 jours précédents.
-  List<AgregatPeriode> _serieJours(
-      DateTime fin, int jours, List<(DateTime, double, double)> lignes) {
-    final parJour = <String, AgregatPeriode>{};
-    final refs = <String, DateTime>{};
-    for (var i = jours - 1; i >= 0; i--) {
-      final j = DateTime(fin.year, fin.month, fin.day)
-          .subtract(Duration(days: i));
-      final cle = '${j.year}-${j.month}-${j.day}';
-      refs[cle] = j;
-      parJour[cle] = AgregatPeriode(
-        label:
-            '${j.day.toString().padLeft(2, '0')}/${j.month.toString().padLeft(2, '0')}',
-        debut: j, montant: 0, nb: 0,
-      );
-    }
-    final compteurs = <String, (double, int, double)>{};
-    for (final (date, montant, marge) in lignes) {
-      final cle = '${date.year}-${date.month}-${date.day}';
-      if (!parJour.containsKey(cle)) continue;
-      final (m, n, mg) = compteurs[cle] ?? (0.0, 0, 0.0);
-      compteurs[cle] = (m + montant, n + 1, mg + marge);
-    }
-    return [
-      for (final e in parJour.entries)
-        AgregatPeriode(
-          label: e.value.label, debut: refs[e.key]!,
-          montant: compteurs[e.key]?.$1 ?? 0,
-          nb: compteurs[e.key]?.$2 ?? 0,
-          marge: compteurs[e.key]?.$3 ?? 0,
-        ),
-    ];
-  }
+  // ---------- Analytique (délégué à `analytique`, Phase 5) ----------
+  List<AgregatPeriode> ca7Jours({DateTime? fin}) =>
+      analytique.ca7Jours(fin: fin);
 
-  /// CA jour par jour sur les 7 derniers jours (boutique courante).
-  List<AgregatPeriode> ca7Jours({DateTime? fin}) => _serieJours(
-      fin ?? DateTime.now(), 7,
-      [for (final t in txBoutique) (t.date, t.montant, t.marge)]);
+  List<AgregatPeriode> depenses7Jours({DateTime? fin}) =>
+      analytique.depenses7Jours(fin: fin);
 
-  /// Dépenses jour par jour sur les 7 derniers jours.
-  List<AgregatPeriode> depenses7Jours({DateTime? fin}) => _serieJours(
-      fin ?? DateTime.now(), 7,
-      [for (final c in depensesBoutique) (c.date, c.montant, 0.0)]);
+  List<AgregatPeriode> caParMois(int annee) =>
+      analytique.caParMois(annee);
 
-  List<AgregatPeriode> _serieMois(
-      int annee, List<(DateTime, double, double)> lignes) =>
-      [
-        for (var mois = 1; mois <= 12; mois++)
-          AgregatPeriode(
-            label: mois.toString().padLeft(2, '0'),
-            debut: DateTime(annee, mois),
-            montant: lignes
-                .where((l) => l.$1.year == annee && l.$1.month == mois)
-                .fold(0.0, (s, l) => s + l.$2),
-            nb: lignes
-                .where((l) => l.$1.year == annee && l.$1.month == mois)
-                .length,
-            marge: lignes
-                .where((l) => l.$1.year == annee && l.$1.month == mois)
-                .fold(0.0, (s, l) => s + l.$3),
-          ),
-      ];
+  List<AgregatPeriode> depensesParMois(int annee) =>
+      analytique.depensesParMois(annee);
 
-  /// CA mensuel sur l'année (12 mois, même vides).
-  List<AgregatPeriode> caParMois(int annee) => _serieMois(
-      annee, [for (final t in txBoutique) (t.date, t.montant, t.marge)]);
+  List<AgregatPeriode> caParAnnee() => analytique.caParAnnee();
 
-  /// Dépenses mensuelles sur l'année.
-  List<AgregatPeriode> depensesParMois(int annee) => _serieMois(
-      annee, [for (final c in depensesBoutique) (c.date, c.montant, 0.0)]);
+  List<AgregatPeriode> depensesParAnnee() =>
+      analytique.depensesParAnnee();
 
-  List<AgregatPeriode> _serieAnnees(
-      List<(DateTime, double, double)> lignes) {
-    final annees = anneesDonnees();
-    return [
-      for (final a in annees)
-        AgregatPeriode(
-          label: '$a',
-          debut: DateTime(a),
-          montant: lignes
-              .where((l) => l.$1.year == a)
-              .fold(0.0, (s, l) => s + l.$2),
-          nb: lignes.where((l) => l.$1.year == a).length,
-          marge: lignes
-              .where((l) => l.$1.year == a)
-              .fold(0.0, (s, l) => s + l.$3),
-        ),
-    ];
-  }
+  List<int> anneesDonnees() => analytique.anneesDonnees();
 
-  /// CA annuel, toutes années présentes dans les données.
-  List<AgregatPeriode> caParAnnee() =>
-      _serieAnnees([for (final t in txBoutique) (t.date, t.montant, t.marge)]);
+  // ---------- Partenaires (délégué à `partenaire`, Phase 5) ----------
+  Future<String?> ajouterPartenaire(Partenaire p) =>
+      partenaire.ajouterPartenaire(p);
 
-  /// Dépenses annuelles.
-  List<AgregatPeriode> depensesParAnnee() => _serieAnnees(
-      [for (final c in depensesBoutique) (c.date, c.montant, 0.0)]);
+  Future<String?> majPartenaire(Partenaire p) =>
+      partenaire.majPartenaire(p);
 
-  /// Années présentes dans les données (transactions + dépenses).
-  List<int> anneesDonnees() {
-    final set = <int>{
-      for (final t in txBoutique) t.date.year,
-      for (final c in depensesBoutique) c.date.year,
-    };
-    final l = set.toList()..sort();
-    return l;
-  }
+  Future<void> desactiverPartenaire(String id) =>
+      partenaire.desactiverPartenaire(id);
 
-  // ---------- Partenaires ----------
-  /// Retourne une erreur si un partenaire du même nom existe déjà, sinon null.
-  Future<String?> ajouterPartenaire(Partenaire p) async {
-    if (p.nom.trim().length < 2) return 'Nom requis (2 car. min.)';
-    if (partenaires.any((x) => _memeLibelle(x.nom, p.nom))) {
-      return '« ${p.nom.trim()} » existe déjà — modifiez sa fiche au lieu de le recréer';
-    }
-    final partenaire = Partenaire(
-      id: _nid(), nom: p.nom.trim(), telephone: p.telephone.trim(),
-      localisation: p.localisation.trim(), taux: p.taux, actif: p.actif,
-    );
-    partenaires.add(partenaire);
-    notifyListeners();
-    await CloudRepository.upsertPartenaire(partenaire);
-    await _fileUpsert('partenaires', {
-      'id': partenaire.id, 'nom': partenaire.nom,
-      'telephone': partenaire.telephone,
-      'localisation': partenaire.localisation,
-      'taux_partage': partenaire.taux, 'actif': partenaire.actif,
-    });
-    return null;
-  }
+  Future<String?> supprimerPartenaire(String id) =>
+      partenaire.supprimerPartenaire(id);
 
-  /// Il n'existait aucune méthode de modification : l'écran partenaires
-  /// appelait ajouterPartenaire même pour "Modifier le partenaire", ce qui
-  /// régénérait un nouvel id et AJOUTAIT un doublon au lieu de mettre à
-  /// jour la fiche existante.
-  /// Retourne une erreur si le nom collide avec un AUTRE partenaire.
-  Future<String?> majPartenaire(Partenaire p) async {
-    final i = partenaires.indexWhere((x) => x.id == p.id);
-    if (i < 0) return 'Partenaire introuvable';
-    if (partenaires.any(
-        (x) => x.id != p.id && _memeLibelle(x.nom, p.nom))) {
-      return 'Un autre partenaire porte déjà ce nom';
-    }
-    partenaires[i] = p;
-    notifyListeners();
-    await CloudRepository.upsertPartenaire(p);
-    await _fileUpsert('partenaires', {
-      'id': p.id, 'nom': p.nom, 'telephone': p.telephone,
-      'localisation': p.localisation, 'taux_partage': p.taux,
-      'actif': p.actif,
-    });
-    return null;
-  }
-
-  /// Désactivation (conserve l'historique : ventes et partages) — le chemin
-  /// normal de « suppression » d'un partenaire.
-  Future<void> desactiverPartenaire(String id) async {
-    final i = partenaires.indexWhere((x) => x.id == id);
-    if (i < 0) return;
-    final p = partenaires[i].copyWith(actif: false);
-    partenaires[i] = p;
-    notifyListeners();
-    await CloudRepository.upsertPartenaire(p);
-    await _fileUpsert('partenaires', {'id': p.id, 'actif': false});
-  }
-
-  /// Suppression définitive : refusée si le partenaire a des ventes ou des
-  /// clôtures (désactivation proposée à la place) pour ne jamais orpheliner
-  /// l'historique financier. Retourne null si supprimé, sinon le motif.
-  Future<String?> supprimerPartenaire(String id) async {
-    final i = partenaires.indexWhere((x) => x.id == id);
-    if (i < 0) return 'Partenaire introuvable';
-    final aVendu = transactions.any((t) => t.partenaireId == id);
-    final aCloture = partages.any((p) => p.partenaireId == id);
-    if (aVendu || aCloture) {
-      return 'Ce partenaire a un historique (ventes/clôtures) — désactivez-le plutôt pour le conserver';
-    }
-    partenaires.removeAt(i);
-    notifyListeners();
-    await CloudRepository.supprimerPartenaire(id);
-    await _fileUpsert('partenaires', {'id': id, 'actif': false});
-    return null;
-  }
-
+  // ---------- Partenaires : clôture (délégué, Phase 5) ----------
   double ventesPartenaireMois(String partenaireId, String mois) =>
-      transactions.where((t) =>
-          t.partenaireId == partenaireId &&
-          t.type == TypeTransaction.forfaitHotspot &&
-          C.moisKey(t.date) == mois).fold(0.0, (s, t) => s + t.montant);
+      PartageService.totalVentes(
+          transactions, partenaireId, mois);
 
   bool partageExiste(String partenaireId, String mois) =>
-      partages.any((p) => p.partenaireId == partenaireId && p.mois == mois);
+      partenaire.partageExiste(partenaireId, mois);
 
-  Future<Partage> cloturerMois(String partenaireId, String mois) async {
-    final partenaire = partenaires.firstWhere((p) => p.id == partenaireId);
-    if (CloudRepository.actif) {
-      // Production : RPC atomique côté serveur (calcul + anti-double).
-      final res = await CloudRepository.cloturer(partenaireId, _boutiqueId, mois);
-      if (res == null) throw StateError('Clôture impossible (réseau ou déjà clôturé)');
-      final pg = Partage.calculer(
-        id: res['id'].toString(), partenaireId: partenaireId, mois: mois,
-        totalVentes: (res['total_ventes'] as num).toDouble(),
-        taux: (res['taux_partage'] as num).toDouble(),
-      );
-      partages.insert(0, pg);
-      notifyListeners();
-      return pg;
-    }
-    final total = ventesPartenaireMois(partenaireId, mois);
-    final pg = Partage.calculer(
-      id: _nid(), partenaireId: partenaireId, mois: mois,
-      totalVentes: total, taux: partenaire.taux,
-    );
-    partages.insert(0, pg);
-    notifyListeners();
-    return pg;
-  }
+  Future<Partage> cloturerMois(String partenaireId, String mois) =>
+      partenaire.cloturerMois(partenaireId, mois, _boutiqueId);
 
   List<Partage> partagesDe(String partenaireId) =>
-      partages.where((p) => p.partenaireId == partenaireId).toList();
+      partenaire.partagesDe(partenaireId);
 
-  // ---------- Achats fournisseurs (Phase 2) ----------
-  /// Cycle : demande/en_attente (aucun impact) → valide (dette) →
-  /// recu (stock+ CUMP) + paiements (charges Fournisseurs) ; annule
-  /// avec motif, contre-écriture stock si déjà reçu. Toute action
-  /// sensible est tracée (createdBy + motif).
-  List<Achat> get achatsBoutique =>
-      achats.where((a) => a.boutiqueId == _boutiqueId).toList();
+  // ---------- Achats (délégué à `achat`, Phase 5) ----------
+  List<Achat> get achatsBoutique => achat.achatsBoutique;
 
-  List<Achat> get achatsEnAttente => achatsBoutique
-      .where((a) =>
-          a.statut == Achat.statutDemande ||
-          a.statut == Achat.statutEnAttente)
-      .toList();
+  List<Achat> get achatsEnAttente => achat.achatsEnAttente;
 
-  double get totalAchatsMois => achatsBoutique
-      .where((a) =>
-          a.statut != Achat.statutAnnule &&
-          C.moisKey(a.date) == moisCourant)
-      .fold(0.0, (s, a) => s + a.montantTTC);
+  double get totalAchatsMois => achat.totalAchatsMois(moisCourant);
 
-  double get duFournisseurs => achatsBoutique
-      .where((a) =>
-          a.statut == Achat.statutValide ||
-          a.statut == Achat.statutRecu)
-      .fold(0.0, (s, a) => s + a.montantRestant);
+  double get duFournisseurs => achat.duFournisseurs;
 
-  Map<String, dynamic> _payloadAchat(Achat a) => {
-        'id': a.id, 'numero': a.numero, 'boutique_id': a.boutiqueId,
-        'fournisseur_id': a.fournisseurId.isEmpty ? null : a.fournisseurId,
-        'fournisseur_nom': a.fournisseurNom,
-        'lignes': [for (final l in a.lignes) l.toJson()],
-        'date_achat': a.date.toIso8601String(), 'statut': a.statut,
-        'mode_paiement': a.modePaiement,
-        'reference_facture': a.referenceFacture, 'notes': a.notes,
-        'motif_annulation': a.motifAnnulation,
-        'montant_paye': a.montantPaye, 'created_by': a.createdBy,
-      };
+  Future<String?> creerAchat(Achat brouillon) =>
+      achat.creerAchat(brouillon);
 
-  /// Création : vendeur/caissier (sans gererAchats) ⇒ statut `demande`
-  /// imposé, sans accès aux actions suivantes. Retourne null si OK.
-  Future<String?> creerAchat(Achat brouillon) async {
-    if (brouillon.fournisseurNom.trim().length < 2) {
-      return 'Fournisseur requis (2 car. min.)';
-    }
-    if (brouillon.lignes.isEmpty) return 'Ajoutez au moins une ligne';
-    for (final l in brouillon.lignes) {
-      if (l.produitNom.trim().isEmpty) return 'Ligne sans libellé';
-      if (l.quantite <= 0) return 'Quantité > 0 requise (${l.produitNom})';
-      if (l.prixUnitaire < 0) return 'Prix invalide (${l.produitNom})';
-    }
-    final statut = peut(Permission.gererAchats)
-        ? (brouillon.statut == Achat.statutDemande
-            ? Achat.statutDemande
-            : Achat.statutEnAttente)
-        : Achat.statutDemande;
-    final a = Achat(
-      id: _nid(), numero: await numeroDocument('ACH'),
-      boutiqueId: brouillon.boutiqueId,
-      fournisseurId: brouillon.fournisseurId,
-      fournisseurNom: brouillon.fournisseurNom.trim(),
-      lignes: brouillon.lignes, date: brouillon.date, statut: statut,
-      modePaiement: brouillon.modePaiement,
-      referenceFacture: brouillon.referenceFacture?.trim(),
-      notes: brouillon.notes?.trim(),
-      createdBy: user.id, createdAt: DateTime.now(),
-    );
-    achats.insert(0, a);
-    notifyListeners();
-    await CloudRepository.upsertAchat(a);
-    await _fileUpsert('achats', _payloadAchat(a));
-    return null;
-  }
+  Future<String?> majAchat(Achat maj) => achat.majAchat(maj);
 
-  /// Correction d'un brouillon (demande/en_attente uniquement).
-  Future<String?> majAchat(Achat maj) async {
-    final i = achats.indexWhere((x) => x.id == maj.id);
-    if (i < 0) return 'Achat introuvable';
-    final actuel = achats[i];
-    if (actuel.statut != Achat.statutDemande &&
-        actuel.statut != Achat.statutEnAttente) {
-      return 'Seule une demande ou un achat en attente est modifiable';
-    }
-    if (maj.lignes.isEmpty) return 'Ajoutez au moins une ligne';
-    achats[i] = maj;
-    notifyListeners();
-    await CloudRepository.upsertAchat(maj);
-    await _fileUpsert('achats', _payloadAchat(maj));
-    return null;
-  }
+  Future<String?> validerAchat(String id) => achat.validerAchat(id);
 
-  /// Validation : demande/en_attente → valide (dette fournisseur).
-  /// Aucun impact stock ni trésorerie à ce stade.
-  Future<String?> validerAchat(String id) async {
-    if (!peut(Permission.gererAchats)) return 'Réservé (admin, gérant, comptable)';
-    final i = achats.indexWhere((x) => x.id == id);
-    if (i < 0) return 'Achat introuvable';
-    if (!achats[i].peutValider) return 'Statut incompatible avec la validation';
-    achats[i] = achats[i].copyWith(statut: Achat.statutValide);
-    notifyListeners();
-    await CloudRepository.upsertAchat(achats[i]);
-    await _fileUpsert('achats', _payloadAchat(achats[i]));
-    return null;
-  }
+  Future<String?> recevoirAchat(String id) => achat.recevoirAchat(id);
 
-  /// Réception : valide → recu + entrée stock (CUMP) par ligne.
-  /// Ligne liée à un produit : stock += qté, prixAchat = moyenne pondérée.
-  /// Ligne libre : crée la fiche produit (prixVente = prixAchat, à ajuster).
-  Future<String?> recevoirAchat(String id) async {
-    if (!peut(Permission.gererAchats)) return 'Réservé (admin, gérant, comptable)';
-    final i = achats.indexWhere((x) => x.id == id);
-    if (i < 0) return 'Achat introuvable';
-    final a = achats[i];
-    if (!a.peutRecevoir) return 'Validez d\'abord cet achat';
-    for (final l in a.lignes) {
-      final pi = produits.indexWhere((p) =>
-          p.boutiqueId == a.boutiqueId &&
-          (l.produitId.isNotEmpty
-              ? p.id == l.produitId
-              : _memeLibelle(p.libelle, l.produitNom)));
-      if (pi >= 0) {
-        final p = produits[pi];
-        final qte = (l.quantite).toInt();
-        final nouveauStock = p.stock + qte;
-        // CUMP : (stock × ancien PA + qté × nouveau PA) / nouveau stock.
-        final cump = nouveauStock > 0
-            ? (p.stock * p.prixAchat + l.quantite * l.prixUnitaire) /
-                nouveauStock
-            : l.prixUnitaire;
-        final maj = p.copyWith(stock: nouveauStock, prixAchat: cump);
-        produits[pi] = maj;
-        await CloudRepository.upsertProduit(maj);
-        await _fileUpsert('produits', _payloadProduit(maj));
-        await _journaliser(
-          produitId: maj.id, produitNom: maj.libelle,
-          type: MouvementStock.entree, quantite: qte,
-          stockApres: nouveauStock,
-          motif: 'Réception ${a.numero} — ${a.fournisseurNom}',
-          refId: a.id, date: a.date,
-        );
-      } else {
-        final nouveau = Produit(
-          id: _nid(), boutiqueId: a.boutiqueId,
-          libelle: l.produitNom.trim(), categorie: 'Autre',
-          prixAchat: l.prixUnitaire, prixVente: l.prixUnitaire,
-          stock: l.quantite.toInt(), seuil: 3,
-        );
-        produits.add(nouveau);
-        await CloudRepository.upsertProduit(nouveau);
-        await _fileUpsert('produits', _payloadProduit(nouveau));
-        await _syncCatalogueDepuisProduit(nouveau);
-        await _journaliser(
-          produitId: nouveau.id, produitNom: nouveau.libelle,
-          type: MouvementStock.entree, quantite: l.quantite.toInt(),
-          stockApres: nouveau.stock,
-          motif: 'Création à la réception ${a.numero}', refId: a.id,
-          date: a.date,
-        );
-      }
-    }
-    achats[i] = a.copyWith(statut: Achat.statutRecu);
-    notifyListeners();
-    await CloudRepository.upsertAchat(achats[i]);
-    await _fileUpsert('achats', _payloadAchat(achats[i]));
-    await _comptabiliserReception(a);
-    return null;
-  }
-
-  /// Paiement total ou partiel : met à jour le payé/restant et enregistre
-  /// une charge « Fournisseurs » (sortie de trésorerie traçable).
   Future<String?> payerAchat(String id, double montant,
-      {String? mode}) async {
-    if (!peut(Permission.gererAchats)) return 'Réservé (admin, gérant, comptable)';
-    final i = achats.indexWhere((x) => x.id == id);
-    if (i < 0) return 'Achat introuvable';
-    final a = achats[i];
-    if (!a.peutPayer) return 'Aucun montant à payer sur cet achat';
-    if (montant <= 0) return 'Montant > 0 requis';
-    if (montant > a.montantRestant + 0.001) {
-      return 'Montant supérieur au reste dû (${a.montantRestant.toStringAsFixed(0)})';
-    }
-    final paye = (a.montantPaye + montant).clamp(0.0, a.montantTTC);
-    achats[i] = a.copyWith(
-        montantPaye: paye, modePaiement: mode ?? a.modePaiement);
-    final charge = Charge(
-      id: _nid(), boutiqueId: a.boutiqueId, categorie: 'Fournisseurs',
-      libelle: 'Paiement ${a.numero} — ${a.fournisseurNom}',
-      montant: montant, date: DateTime.now(), recurrente: false,
-    );
-    depenses.insert(0, charge);
-    notifyListeners();
-    await CloudRepository.upsertAchat(achats[i]);
-    await _fileUpsert('achats', _payloadAchat(achats[i]));
-    await CloudRepository.upsertCharge(charge);
-    await _fileUpsert('charges', {
-      'id': charge.id, 'boutique_id': charge.boutiqueId,
-      'categorie': charge.categorie, 'libelle': charge.libelle,
-      'montant': charge.montant,
-      'date_charge': charge.date.toIso8601String(),
-      'recurrente': charge.recurrente,
-    });
-    // La charge « Fournisseurs » sert la trésorerie (dépenses) : elle ne
-    // poste PAS d'écriture OD — le paiement est comptabilisé une seule
-    // fois ci-dessous (D 401 / C 571), sinon la caisse serait débitée
-    // deux fois pour un seul paiement (point 30).
-    await _comptabiliserPaiementAchat(
-        achats[i], montant, mode ?? a.modePaiement);
-    return null;
-  }
+          {String? mode}) =>
+      achat.payerAchat(id, montant, mode: mode);
 
-  /// Annulation avec motif obligatoire. Si déjà reçu : contre-écriture
-  /// stock (retrait des quantités, plancher 0) — jamais de suppression
-  /// d'écriture, l'historique reste lisible.
-  Future<String?> annulerAchat(String id, String motif) async {
-    if (!peut(Permission.gererAchats)) return 'Réservé (admin, gérant, comptable)';
-    if (motif.trim().length < 3) return 'Motif requis (3 car. min.)';
-    final i = achats.indexWhere((x) => x.id == id);
-    if (i < 0) return 'Achat introuvable';
-    final a = achats[i];
-    if (!a.peutAnnuler) return 'Achat déjà annulé';
-    if (a.statut == Achat.statutRecu) {
-      for (final l in a.lignes) {
-        final pi = produits.indexWhere((p) =>
-            p.boutiqueId == a.boutiqueId &&
-            (l.produitId.isNotEmpty
-                ? p.id == l.produitId
-                : _memeLibelle(p.libelle, l.produitNom)));
-        if (pi >= 0) {
-          final p = produits[pi];
-          final maj = p.copyWith(
-              stock: (p.stock - l.quantite.toInt()).clamp(0, 1 << 30));
-          produits[pi] = maj;
-          await CloudRepository.upsertProduit(maj);
-          await _fileUpsert('produits', _payloadProduit(maj));
-          await _journaliser(
-            produitId: maj.id, produitNom: maj.libelle,
-            type: MouvementStock.ajustement,
-            quantite: maj.stock - p.stock, stockApres: maj.stock,
-            motif: 'Annulation ${a.numero} : ${motif.trim()}',
-            refId: a.id,
-          );
-        }
-      }
-    }
-    achats[i] = a.copyWith(
-        statut: Achat.statutAnnule, motifAnnulation: motif.trim());
-    notifyListeners();
-    // Annulation comptable : contre-passation de TOUTES les écritures
-    // liées (réception AC + éventuels paiements BQ) — remise à zéro
-    // nette ; les objets Charge « Paiement » restent en trésorerie.
-    if (a.statut == Achat.statutRecu) {
-      await _contrePasser(a.id, 'annulation ${a.numero}');
-    }
-    await CloudRepository.upsertAchat(achats[i]);
-    await _fileUpsert('achats', _payloadAchat(achats[i]));
-    return null;
-  }
+  Future<String?> annulerAchat(String id, String motif) =>
+      achat.annulerAchat(id, motif);
 
   // ---------- Sérialisation (persistance locale) ----------
   Map<String, dynamic> toJson() => {

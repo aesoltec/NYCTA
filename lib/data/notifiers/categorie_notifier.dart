@@ -17,20 +17,29 @@ class CategorieNotifier extends ChangeNotifier {
   final List<Produit> produits;
   final List<Charge> depenses;
 
-  final List<String> catsProduit =
-      List<String>.of(C.categoriesProduit);
-  final List<String> catsCharge =
-      List<String>.of(categoriesCharge);
-  final List<String> opsMobileMoney =
-      List<String>.of(C.operateurs);
-  final List<String> opsCredit =
-      List<String>.of(C.operateursCredit);
-  final List<String> domainesPresta =
-      List<String>.of(C.domaines);
-  final List<String> dureesForfaitListe =
-      List<String>.of(C.dureesForfait);
+  final List<String> catsProduit;
+  final List<String> catsCharge;
+  final List<String> opsMobileMoney;
+  final List<String> opsCredit;
+  final List<String> domainesPresta;
+  final List<String> dureesForfaitListe;
 
-  CategorieNotifier({required this.produits, required this.depenses});
+  CategorieNotifier({
+    required this.produits,
+    required this.depenses,
+    List<String>? catsProduit,
+    List<String>? catsCharge,
+    List<String>? opsMobileMoney,
+    List<String>? opsCredit,
+    List<String>? domainesPresta,
+    List<String>? dureesForfaitListe,
+  })  : catsProduit = catsProduit ?? List<String>.of(C.categoriesProduit),
+        catsCharge = catsCharge ?? List<String>.of(categoriesCharge),
+        opsMobileMoney = opsMobileMoney ?? List<String>.of(C.operateurs),
+        opsCredit = opsCredit ?? List<String>.of(C.operateursCredit),
+        domainesPresta = domainesPresta ?? List<String>.of(C.domaines),
+        dureesForfaitListe =
+            dureesForfaitListe ?? List<String>.of(C.dureesForfait);
 
   Future<String?> ajouterCategorie(String nom,
       {required bool produit}) async {

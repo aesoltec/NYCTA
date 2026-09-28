@@ -1,3 +1,4 @@
+import '../../models/analytique.dart';
 import '../../models/charge.dart';
 import '../../models/ecriture.dart';
 import '../../models/enums.dart';
@@ -131,4 +132,93 @@ class AnalytiqueService {
     }
     return map;
   }
+
+  /// Frais Mobile Money par opérateur sur une liste de ventes du mois.
+  static Map<String, double> fraisMoMo(
+      Iterable<Tx> txsMois) {
+    final map = <String, double>{};
+    for (final t in txsMois
+        .where((t) => t.type == TypeTransaction.mobileMoney)) {
+      final op = (t.details['operateur'] ?? 'Autre').toString();
+      final frais = (t.details['frais'] as num?)?.toDouble() ?? 0;
+      map[op] = (map[op] ?? 0) + frais;
+    }
+    return map;
+  }
+
+  /// Jours calendaires couvrant [fin] et les [jours]-1 jours précédents.
+  /// Chaque ligne = (date, montant, marge). Identique à `Store._serieJours`.
+  static List<AgregatPeriode> serieJours(DateTime fin, int jours,
+      List<(DateTime, double, double)> lignes) {
+    final parJour = <String, AgregatPeriode>{};
+    final refs = <String, DateTime>{};
+    for (var i = jours - 1; i >= 0; i--) {
+      final j = DateTime(fin.year, fin.month, fin.day)
+          .subtract(Duration(days: i));
+      final cle = '${j.year}-${j.month}-${j.day}';
+      refs[cle] = j;
+      parJour[cle] = AgregatPeriode(
+        label:
+            '${j.day.toString().padLeft(2, '0')}/${j.month.toString().padLeft(2, '0')}',
+        debut: j,
+        montant: 0,
+        nb: 0,
+      );
+    }
+    final compteurs = <String, (double, int, double)>{};
+    for (final (date, montant, marge) in lignes) {
+      final cle = '${date.year}-${date.month}-${date.day}';
+      if (!parJour.containsKey(cle)) continue;
+      final (m, n, mg) = compteurs[cle] ?? (0.0, 0, 0.0);
+      compteurs[cle] = (m + montant, n + 1, mg + marge);
+    }
+    return [
+      for (final e in parJour.entries)
+        AgregatPeriode(
+          label: e.value.label,
+          debut: refs[e.key]!,
+          montant: compteurs[e.key]?.$1 ?? 0,
+          nb: compteurs[e.key]?.$2 ?? 0,
+          marge: compteurs[e.key]?.$3 ?? 0,
+        ),
+    ];
+  }
+
+  /// 12 mois d'une année (même vides). Identique à `Store._serieMois`.
+  static List<AgregatPeriode> serieMois(
+          int annee, List<(DateTime, double, double)> lignes) =>
+      [
+        for (var mois = 1; mois <= 12; mois++)
+          AgregatPeriode(
+            label: mois.toString().padLeft(2, '0'),
+            debut: DateTime(annee, mois),
+            montant: lignes
+                .where((l) => l.$1.year == annee && l.$1.month == mois)
+                .fold(0.0, (s, l) => s + l.$2),
+            nb: lignes
+                .where((l) => l.$1.year == annee && l.$1.month == mois)
+                .length,
+            marge: lignes
+                .where((l) => l.$1.year == annee && l.$1.month == mois)
+                .fold(0.0, (s, l) => s + l.$3),
+          ),
+      ];
+
+  /// Une entrée par année présente. Identique à `Store._serieAnnees`.
+  static List<AgregatPeriode> serieAnnees(
+      List<int> annees, List<(DateTime, double, double)> lignes) =>
+      [
+        for (final a in annees)
+          AgregatPeriode(
+            label: '$a',
+            debut: DateTime(a),
+            montant: lignes
+                .where((l) => l.$1.year == a)
+                .fold(0.0, (s, l) => s + l.$2),
+            nb: lignes.where((l) => l.$1.year == a).length,
+            marge: lignes
+                .where((l) => l.$1.year == a)
+                .fold(0.0, (s, l) => s + l.$3),
+          ),
+      ];
 }

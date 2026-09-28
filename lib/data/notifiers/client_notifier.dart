@@ -11,9 +11,13 @@ class ClientNotifier extends ChangeNotifier {
   final String Function() genererId;
   String boutiqueId;
 
-  final List<Client> clients = [];
+  final List<Client> clients;
 
-  ClientNotifier({required this.genererId, this.boutiqueId = ''});
+  ClientNotifier(
+      {required this.genererId,
+      this.boutiqueId = '',
+      List<Client>? clients})
+      : clients = clients ?? [];
 
   List<Client> get clientsBoutique =>
       clients.where((c) => c.boutiqueId == boutiqueId).toList();

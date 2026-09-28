@@ -82,5 +82,18 @@ void main() {
       expect(m.stockApres, 7);
       expect(m.motif, 'Casse');
     });
+
+    test('mouvementsBoutique filtre', () async {
+      final n = _notifier();
+      await n.journaliser(
+          produitId: 'p1',
+          produitNom: 'Câble',
+          type: MouvementStock.entree,
+          quantite: 5,
+          stockApres: 15,
+          boutiqueId: 'b2');
+      expect(n.mouvementsBoutique('b1'), isEmpty);
+      expect(n.mouvementsBoutique('b2').length, 1);
+    });
   });
 }

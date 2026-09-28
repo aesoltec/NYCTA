@@ -13,14 +13,15 @@ class BoutiqueNotifier extends ChangeNotifier {
   final SessionNotifier session;
   final String Function() genererId;
 
-  final List<Boutique> boutiques = [];
+  final List<Boutique> boutiques;
   String boutiqueId;
 
   BoutiqueNotifier({
     required this.session,
     required this.genererId,
+    List<Boutique>? boutiques,
     this.boutiqueId = '',
-  });
+  }) : boutiques = boutiques ?? [];
 
   Boutique get boutiqueCourante =>
       boutiques.firstWhere((b) => b.id == boutiqueId);

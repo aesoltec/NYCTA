@@ -131,8 +131,63 @@ void main() {
     });
   });
 
-  group('AnalytiqueService.totalDepensesMois', () {
-    test('somme', () {
+  group('AnalytiqueService.series (Phase 5)', () {
+    test('serieJours : 7 entrées datées, hors fenêtre ignorés', () {
+      final s = AnalytiqueService.serieJours(
+          DateTime(2026, 9, 26), 7, [(DateTime(2026, 9, 26, 10), 100.0, 20.0),
+            (DateTime(2026, 9, 1, 10), 999.0, 0.0)]);
+      expect(s.length, 7);
+      expect(s.last.label, '26/09');
+      expect(s.last.montant, 100.0);
+      expect(s.last.nb, 1);
+      expect(s.last.marge, 20.0);
+      expect(s.fold(0.0, (t, e) => t + e.montant), 100.0);
+    });
+
+    test('serieMois : 12 mois même vides', () {
+      final s = AnalytiqueService.serieMois(2026,
+          [(DateTime(2026, 3, 5), 500.0, 100.0)]);
+      expect(s.length, 12);
+      expect(s[2].label, '03');
+      expect(s[2].montant, 500.0);
+      expect(s[2].nb, 1);
+      expect(s[0].montant, 0.0);
+    });
+
+    test('serieAnnees : une entrée par année', () {
+      final s = AnalytiqueService.serieAnnees([2025, 2026],
+          [(DateTime(2026, 1, 1), 700.0, 70.0)]);
+      expect(s.length, 2);
+      expect(s.first.label, '2025');
+      expect(s.first.montant, 0.0);
+      expect(s.last.montant, 700.0);
+    });
+
+    test('fraisMoMo : par opérateur, mobileMoney seul', () {
+      final m1 = Tx(
+          id: 'm1',
+          boutiqueId: 'b1',
+          employeId: 'u',
+          type: TypeTransaction.mobileMoney,
+          montant: 10000,
+          date: DateTime(2026, 9, 1),
+          details: {'operateur': 'Orange Money', 'frais': 400});
+      final txs = [
+        m1,
+        _tx('m2', 'prestationService', 50000, DateTime(2026, 9, 2)),
+      ];
+      final map = AnalytiqueService.fraisMoMo(txs);
+      expect(map, {'Orange Money': 400.0});
+    });
+
+    test('fraisMoMo : opérateur absent → Autre', () {
+      final map = AnalytiqueService.fraisMoMo(
+          [_tx('m', 'mobileMoney', 100, DateTime(2026, 9, 1))]);
+      expect(map, {'Autre': 0.0});
+    });
+  });
+
+  group('AnalytiqueService.totalDepensesMois', () {    test('somme', () {
       expect(
           AnalytiqueService.totalDepensesMois([
             Charge(

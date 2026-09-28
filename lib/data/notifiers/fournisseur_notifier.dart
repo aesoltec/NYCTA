@@ -9,9 +9,10 @@ import '../../services/cloud_repository.dart';
 class FournisseurNotifier extends ChangeNotifier {
   final String Function() genererId;
 
-  final List<Fournisseur> fournisseurs = [];
+  final List<Fournisseur> fournisseurs;
 
-  FournisseurNotifier({required this.genererId});
+  FournisseurNotifier({required this.genererId, List<Fournisseur>? fournisseurs})
+      : fournisseurs = fournisseurs ?? [];
 
   Future<String?> ajouterFournisseur(Fournisseur f) async {
     if (f.nom.trim().length < 2) return 'Nom trop court';

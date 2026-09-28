@@ -61,12 +61,14 @@ void main() {
       expect(s.users, isEmpty);
     });
 
-    test('monPartenaireId + profilCloudManquant modifiables', () {
+    test('monPartenaireId + flags modifiables', () {
       final s = _session();
       s.monPartenaireId = 'pt1';
       s.profilCloudManquant = true;
+      s.demarrageHorsLigne = true;
       expect(s.monPartenaireId, 'pt1');
       expect(s.profilCloudManquant, isTrue);
+      expect(s.demarrageHorsLigne, isTrue);
     });
   });
 }

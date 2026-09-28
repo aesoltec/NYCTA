@@ -18,16 +18,23 @@ class CollabNotifier extends ChangeNotifier {
   final Future<void> Function(String table, Map<String, dynamic> payload)?
       fileUpsert;
 
-  final List<Message> messages = [];
-  final List<Evenement> evenements = [];
-  final List<Note> notesPerso = [];
-  final List<Feedback> feedbacks = [];
+  final List<Message> messages;
+  final List<Evenement> evenements;
+  final List<Note> notesPerso;
+  final List<Feedback> feedbacks;
 
   CollabNotifier({
     required this.session,
     required this.genererId,
     this.fileUpsert,
-  });
+    List<Message>? messages,
+    List<Evenement>? evenements,
+    List<Note>? notesPerso,
+    List<Feedback>? feedbacks,
+  })  : messages = messages ?? [],
+        evenements = evenements ?? [],
+        notesPerso = notesPerso ?? [],
+        feedbacks = feedbacks ?? [];
 
   // ---------- Messagerie ----------
   List<Message> get messagesVisibles => messages

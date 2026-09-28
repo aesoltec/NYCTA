@@ -228,5 +228,21 @@ void main() {
       expect(await n.annulerAchat(id, 'Encore'),
           contains('déjà annulé'));
     });
+
+    test('getters boutique : en-attente, total mois, dû', () async {
+      final (:n, :appels) = _notifier();
+      n.boutiqueId = 'b1';
+      await n.creerAchat(_brouillon());
+      expect(n.achatsBoutique.length, 1);
+      expect(n.achatsEnAttente.length, 1);
+      expect(n.totalAchatsMois('2026-09'), 2400.0);
+      expect(n.totalAchatsMois('2026-08'), 0.0);
+      expect(n.duFournisseurs, 0.0); // en_attente : pas de dette
+      await n.validerAchat(n.achats.first.id);
+      expect(n.duFournisseurs, 2400.0);
+      n.boutiqueId = 'b2';
+      expect(n.achatsBoutique, isEmpty);
+      expect(n.duFournisseurs, 0.0);
+    });
   });
 }

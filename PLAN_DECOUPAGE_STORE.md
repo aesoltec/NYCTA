@@ -31,10 +31,17 @@ CUMP via StockService), `DocumentNotifier` (workflow + numérotation).
 `ComptaNotifier` (journal immuable + contre-passations via
 ComptaService), `AnalytiqueNotifier` (agrégats via AnalytiqueService).
 
-## Phase 5 — Façade et nettoyage
-`Store` réduit à une façade légère exposant les mêmes APIs
-(composition des Notifiers, délégation pure). Suppression progressive
-du monolithe. `store.dart` < 200 lignes.
+## Phase 5 — Façade et nettoyage ✅ (2026-09-28)
+`Store` devenu façade : 16 Notifiers câblés (listes partagées par
+référence), toute la logique métier déléguée (users, boutiques,
+catégories, clients, fournisseurs, collab, charges, stock, produits,
+transactions, achats, documents, compta, analytique, partenaires).
+Restent dans la façade (par design) : construction/wiring, seed démo,
+chargement cloud/snapshot, sérialisation, tarifs, utilitaires.
+`store.dart` : 3114 → 1915 lignes. Suite 321/321, analyze 0 erreur.
+Correctifs wiring : closures paresseuses (LateError `compta`),
+`depenses`/`users` partagés (refId compta), double-insert paiement
+(contrat `ajouterChargeDepense` = persistance seule).
 
 ## Règles
 - Ne jamais supprimer de code fonctionnel avant l'équivalent branché.

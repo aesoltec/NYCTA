@@ -19,14 +19,15 @@ class PartenaireNotifier extends ChangeNotifier {
   final Future<void> Function(String table, Map<String, dynamic> payload)?
       fileUpsert;
 
-  final List<Partenaire> partenaires = [];
+  final List<Partenaire> partenaires;
 
   PartenaireNotifier({
     required this.genererId,
     required this.transactions,
     required this.partages,
     this.fileUpsert,
-  });
+    List<Partenaire>? partenaires,
+  }) : partenaires = partenaires ?? [];
 
   Future<String?> ajouterPartenaire(Partenaire p) async {
     if (p.nom.trim().length < 2) return 'Nom requis (2 car. min.)';

@@ -20,14 +20,15 @@ class DocumentNotifier extends ChangeNotifier {
   final Future<List<String>> Function(List<LigneDoc> lignes)? deduireStock;
   String boutiqueId;
 
-  final List<DocumentBati> documentsEmis = [];
+  final List<DocumentBati> documentsEmis;
 
   DocumentNotifier({
     required this.session,
     required this.numeroDocument,
     this.deduireStock,
     this.boutiqueId = '',
-  });
+    List<DocumentBati>? documentsEmis,
+  }) : documentsEmis = documentsEmis ?? [];
 
   Future<String?> enregistrerDocument(DocumentBati d,
       {DateTime? date}) async {

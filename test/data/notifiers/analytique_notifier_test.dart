@@ -23,18 +23,30 @@ Charge _charge(String id, double montant, DateTime date) => Charge(
     date: date);
 
 AnalytiqueNotifier _notifier() => AnalytiqueNotifier(
-      txBoutique: [
+      transactions: [
         _tx('t1', 10000, DateTime(2026, 9, 26, 10)),
         _tx('t2', 5000, DateTime(2026, 9, 25, 10)),
         _tx('t3', 7000, DateTime(2026, 8, 15, 10)),
       ],
-      depensesBoutique: [
+      depenses: [
         _charge('c1', 3000, DateTime(2026, 9, 22)),
         _charge('c2', 4000, DateTime(2025, 5, 5)),
       ],
+      boutiqueId: 'b1',
     );
 
 void main() {
+  group('AnalytiqueNotifier filtre boutique', () {
+    test('txBoutique/depensesBoutique filtrent', () {
+      final n = _notifier();
+      expect(n.txBoutique.length, 3);
+      n.boutiqueId = 'b2';
+      expect(n.txBoutique, isEmpty);
+      expect(n.depensesBoutique, isEmpty);
+      expect(n.caParAnnee(), isEmpty);
+    });
+  });
+
   group('AnalytiqueNotifier séries', () {
     test('ca7Jours : 7 entrées, labels jj/mm', () {
       final n = _notifier();
@@ -81,7 +93,8 @@ void main() {
     });
 
     test('données vides → séries à zéro', () {
-      final n = AnalytiqueNotifier(txBoutique: [], depensesBoutique: []);
+      final n = AnalytiqueNotifier(
+          transactions: [], depenses: [], boutiqueId: 'b1');
       expect(n.ca7Jours(fin: DateTime(2026, 9, 26)).length, 7);
       expect(
           n.ca7Jours(fin: DateTime(2026, 9, 26))

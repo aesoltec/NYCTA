@@ -12,10 +12,13 @@ class SessionNotifier extends ChangeNotifier {
   AppUser user;
   String? monPartenaireId;
   bool profilCloudManquant = false;
+  bool demarrageHorsLigne = false;
 
-  final List<AppUser> users = [];
+  final List<AppUser> users;
 
-  SessionNotifier(this.user, {this.monPartenaireId});
+  SessionNotifier(this.user,
+      {this.monPartenaireId, List<AppUser>? users})
+      : users = users ?? [];
 
   Role get role => user.role;
   bool peut(Permission p) => user.peut(p);

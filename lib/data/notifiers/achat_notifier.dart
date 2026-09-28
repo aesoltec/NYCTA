@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../core/constants.dart';
 import '../../models/achat.dart';
 import '../../models/charge.dart';
 import '../../models/enums.dart';
@@ -17,9 +18,9 @@ import 'session_notifier.dart';
 /// callbacks `fileUpsert`, `upsertProduitLocal`, `syncCatalogue`,
 /// `journaliser`, `ajouterChargeDepense`, `comptabiliserReception`,
 /// `comptabiliserPaiement`, `contrePasser` (câblés Phase 5, no-op en test).
-/// Contrat `ajouterChargeDepense` : insère la charge TELLE QUELLE
-/// (id déjà attribué, SANS recomptabiliser — le paiement poste déjà
-/// en BQ, sinon double caisse, cf. point 30).
+/// Contrat `ajouterChargeDepense` : PERSISTE seulement (cloud + file) —
+/// l'insertion en liste est déjà faite par le Notifier lui-même, et le
+/// paiement poste déjà en BQ (sinon double caisse, cf. point 30).
 /// Extrait à l'identique de `Store` (l.2545-2760).
 class AchatNotifier extends ChangeNotifier {
   final SessionNotifier session;
@@ -50,6 +51,7 @@ class AchatNotifier extends ChangeNotifier {
   final Future<void> Function(Achat a, double montant, String mode)?
       comptabiliserPaiement;
   final Future<void> Function(String refId, String motif)? contrePasser;
+  String boutiqueId;
 
   AchatNotifier({
     required this.session,
@@ -68,7 +70,29 @@ class AchatNotifier extends ChangeNotifier {
     this.comptabiliserReception,
     this.comptabiliserPaiement,
     this.contrePasser,
+    this.boutiqueId = '',
   });
+
+  List<Achat> get achatsBoutique =>
+      achats.where((a) => a.boutiqueId == boutiqueId).toList();
+
+  List<Achat> get achatsEnAttente => achatsBoutique
+      .where((a) =>
+          a.statut == Achat.statutDemande ||
+          a.statut == Achat.statutEnAttente)
+      .toList();
+
+  double totalAchatsMois(String moisKey) => achatsBoutique
+      .where((a) =>
+          a.statut != Achat.statutAnnule &&
+          C.moisKey(a.date) == moisKey)
+      .fold(0.0, (s, a) => s + a.montantTTC);
+
+  double get duFournisseurs => achatsBoutique
+      .where((a) =>
+          a.statut == Achat.statutValide ||
+          a.statut == Achat.statutRecu)
+      .fold(0.0, (s, a) => s + a.montantRestant);
 
   static bool _meme(String a, String b) =>
       a.trim().toLowerCase() == b.trim().toLowerCase();

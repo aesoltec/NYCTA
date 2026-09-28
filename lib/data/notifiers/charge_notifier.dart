@@ -17,17 +17,31 @@ class ChargeNotifier extends ChangeNotifier {
   final ProfileNotifier profile;
   final Future<void> Function(Charge charge)? comptabiliser;
   final Future<void> Function(String refId, String motif)? contrePasser;
+  final Future<void> Function(String table, Map<String, dynamic> payload)?
+      fileUpsert;
   String boutiqueId;
 
-  final List<Charge> depenses = [];
+  final List<Charge> depenses;
 
   ChargeNotifier({
     required this.genererId,
     required this.profile,
     this.comptabiliser,
     this.contrePasser,
+    this.fileUpsert,
     this.boutiqueId = '',
-  });
+    List<Charge>? depenses,
+  }) : depenses = depenses ?? [];
+
+  Map<String, dynamic> _payload(Charge c) => {
+        'id': c.id,
+        'boutique_id': c.boutiqueId,
+        'categorie': c.categorie,
+        'libelle': c.libelle,
+        'montant': c.montant,
+        'date_charge': c.date.toIso8601String(),
+        'recurrente': c.recurrente,
+      };
 
   List<Charge> get depensesBoutique =>
       depenses.where((c) => c.boutiqueId == boutiqueId).toList();
@@ -45,6 +59,7 @@ class ChargeNotifier extends ChangeNotifier {
     depenses.insert(0, charge);
     notifyListeners();
     await CloudRepository.upsertCharge(charge);
+    await fileUpsert?.call('charges', _payload(charge));
     await comptabiliser?.call(charge);
   }
 
@@ -56,6 +71,7 @@ class ChargeNotifier extends ChangeNotifier {
     depenses[i] = maj;
     notifyListeners();
     await CloudRepository.upsertCharge(maj);
+    await fileUpsert?.call('charges', _payload(maj));
     // Correction = contre-passation de l'ancienne + nouvelle écriture.
     await contrePasser?.call(maj.id, 'correction dépense');
     await comptabiliser?.call(maj);

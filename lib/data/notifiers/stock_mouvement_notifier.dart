@@ -19,18 +19,24 @@ class StockMouvementNotifier extends ChangeNotifier {
   final Future<void> Function(String table, Map<String, dynamic> payload)?
       fileUpsert;
 
-  final List<MouvementStock> mouvements = [];
+  final List<MouvementStock> mouvements;
 
   StockMouvementNotifier({
     required this.session,
     required this.genererId,
     required this.produits,
     this.fileUpsert,
-  });
+    List<MouvementStock>? mouvements,
+  }) : mouvements = mouvements ?? [];
 
   List<MouvementStock> mouvementsProduit(String produitId) => mouvements
       .where((m) => m.produitId == produitId)
       .toList();
+
+  List<MouvementStock> mouvementsBoutique(String boutiqueId) =>
+      mouvements
+          .where((m) => m.boutiqueId == boutiqueId)
+          .toList();
 
   Future<void> journaliser({
     required String produitId,
