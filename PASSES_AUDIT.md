@@ -287,6 +287,20 @@ Contexte : audit d'écarts entre le plan de correction et l'état du code.
 9. Tests ✅ — export_service 5/5, achat_test (images), clients_test (IFU/crédit) ; suite 158/158.
 10. Contre-expertise finale ✅ — AppImage limite : URLs http non affichées (fallback) — local-first assumé et documenté (plan A2 : jamais dépendre uniquement du cloud).
 
+### Phase 0 — Services purs du découpage Store (2026-09-28)
+Contexte : `PLAN_DECOUPAGE_STORE.md` créé (inexistant avant) ; extraction
+de logique PURE sans branchement (Store inchangé).
+1. Fonctionnelle ✅ — 5 services : StockService (CUMP, valorisation, mouvements, alertes), CaisseService (solde), PartageService (total + clôture), AnalytiqueService (CA/marges/types/jours/créances/âgée/TVA), ComptaService (5 générateurs + contre-passation + balance + résultat).
+2. Métier ✅ — formules recopiées à l'identique du Store (CUMP l.2629, solde l.1644, VT/BQ/AC/OD, TVA HT = TTC/(1+t)).
+3. Contre-expertise ✅ — `genererId`/`maintenant` injectés (testabilité, pas de clock) ; coquille `'BQ'=='BQ'` interceptée à la relecture et corrigée avant test.
+4. Sécurité ✅ — aucun I/O, aucune policy.
+5. Overflow ✅ — code pur, aucun layout.
+6. Cycle de vie ✅ — fonctions statiques, aucun état.
+7. Persistance ✅ — aucune (services sans état).
+8. Analyze ✅ — 0 erreur (imports `../../` corrigés : `lib/data/services/` = 2 niveaux).
+9. Tests ✅ — `test/data/` 42 tests (11 stock + 4 caisse + 4 partage + 12 analytique + 17 compta, dont équilibre D=C systématique) ; `const Charge` retiré (ctor non-const).
+10. Contre-expertise finale ✅ — services NON branchés (volontaire, Phase 1+) : zéro régression possible, Store intact.
+
 ### Vérification AppBar écrans/vues (2026-09-28)
 Audit : 36 Scaffold dans `lib/screens/` — 33 avec AppBar, 3 sans (login normal + Stock/Dépenses corrigés en push).
 1. Fonctionnelle ✅ — `login_screen.dart` sans AppBar : normal (écran de connexion).
