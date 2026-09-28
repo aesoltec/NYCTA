@@ -34,6 +34,7 @@
 | Phase 0 découpage | Services purs Store | ✅ | PLAN_DECOUPAGE_STORE.md + lib/data/services/* (5 services) + test/data/* 42 tests ; Store intact (non branché) | 2026-09-28 |
 | Phase 1 découpage | Notifiers autonomes | ✅ | lib/data/notifiers/* (session, boutique, profile, categorie, collab) + lib/data/normalisation.dart + test/data/notifiers/* 39 tests ; Store intact (non branché) | 2026-09-28 |
 | Phase 2 découpage | Notifiers métier simples | ✅ | lib/data/notifiers/* (client, fournisseur, partenaire, charge, stock_mouvement) + test/data/notifiers/* 24 tests ; Store intact (non branché) | 2026-09-28 |
+| Phase 3 découpage | Notifiers métier critiques | ✅ | lib/data/notifiers/* (produit, transaction, achat, document) + test/data/notifiers/* 27 tests ; Store intact (non branché) | 2026-09-28 |
 | 26 | Filtre spécialité + recherche + export Fournisseurs | ✅ | fournisseurs_screen.dart sur FiltrePanel (recherche nom/tél/spé + dropdown spécialités) + menu export PDF/Excel/CSV ; ecrans_test | 2026-09-26 |
 | 27 | Recherche + filtre Clients | ✅ | clients_screen.dart sur FiltrePanel (recherche nom/tél/adresse + chips Tous/Professionnels/Particuliers) ; clients_test.dart | 2026-09-26 |
 | 28 | Champs clients étendus (RIB, RCCM, logo, coordonnées) | ✅ | Client.email/rccm/rib/logoPath + formulaire (Email/RCCM/RIB/logo bucket media) + migration SQL + upsert avec repli ; fromJson rétrocompatible | 2026-09-26 |

@@ -352,3 +352,16 @@ Contexte : 5 Notifiers créés, testés, NON branchés (Store intact).
 8. Analyze ✅ — 0 erreur.
 9. Tests ✅ — 24 tests (5 client + 5 fournisseur + 6 partenaire + 5 charge + 3 stock-mouvement) ; suite 273/273.
 10. Contre-expertise finale ✅ — NON branchés (volontaire) : zéro régression ; branchement Phase 5.
+
+### Phase 3 — Notifiers métier critiques (2026-09-28)
+Contexte : 4 Notifiers créés, testés, NON branchés (Store intact).
+1. Fonctionnelle ✅ — Produit (CRUD + galerie + archivage + vente atomique + déduction), Transaction (CRUD + crédit + encaissement + restauration stock), Achat (cycle complet + CUMP + paiements + annulation), Document (workflow + signature + devis→facture).
+2. Métier ✅ — règles recopiées à l'identique (`CloudTx.dbValue` snake_case corrigé vs `type.name`, seuils validation, tri créances, date devis conservée) ; contrat `ajouterChargeDepense` documenté (sans recomptabiliser, point 30).
+3. Contre-expertise ✅ — dépendances par constructeur/callbacks ; Partenaire/Produit fidèles (casse seule) ; stub journaliser rendu fidèle après `Bad state` (le test a révélé le stub, pas un bug) ; attentes corrigées (stock courant 7, 'réservé' minuscule).
+4. Sécurité ✅ — gardes rôle conservées (retrait article, encaissement, validation/paiement/annulation documents) ; aucune policy touchée.
+5. Overflow ✅ — aucun layout.
+6. Cycle de vie ✅ — ChangeNotifier standards, `mounted` N/A (pas de context).
+7. Persistance ✅ — aucune directe (cloud via CloudRepository, callbacks Phase 5).
+8. Analyze ✅ — 0 erreur (`Note`→evenement, `DocumentBati`→document_service, record patterns nommés).
+9. Tests ✅ — 27 tests (7 produit + 6 transaction + 8 achat + 6 document) ; suite 300/300.
+10. Contre-expertise finale ✅ — NON branchés (volontaire) : zéro régression ; branchement Phase 5.
