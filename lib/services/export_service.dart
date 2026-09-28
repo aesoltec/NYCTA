@@ -35,7 +35,11 @@ class ExportService {
       return v.toStringAsFixed(
           v.truncateToDouble() == v ? 0 : 2);
     }
-    return '$v';
+    final s = '$v';
+    // Protection formules Excel (injection CSV) : =, +, -, @ en tête
+    // sont neutralisés par un préfixe apostrophe (plan A3).
+    if (s.isNotEmpty && '=+-@'.contains(s[0])) return "'$s";
+    return s;
   }
 
   // ---------- Excel ----------
@@ -62,14 +66,28 @@ class ExportService {
   }
 
   // ---------- PDF ----------
-  /// Tableau PDF générique (jamais vide : une ligne « Aucune donnée » sinon,
+  /// En-tête entreprise réutilisable (plan A3) : nom + mentions
+  /// RCCM/IFU pour `pdfTableau(entreprise:, mentions:)`.
+  static (String, String) enteteEntreprise(
+      {required String nom, String rccm = '', String ifu = ''}) {
+    final mentions = [
+      if (rccm.trim().isNotEmpty) 'RCCM : ${rccm.trim()}',
+      if (ifu.trim().isNotEmpty) 'IFU : ${ifu.trim()}',
+    ].join(' · ');
+    return (nom, mentions);
+  }  /// Tableau PDF générique (jamais vide : une ligne « Aucune donnée » sinon,
   /// ce qui corrige le bug du cadre vide sans contenu).
+  /// En-tête entreprise + date de génération + filtres appliqués (plan A3) :
+  /// tous optionnels pour ne pas casser les 8+ appelants existants.
   static Future<List<int>> pdfTableau({
     required String titre,
     required String sousTitre,
     required List<String> entetes,
     required List<List<dynamic>> lignes,
     String total = '',
+    String entreprise = '',
+    String mentions = '',
+    String filtres = '',
   }) async {
     final doc = pw.Document();
     final donnees = lignes.isEmpty
@@ -80,16 +98,33 @@ class ExportService {
             for (final l in lignes)
               [for (final c in l) _texte(c)],
           ];
+    final genereLe = 'Généré le ${jour(DateTime.now())} à '
+        '${DateTime.now().hour.toString().padLeft(2, '0')}h'
+        '${DateTime.now().minute.toString().padLeft(2, '0')}';
     doc.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         build: (_) => [
+          if (entreprise.isNotEmpty) ...[
+            pw.Text(entreprise,
+                style: pw.TextStyle(
+                    fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            if (mentions.isNotEmpty)
+              pw.Text(mentions,
+                  style: const pw.TextStyle(fontSize: 9)),
+            pw.SizedBox(height: 6),
+          ],
           pw.Text(titre,
               style: pw.TextStyle(
                   fontSize: 16, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 2),
           pw.Text(sousTitre,
               style: const pw.TextStyle(fontSize: 10)),
+          pw.Text(genereLe,
+              style: const pw.TextStyle(fontSize: 9)),
+          if (filtres.isNotEmpty)
+            pw.Text('Filtres : $filtres',
+                style: const pw.TextStyle(fontSize: 9)),
           pw.SizedBox(height: 12),
           pw.TableHelper.fromTextArray(
             headerStyle: pw.TextStyle(
@@ -143,13 +178,19 @@ class ExportService {
       required String sousTitre,
       required List<String> entetes,
       required List<List<dynamic>> lignes,
-      String total = ''}) async {
+      String total = '',
+      String entreprise = '',
+      String mentions = '',
+      String filtres = ''}) async {
     final octets = await pdfTableau(
         titre: titre,
         sousTitre: sousTitre,
         entetes: entetes,
         lignes: lignes,
-        total: total);
+        total: total,
+        entreprise: entreprise,
+        mentions: mentions,
+        filtres: filtres);
     await Printing.sharePdf(bytes: Uint8List.fromList(octets),
         filename: '$nomBase.pdf');
   }

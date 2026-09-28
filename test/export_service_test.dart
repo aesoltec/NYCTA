@@ -43,5 +43,46 @@ void main() {
       expect(vide, isNotEmpty);
       expect(vide.length, lessThan(plein.length));
     });
+
+    test('CSV : protection formules Excel (A3)', () {
+      final csv = ExportService.csv(entetes, [
+        [DateTime(2026, 9, 26), '=1+1', 0],
+        [DateTime(2026, 9, 26), '+cmd', 0],
+        [DateTime(2026, 9, 26), '@x', 0],
+        [DateTime(2026, 9, 26), '-5', 0],
+        [DateTime(2026, 9, 26), 'normal', 0],
+      ]);
+      expect(csv, contains("'=1+1"));
+      expect(csv, contains("'+cmd"));
+      expect(csv, contains("'@x"));
+      expect(csv, contains("'-5"));
+      expect(csv, isNot(contains("'normal")));
+    });
+
+    test('PDF : en-tête entreprise + date + filtres (A3)', () async {
+      final (nom, mentions) = ExportService.enteteEntreprise(
+          nom: 'SARL Test', rccm: 'RCCM-1', ifu: 'IFU-2');
+      expect(nom, 'SARL Test');
+      expect(mentions, contains('RCCM-1'));
+      expect(mentions, contains('IFU-2'));
+      final avec = await ExportService.pdfTableau(
+        titre: 'Journal',
+        sousTitre: 'Sept 2026',
+        entetes: entetes,
+        lignes: lignes,
+        entreprise: nom,
+        mentions: mentions,
+        filtres: 'période septembre',
+      );
+      final sans = await ExportService.pdfTableau(
+        titre: 'Journal',
+        sousTitre: 'Sept 2026',
+        entetes: entetes,
+        lignes: lignes,
+      );
+      expect(avec, isNotEmpty);
+      // L'en-tête ajoute du contenu → PDF plus gros.
+      expect(avec.length, greaterThan(sans.length));
+    });
   });
 }
