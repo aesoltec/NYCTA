@@ -339,3 +339,16 @@ Contexte : 5 Notifiers créés, testés, NON branchés (Store intact).
 8. Analyze ✅ — 0 erreur (`Note` dans `evenement.dart`, pas de `note.dart` — import corrigé).
 9. Tests ✅ — `test/data/notifiers/` 39 tests (7 session + 8 boutique + 6 profile + 9 catégorie + 9 collab) ; suite 249/249.
 10. Contre-expertise finale ✅ — NON branchés (volontaire) : zéro régression possible ; branchement en Phase 5 uniquement.
+
+### Phase 2 — Notifiers métier simples (2026-09-28)
+Contexte : 5 Notifiers créés, testés, NON branchés (Store intact).
+1. Fonctionnelle ✅ — Client (CRUD + boutique + anti-doublon), Fournisseur (CRUD + anti-doublon), Partenaire (CRUD + désactivation + suppression protégée + clôture via PartageService), Charge (CRUD + récurrentes anti-double + budgets via ProfileNotifier + callbacks compta), StockMouvement (journal + ajustement motivé).
+2. Métier ✅ — règles recopiées à l'identique (garde dernière boutique N/A ici ; seuils validation ; motifs ; tri créances) ; `fileUpsert`/`comptabiliser`/`contrePasser` injectés (no-op en test, câblés Phase 5).
+3. Contre-expertise ✅ — dépendances par constructeur ; Partenaire fidèle au Store (casse seule, pas accents — vérifié l.2396) ; `majCharge`/`supprimerCharge` appellent les callbacks dans le même ordre ; test vendeur→stagiaire corrigé (matrice l.42 : vendeur A gererStock).
+4. Sécurité ✅ — gardes rôle conservées (gererStock ajustement) ; aucune policy touchée.
+5. Overflow ✅ — aucun layout.
+6. Cycle de vie ✅ — ChangeNotifier standards, aucun timer.
+7. Persistance ✅ — aucune directe (cloud via CloudRepository).
+8. Analyze ✅ — 0 erreur.
+9. Tests ✅ — 24 tests (5 client + 5 fournisseur + 6 partenaire + 5 charge + 3 stock-mouvement) ; suite 273/273.
+10. Contre-expertise finale ✅ — NON branchés (volontaire) : zéro régression ; branchement Phase 5.
