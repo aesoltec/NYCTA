@@ -22,7 +22,10 @@ class ClientsScreen extends StatefulWidget {
 }
 
 class _ClientsScreenState extends State<ClientsScreen> {
-  Map<String, dynamic> _filtres = const {'categorie': 'tous'};
+  Map<String, dynamic> _filtres = const {
+    'categorie': 'tous',
+    'credit': 'tous',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +36,16 @@ class _ClientsScreenState extends State<ClientsScreen> {
       clients = clients.where((c) => c.estPro).toList();
     } else if (cat == 'particuliers') {
       clients = clients.where((c) => !c.estPro).toList();
+    }
+    // Filtre crédit (plan A14) : impayé en cours rattaché au nom.
+    final credit = (_filtres['credit'] as String?) ?? 'tous';
+    if (credit != 'tous') {
+      final avec = store.clientsAvecCredit;
+      clients = clients
+          .where((c) => credit == 'oui'
+              ? avec.contains(c.nom.trim())
+              : !avec.contains(c.nom.trim()))
+          .toList();
     }
     final rech = ((_filtres['q'] as String?) ?? '').trim().toLowerCase();
     if (rech.isNotEmpty) {
@@ -80,6 +93,15 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     ('pros', 'Professionnels'),
                     ('particuliers', 'Particuliers'),
                   ]),
+              FiltreConfig(
+                  cle: 'credit',
+                  kind: FiltreKind.chips,
+                  label: 'Crédit',
+                  options: [
+                    ('tous', 'Tous'),
+                    ('oui', 'Avec crédit'),
+                    ('non', 'Sans crédit'),
+                  ]),
             ],
             valeurs: _filtres,
             onFiltreChange: (m) => setState(() => _filtres = m),
@@ -116,7 +138,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
   Future<void> _exporter(BuildContext context, Store store,
       List<Client> clients, String format) async {
     const entetes = [
-      'Nom', 'Téléphone', 'Email', 'Adresse', 'RCCM', 'RIB', 'Catégorie'
+      'Nom', 'Téléphone', 'Email', 'Adresse', 'RCCM', 'IFU', 'RIB',
+      'Catégorie'
     ];
     final lignes = [
       for (final c in clients)
@@ -126,6 +149,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
           c.email,
           c.adresse,
           c.rccm,
+          c.ifu,
           c.rib,
           c.estPro ? 'Professionnel' : 'Particulier',
         ],
@@ -256,7 +280,7 @@ class _FormClient extends StatefulWidget {
 class _FormClientState extends State<_FormClient> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nom, _tel, _email, _adresse, _rccm,
-      _rib;
+      _ifu, _rib;
   String? _logoPath;
 
   @override
@@ -268,6 +292,7 @@ class _FormClientState extends State<_FormClient> {
     _email = TextEditingController(text: e?.email ?? '');
     _adresse = TextEditingController(text: e?.adresse ?? '');
     _rccm = TextEditingController(text: e?.rccm ?? '');
+    _ifu = TextEditingController(text: e?.ifu ?? '');
     _rib = TextEditingController(text: e?.rib ?? '');
     _logoPath = e?.logoPath;
   }
@@ -279,6 +304,7 @@ class _FormClientState extends State<_FormClient> {
     _email.dispose();
     _adresse.dispose();
     _rccm.dispose();
+    _ifu.dispose();
     _rib.dispose();
     super.dispose();
   }
@@ -335,6 +361,14 @@ class _FormClientState extends State<_FormClient> {
             ),
             const SizedBox(height: 12),
             TextFormField(
+              controller: _ifu,
+              decoration: const InputDecoration(
+                  labelText: 'IFU (optionnel — professionnel)',
+                  prefixIcon:
+                      Icon(Icons.numbers_outlined)),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
               controller: _rib,
               decoration: const InputDecoration(
                   labelText: 'RIB / coordonnées bancaires (optionnel)',
@@ -386,6 +420,7 @@ class _FormClientState extends State<_FormClient> {
                     email: _email.text.trim(),
                     adresse: _adresse.text.trim(),
                     rccm: _rccm.text.trim(),
+                    ifu: _ifu.text.trim(),
                     rib: _rib.text.trim(),
                     logoPath: (_logoPath ?? '').isEmpty
                         ? null

@@ -5,6 +5,8 @@ import '../../data/store.dart';
 import '../../models/achat.dart';
 import '../../models/enums.dart';
 import '../../models/produit.dart';
+import '../../services/media_service.dart';
+import '../../widgets/app_image.dart';
 import '../../widgets/date_picker_field.dart';
 import '../../widgets/money_text.dart';
 
@@ -25,16 +27,21 @@ class _LigneEdit {
   final TextEditingController quantite;
   final TextEditingController prix;
   final TextEditingController tva;
+  /// Photos de l'article (max 5, optionnelles — plan A2/A5) : chemins
+  /// locaux stables (copie via MediaService) et/ou URLs cloud.
+  final List<String> images;
   _LigneEdit({
     this.produitId = '',
     String libelle = '',
     String quantite = '1',
     String prix = '',
     String tva = '',
+    List<String> images = const [],
   })  : libelle = TextEditingController(text: libelle),
         quantite = TextEditingController(text: quantite),
         prix = TextEditingController(text: prix),
-        tva = TextEditingController(text: tva);
+        tva = TextEditingController(text: tva),
+        images = [...images.take(LigneAchat.maxImages)];
   void dispose() {
     libelle.dispose();
     quantite.dispose();
@@ -83,6 +90,7 @@ class _AchatFormScreenState extends State<AchatFormScreen> {
               l.quantite.truncateToDouble() == l.quantite ? 0 : 2),
           prix: l.prixUnitaire.toStringAsFixed(0),
           tva: l.tauxTVA.toStringAsFixed(0),
+          images: l.images,
         ));
       }
     }
@@ -305,6 +313,7 @@ class _AchatFormScreenState extends State<AchatFormScreen> {
         tauxTVA: l.tva.text.trim().isEmpty
             ? 0
             : (double.tryParse(l.tva.text.trim().replaceAll(',', '.')) ?? 0),
+        images: [...l.images],
       ));
     }
     setState(() => _busy = true);
@@ -351,7 +360,7 @@ class _AchatFormScreenState extends State<AchatFormScreen> {
   }
 }
 
-class _EditeurLigne extends StatelessWidget {
+class _EditeurLigne extends StatefulWidget {
   final _LigneEdit ligne;
   final List<Produit> produits;
   final double tvaDefaut;
@@ -367,6 +376,25 @@ class _EditeurLigne extends StatelessWidget {
     required this.onSupprimer,
     required this.onChanged,
   });
+
+  @override
+  State<_EditeurLigne> createState() => _EditeurLigneState();
+}
+
+class _EditeurLigneState extends State<_EditeurLigne> {
+  _LigneEdit get ligne => widget.ligne;
+  List<Produit> get produits => widget.produits;
+
+  Future<void> _ajouterImages() async {
+    final restantes = LigneAchat.maxImages - ligne.images.length;
+    if (restantes <= 0) return;
+    final ajoutees =
+        await MediaService.pickImages(max: restantes);
+    if (ajoutees.isNotEmpty && mounted) {
+      setState(() => ligne.images.addAll(ajoutees));
+      widget.onChanged();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -404,10 +432,10 @@ class _EditeurLigne extends StatelessWidget {
               ligne.libelle.text = p.libelle;
               ligne.prix.text = p.prixAchat.toStringAsFixed(0);
               if (ligne.tva.text.isEmpty) {
-                ligne.tva.text = tvaDefaut.toStringAsFixed(0);
+                ligne.tva.text = widget.tvaDefaut.toStringAsFixed(0);
               }
             }
-            onChanged();
+            widget.onChanged();
           },
         ),
         const SizedBox(height: 10),
@@ -415,7 +443,7 @@ class _EditeurLigne extends StatelessWidget {
           controller: ligne.libelle,
           decoration: const InputDecoration(labelText: 'Libellé'),
           validator: (v) => V.texte(v, 2, 'Libellé'),
-          onChanged: (_) => onChanged(),
+          onChanged: (_) => widget.onChanged(),
         ),
         const SizedBox(height: 10),
         Row(children: [
@@ -426,7 +454,7 @@ class _EditeurLigne extends StatelessWidget {
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(labelText: 'Qté'),
               validator: (v) => V.prix(v, label: 'Qté'),
-              onChanged: (_) => onChanged(),
+              onChanged: (_) => widget.onChanged(),
             ),
           ),
           const SizedBox(width: 10),
@@ -441,7 +469,7 @@ class _EditeurLigne extends StatelessWidget {
                 if ((v ?? '').trim().isEmpty) return null;
                 return V.prix(v, label: 'Prix');
               },
-              onChanged: (_) => onChanged(),
+              onChanged: (_) => widget.onChanged(),
             ),
           ),
           const SizedBox(width: 10),
@@ -451,13 +479,77 @@ class _EditeurLigne extends StatelessWidget {
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(labelText: 'TVA %'),
-              onChanged: (_) => onChanged(),
+              onChanged: (_) => widget.onChanged(),
             ),
           ),
-          if (peutSupprimer)
+          if (widget.peutSupprimer)
             IconButton(
                 icon: const Icon(Icons.remove_circle_outline, size: 20),
-                onPressed: onSupprimer),
+                onPressed: widget.onSupprimer),
+        ]),
+        const SizedBox(height: 10),
+        // Photos de l'article (max 5, optionnelles — plan A2/A5).
+        Row(children: [
+          Expanded(
+            child: SizedBox(
+              height: 56,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: ligne.images.length + 1,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: 8),
+                itemBuilder: (_, i) {
+                  if (i >= ligne.images.length) {
+                    final restantes =
+                        LigneAchat.maxImages - ligne.images.length;
+                    if (restantes <= 0) {
+                      return const SizedBox.shrink();
+                    }
+                    return GestureDetector(
+                      onTap: _ajouterImages,
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECEFF3),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.add_a_photo_outlined,
+                            color: Color(0xFF90A4AE)),
+                      ),
+                    );
+                  }
+                  return Stack(children: [
+                    AppImage(ligne.images[i], size: 56),
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(
+                              () => ligne.images.removeAt(i));
+                          widget.onChanged();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close,
+                              size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ]);
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text('${ligne.images.length}/${LigneAchat.maxImages}',
+              style: const TextStyle(
+                  fontSize: 11, color: Colors.grey)),
         ]),
       ]),
     );

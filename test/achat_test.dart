@@ -59,6 +59,24 @@ void main() {
       expect(r.montantPaye, 1000);
       expect(r.statut, Achat.statutEnAttente);
     });
+
+    test('LigneAchat images : max 5 + JSON aller-retour (A2/A5)', () {
+      const l = LigneAchat(
+        produitNom: 'Câble',
+        quantite: 1,
+        prixUnitaire: 1000,
+        images: ['a.jpg', 'b.jpg'],
+      );
+      expect(l.images, ['a.jpg', 'b.jpg']);
+      final r = LigneAchat.fromJson(l.toJson());
+      expect(r.images, ['a.jpg', 'b.jpg']);
+      // Anciennes données sans clé 'images' → liste vide (migration douce).
+      final vieux = LigneAchat.fromJson({
+        'produitNom': 'Vieux', 'quantite': 1, 'prixUnitaire': 5,
+      });
+      expect(vieux.images, isEmpty);
+      expect(LigneAchat.maxImages, 5);
+    });
   });
 
   group('Store.achats (cycle de vie)', () {

@@ -7,6 +7,7 @@ import '../../widgets/money_text.dart';
 import '../../widgets/soft_card.dart';
 
 import '../../services/export_service.dart';
+import '../../widgets/filtre_panel.dart';
 
 /// Trésorerie : fonds de roulement, solde de caisse, budgets du mois.
 class TresorerieScreen extends StatefulWidget {
@@ -17,15 +18,18 @@ class TresorerieScreen extends StatefulWidget {
 }
 
 class _TresorerieScreenState extends State<TresorerieScreen> {
-  String _recherche = '';
+  // Filtres via FiltrePanel (plan A9) : recherche unique (catégorie de
+  // budget + nom de boutique). Pas de filtre « type de mouvement » :
+  // l'écran est une synthèse (soldes + budgets), pas un journal de
+  // mouvements — aucun modèle de mouvement n'existe (non inventé).
+  Map<String, dynamic> _filtres = const {};
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
     final solde = store.soldeCaisseCourant;
     final budgets = store.suiviBudgets;
-    // Filtre unique (catégorie de budget + nom de boutique).
-    final rech = _recherche.trim().toLowerCase();
+    final rech = ((_filtres['q'] as String?) ?? '').trim().toLowerCase();
     final budgetsFiltres = Map.fromEntries(budgets.entries.where((e) =>
         rech.isEmpty || e.key.toLowerCase().contains(rech)));
     final boutiquesFiltrees = store.boutiques
@@ -89,13 +93,15 @@ class _TresorerieScreenState extends State<TresorerieScreen> {
         const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: TextField(
-            decoration: const InputDecoration(
-              hintText: 'Filtrer (catégorie, boutique)…',
-              prefixIcon: Icon(Icons.search_rounded),
-              filled: true,
-            ),
-            onChanged: (v) => setState(() => _recherche = v),
+          child: FiltrePanel(
+            filtres: const [
+              FiltreConfig(
+                  cle: 'q',
+                  kind: FiltreKind.recherche,
+                  label: 'Filtrer (catégorie, boutique)…'),
+            ],
+            valeurs: _filtres,
+            onFiltreChange: (m) => setState(() => _filtres = m),
           ),
         ),
         Text('Budgets du mois ${store.moisCourant}',

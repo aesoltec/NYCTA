@@ -147,6 +147,7 @@ create table if not exists public.clients (
   email       text default '',
   adresse     text default '',
   rccm        text default '',
+  ifu         text default '',
   rib         text default '',
   logo_path   text,
   created_at  timestamptz not null default now()

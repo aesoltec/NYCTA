@@ -478,8 +478,8 @@ class CloudRepository {
         try {
           await _c!.from('clients').upsert({
             ...base,
-            // Champs étendus (point 28) : base non migrée → repli.
-            'email': c.email, 'rccm': c.rccm, 'rib': c.rib,
+            // Champs étendus (point 28 + plan A14) : base non migrée → repli.
+            'email': c.email, 'rccm': c.rccm, 'ifu': c.ifu, 'rib': c.rib,
             'logo_path': await _urlMedia(c.logoPath),
           });
         } catch (_) {

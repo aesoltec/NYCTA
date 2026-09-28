@@ -274,16 +274,15 @@ Décisions SYSCOHADA (ADR) : documents commerciaux ne postent PAS (évite double
 - 22ter (ville/responsable/code) : aucun flux actuel n'exige ces champs ; non inventés, tracés au CDC comme « à valider avec le métier ».
 - 23bis (catégories String → table) : la table SQL `categories` existe (v1.2) ; le modèle Dart reste des listes de String volontairement (seed + listes dynamiques) ; migration à planifier hors mission.
 
-10. Contre-expertise finale ✅ — « Prestations/Mobile Money/Crédit/Forfait » de la spec = le Journal (toutes activités) : pas de sous-écrans inventés (ils n'existent pas).
-
-### Point 37 — Menu « Plus » thématique (menu_screen.dart)
-1. Fonctionnelle ✅ — 11 sections (Ventes, Achats, Stock, Finances, Comptabilité, Partenaires, Documents, Rapports, Configuration, Administration, Collaboration) + tuiles réordonnées selon le flux métier.
-2. Métier ✅ — ordre = flux vente → achat → stock → finance → compta → partenaires → documents → rapports → config → admin → collaboration ; permissions inchangées par tuile.
-3. Contre-expertise ✅ — tuiles déplacées sans duplication (grep : 1 occurrence par destination) ; nouvelles tuiles Stock/Mouvements/Charges avec permissions cohérentes.
-4. Sécurité ✅ — aucune permission modifiée (mêmes gardes `peut()`/rôle).
-5. Overflow ✅ — `_Section` en `Text` borné (11.5px, letterSpacing) ; tuiles `Material`+`ListTile` existantes ; test 360px.
-6. Cycle de vie ✅ — aucun contrôleur ajouté.
-7. Persistance ✅ — aucune donnée.
+### Plan de correction totale (2026-09-28) — enrichissements A2/A3/A5-A7/A9/A13/A14
+Contexte : audit d'écarts entre le plan de correction et l'état du code.
+1. Fonctionnelle ✅ — ExportService enrichi (protection formules, en-tête entreprise/date/filtres, `enteteEntreprise`) ; LigneAchat.images (max 5) + galerie formulaire ; Stock/Charges/Trésorerie sur FiltrePanel (+ stock bas, récurrente) ; Achats (intervalles 7j/30j/mois/année + fournisseur) ; Documents (filtre statut + export historique) ; Clients (IFU + filtre crédit) ; Listes dynamiques (recherche).
+2. Métier ✅ — catégorie achat / boutique mono-courante / filtre type mouvement : déclarés non applicables (modèles sans référentiel) au lieu d'être inventés.
+3. Contre-expertise ✅ — API ExportService rétrocompatible (paramètres optionnels) ; JSON lignes d'achat rétrocompatible (clé absente → []) ; SQL idempotent + `apply_all` régénéré.
+4. Sécurité ✅ — aucune policy touchée (colonnes + RPC déjà tracée).
+5. Overflow ✅ — golden Documents régénéré (nouveaux chips) ; FiltrePanel responsive réutilisé.
+6. Cycle de vie ✅ — `_EditeurLigne` Stateful (galerie locale), `mounted` gardé.
+7. Persistance ✅ — chemins locaux stables (MediaService) + JSONB lignes ; IFU en toJson/loaders/cloud/SQL.
 8. Analyze ✅ — 0 erreur, 0 warning nouveau.
-9. Tests ✅ — 11 sections + tuiles + 360px vérifiés (scrollUntilVisible pour sections basses) ; suite 150/150.
-10. Contre-expertise finale ✅ — « Prestations/Mobile Money/Crédit/Forfait » de la spec = le Journal (toutes activités) : pas de sous-écrans inventés (ils n'existent pas).
+9. Tests ✅ — export_service 5/5, achat_test (images), clients_test (IFU/crédit) ; suite 157/157.
+10. Contre-expertise finale ✅ — AppImage limite : URLs http non affichées (fallback) — local-first assumé et documenté (plan A2 : jamais dépendre uniquement du cloud).

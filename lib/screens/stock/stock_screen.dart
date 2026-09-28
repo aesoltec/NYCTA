@@ -12,6 +12,7 @@ import '../../widgets/money_text.dart';
 import 'mouvements_screen.dart';
 
 import '../../services/export_service.dart';
+import '../../widgets/filtre_panel.dart';
 
 class StockScreen extends StatefulWidget {
   const StockScreen({super.key});
@@ -39,8 +40,10 @@ class StockScreen extends StatefulWidget {
 }
 
 class _StockScreenState extends State<StockScreen> {
-  String? _categorie;
-  String _recherche = '';
+  // Filtres via FiltrePanel (plan A6) : recherche + catégorie + stock bas.
+  // Pas de filtre boutique : l'écran liste la boutique courante
+  // (produitsBoutique) — le sélecteur global fait office de filtre.
+  Map<String, dynamic> _filtres = const {'alerte': 'tous'};
 
   @override
   Widget build(BuildContext context) {
@@ -49,11 +52,15 @@ class _StockScreenState extends State<StockScreen> {
     final peutGererStock = store.peut(Permission.gererStock);
     final cats = store.catsProduit;
     var produits = store.produitsBoutique;
-    if (_categorie != null) {
+    final cat = (_filtres['cat'] as String?) ?? '';
+    if (cat.isNotEmpty) {
       produits =
-          produits.where((p) => p.categorie == _categorie).toList();
+          produits.where((p) => p.categorie == cat).toList();
     }
-    final rech = _recherche.trim().toLowerCase();
+    if ((_filtres['alerte'] as String?) == 'alerte') {
+      produits = produits.where((p) => p.alerte).toList();
+    }
+    final rech = ((_filtres['q'] as String?) ?? '').trim().toLowerCase();
     if (rech.isNotEmpty) {
       produits = produits
           .where((p) => p.libelle.toLowerCase().contains(rech))
@@ -119,30 +126,30 @@ class _StockScreenState extends State<StockScreen> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-          child: TextField(
-            decoration: const InputDecoration(
-              hintText: 'Rechercher un produit…',
-              prefixIcon: Icon(Icons.search_rounded),
-              filled: true,
-            ),
-            onChanged: (v) => setState(() => _recherche = v),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: DropdownButtonFormField<String>(
-            value: _categorie,
-            isExpanded: true,
-            decoration: const InputDecoration(
-                labelText: 'Catégorie',
-                prefixIcon: Icon(Icons.category_outlined)),
-            items: [
-              const DropdownMenuItem(
-                  value: null, child: Text('Toutes catégories')),
-              for (final c in cats)
-                DropdownMenuItem(value: c, child: Text(c)),
+          child: FiltrePanel(
+            filtres: [
+              const FiltreConfig(
+                  cle: 'q',
+                  kind: FiltreKind.recherche,
+                  label: 'Rechercher un produit…'),
+              FiltreConfig(
+                  cle: 'cat',
+                  kind: FiltreKind.dropdown,
+                  label: 'Catégorie',
+                  options: [
+                    for (final c in cats) (c, c),
+                  ]),
+              const FiltreConfig(
+                  cle: 'alerte',
+                  kind: FiltreKind.chips,
+                  label: 'Stock',
+                  options: [
+                    ('tous', 'Tous'),
+                    ('alerte', 'Stock bas ⚠️'),
+                  ]),
             ],
-            onChanged: (v) => setState(() => _categorie = v),
+            valeurs: _filtres,
+            onFiltreChange: (m) => setState(() => _filtres = m),
           ),
         ),
         Expanded(

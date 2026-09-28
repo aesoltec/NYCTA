@@ -273,6 +273,7 @@ class Store extends ChangeNotifier {
             email: r['email']?.toString() ?? '',
             adresse: r['adresse']?.toString() ?? '',
             rccm: r['rccm']?.toString() ?? '',
+            ifu: r['ifu']?.toString() ?? '',
             rib: r['rib']?.toString() ?? '',
             logoPath: r['logo_path']?.toString(),
           ),
@@ -790,7 +791,7 @@ class Store extends ChangeNotifier {
     final client = Client(
       id: _nid(), boutiqueId: c.boutiqueId, nom: c.nom,
       telephone: c.telephone, email: c.email, adresse: c.adresse,
-      rccm: c.rccm, rib: c.rib, logoPath: c.logoPath,
+      rccm: c.rccm, ifu: c.ifu, rib: c.rib, logoPath: c.logoPath,
     );
     clients.add(client);
     notifyListeners();
@@ -806,6 +807,14 @@ class Store extends ChangeNotifier {
       await CloudRepository.upsertClient(c);
     }
   }
+
+  /// Noms des clients avec impayé en cours (filtre « Avec crédit »).
+  Set<String> get clientsAvecCredit => {
+        for (final t in transactions)
+          if (t.statut != StatutPaiement.paye &&
+              (t.clientNom ?? '').trim().isNotEmpty)
+            t.clientNom!.trim(),
+      };
 
   // ---------- Fournisseurs ----------
   Future<String?> ajouterFournisseur(Fournisseur f) async {
@@ -2686,8 +2695,8 @@ class Store extends ChangeNotifier {
           for (final c in clients)
             {'id': c.id, 'boutique_id': c.boutiqueId, 'nom': c.nom,
              'telephone': c.telephone, 'email': c.email,
-             'adresse': c.adresse, 'rccm': c.rccm, 'rib': c.rib,
-             'logo_path': c.logoPath},
+             'adresse': c.adresse, 'rccm': c.rccm, 'ifu': c.ifu,
+             'rib': c.rib, 'logo_path': c.logoPath},
         ],
         'fournisseurs': [
           for (final f in fournisseurs)
@@ -2867,6 +2876,7 @@ class Store extends ChangeNotifier {
             email: c['email']?.toString() ?? '',
             adresse: c['adresse']?.toString() ?? '',
             rccm: c['rccm']?.toString() ?? '',
+            ifu: c['ifu']?.toString() ?? '',
             rib: c['rib']?.toString() ?? '',
             logoPath: c['logo_path']?.toString(),
           ),

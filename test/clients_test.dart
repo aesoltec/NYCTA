@@ -65,8 +65,7 @@ void main() {
       expect((lignes.first as Map)['rccm'], 'RCCM-X');
     });
 
-    testWidgets('liste : recherche + filtre + export', (tester) async {
-      tester.view.physicalSize = const Size(800, 2400);
+    testWidgets('liste : recherche + filtre + export', (tester) async {      tester.view.physicalSize = const Size(800, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
         tester.view.resetPhysicalSize();
@@ -127,7 +126,12 @@ void main() {
           find.widgetWithText(TextFormField,
               'RIB / coordonnées bancaires (optionnel)'),
           findsOneWidget);
+      expect(
+          find.widgetWithText(
+              TextFormField, 'IFU (optionnel — professionnel)'),
+          findsOneWidget);
       expect(find.text('Logo'), findsOneWidget);
+      expect(find.text('Avec crédit'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 700));
     });
   });

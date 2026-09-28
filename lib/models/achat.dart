@@ -5,12 +5,18 @@
 /// Impacts : réception ⇒ stock + (CUMP) ; paiement ⇒ charge
 /// « Fournisseurs » (trésorerie) ; validation seule ⇒ dette (reste dû).
 class LigneAchat {
+  static const maxImages = 5;
+
   final String produitId; // '' si article libre (hors stock)
   final String produitNom;
   final double quantite;
   final String unite; // 'piece', 'kg', 'litre', 'metre', …
   final double prixUnitaire;
   final double tauxTVA; // % (ex : 18)
+
+  /// Photos de l'article reçu (max 05, optionnelles — plan A2/A5) :
+  /// chemins locaux stables et/ou URLs cloud (bucket `produits`).
+  final List<String> images;
 
   const LigneAchat({
     this.produitId = '',
@@ -19,6 +25,7 @@ class LigneAchat {
     this.unite = 'piece',
     required this.prixUnitaire,
     this.tauxTVA = 0,
+    this.images = const [],
   });
 
   double get totalHT => quantite * prixUnitaire;
@@ -28,6 +35,7 @@ class LigneAchat {
         'produitId': produitId, 'produitNom': produitNom,
         'quantite': quantite, 'unite': unite,
         'prixUnitaire': prixUnitaire, 'tauxTVA': tauxTVA,
+        'images': images,
       };
 
   factory LigneAchat.fromJson(Map<String, dynamic> j) => LigneAchat(
@@ -37,6 +45,10 @@ class LigneAchat {
         unite: j['unite']?.toString() ?? 'piece',
         prixUnitaire: (j['prixUnitaire'] as num?)?.toDouble() ?? 0,
         tauxTVA: (j['tauxTVA'] as num?)?.toDouble() ?? 0,
+        images: [
+          for (final u in (j['images'] as List? ?? const []))
+            u.toString(),
+        ],
       );
 }
 

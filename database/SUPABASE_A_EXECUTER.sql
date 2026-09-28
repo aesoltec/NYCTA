@@ -8,12 +8,15 @@
 
 
 -- ---------------------------------------------------------------------------
--- 1. CLIENTS — champs étendus (point 28) : email, RCCM, RIB, logo
+-- 1. CLIENTS — champs étendus (point 28 + plan A14) : email, RCCM, IFU,
+--    RIB, logo
 -- ---------------------------------------------------------------------------
 alter table public.clients
   add column if not exists email text default '';
 alter table public.clients
   add column if not exists rccm text default '';
+alter table public.clients
+  add column if not exists ifu text default '';
 alter table public.clients
   add column if not exists rib text default '';
 alter table public.clients

@@ -10,6 +10,7 @@ import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
 
 import '../../services/export_service.dart';
+import '../../widgets/filtre_panel.dart';
 
 /// Charges & dépenses de l'entreprise, avec total du mois.
 class ChargesScreen extends StatefulWidget {
@@ -20,18 +21,26 @@ class ChargesScreen extends StatefulWidget {
 }
 
 class _ChargesScreenState extends State<ChargesScreen> {
-  String? _categorie;
-  String _recherche = '';
+  // Filtres via FiltrePanel (plan A7) : recherche + catégorie +
+  // récurrente (chips). Pas de filtre boutique : depensesBoutique.
+  Map<String, dynamic> _filtres = const {'rec': 'toutes'};
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
     var depenses = store.depensesBoutique;
-    if (_categorie != null) {
+    final cat = (_filtres['cat'] as String?) ?? '';
+    if (cat.isNotEmpty) {
       depenses =
-          depenses.where((c) => c.categorie == _categorie).toList();
+          depenses.where((c) => c.categorie == cat).toList();
     }
-    final rech = _recherche.trim().toLowerCase();
+    final rec = (_filtres['rec'] as String?) ?? 'toutes';
+    if (rec == 'oui') {
+      depenses = depenses.where((c) => c.recurrente).toList();
+    } else if (rec == 'non') {
+      depenses = depenses.where((c) => !c.recurrente).toList();
+    }
+    final rech = ((_filtres['q'] as String?) ?? '').trim().toLowerCase();
     if (rech.isNotEmpty) {
       depenses = depenses
           .where((c) =>
@@ -54,30 +63,31 @@ class _ChargesScreenState extends State<ChargesScreen> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-          child: TextField(
-            decoration: const InputDecoration(
-              hintText: 'Rechercher une dépense…',
-              prefixIcon: Icon(Icons.search_rounded),
-              filled: true,
-            ),
-            onChanged: (v) => setState(() => _recherche = v),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: DropdownButtonFormField<String>(
-            value: _categorie,
-            isExpanded: true,
-            decoration: const InputDecoration(
-                labelText: 'Catégorie',
-                prefixIcon: Icon(Icons.category_outlined)),
-            items: [
-              const DropdownMenuItem(
-                  value: null, child: Text('Toutes catégories')),
-              for (final c in store.catsCharge)
-                DropdownMenuItem(value: c, child: Text(c)),
+          child: FiltrePanel(
+            filtres: [
+              const FiltreConfig(
+                  cle: 'q',
+                  kind: FiltreKind.recherche,
+                  label: 'Rechercher une dépense…'),
+              FiltreConfig(
+                  cle: 'cat',
+                  kind: FiltreKind.dropdown,
+                  label: 'Catégorie',
+                  options: [
+                    for (final c in store.catsCharge) (c, c),
+                  ]),
+              const FiltreConfig(
+                  cle: 'rec',
+                  kind: FiltreKind.chips,
+                  label: 'Récurrence',
+                  options: [
+                    ('toutes', 'Toutes'),
+                    ('oui', 'Récurrentes 🔁'),
+                    ('non', 'Ponctuelles'),
+                  ]),
             ],
-            onChanged: (v) => setState(() => _categorie = v),
+            valeurs: _filtres,
+            onFiltreChange: (m) => setState(() => _filtres = m),
           ),
         ),
         Expanded(

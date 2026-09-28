@@ -180,6 +180,8 @@ alter table public.clients
   add column if not exists rib text default '';
 alter table public.clients
   add column if not exists logo_path text;
+alter table public.clients
+  add column if not exists ifu text default '';
 
 -- ---------------------------------------------------------------------------
 -- Galerie articles catalogue (point 36) : colonne JSON (bucket

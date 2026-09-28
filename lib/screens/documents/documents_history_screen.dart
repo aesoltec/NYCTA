@@ -7,6 +7,7 @@ import '../../services/document_service.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
 import '../../services/backup_service.dart';
+import '../../services/export_service.dart';
 import 'document_preview_screen.dart';
 import '../../widgets/date_picker_field.dart';
 
@@ -23,11 +24,22 @@ class DocumentsHistoryScreen extends StatefulWidget {
 class _DocumentsHistoryScreenState
     extends State<DocumentsHistoryScreen> {
   TypeDocument? _type;
+  // Filtre statut (plan A13) : 'tous' | brouillon | emis | paye | annule.
+  // Pas de filtre boutique : DocumentBati ne porte pas de boutiqueId.
+  String _statut = 'tous';
   String _recherche = '';
   DateTime? _debut;
   DateTime? _fin;
   final _min = TextEditingController();
   final _max = TextEditingController();
+
+  static const _statuts = [
+    ('tous', 'Tous statuts'),
+    ('brouillon', 'Brouillons'),
+    ('emis', 'Émis'),
+    ('paye', 'Payés'),
+    ('annule', 'Annulés'),
+  ];
 
   @override
   void dispose() {
@@ -42,6 +54,9 @@ class _DocumentsHistoryScreenState
     var docs = store.documentsEmis.toList();
     if (_type != null) {
       docs = docs.where((d) => d.type == _type).toList();
+    }
+    if (_statut != 'tous') {
+      docs = docs.where((d) => d.statut == _statut).toList();
     }
     final rech = _recherche.trim().toLowerCase();
     if (rech.isNotEmpty) {
@@ -76,7 +91,24 @@ class _DocumentsHistoryScreenState
         .toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Documents émis')),
+      appBar: AppBar(
+        title: const Text('Documents émis'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Exporter l\'historique filtré',
+            icon: const Icon(Icons.ios_share_outlined),
+            onSelected: (f) => _exporter(context, store, docs, f),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                  value: 'pdf', child: Text('PDF (partage)')),
+              PopupMenuItem(
+                  value: 'xlsx', child: Text('Excel (.xlsx)')),
+              PopupMenuItem(
+                  value: 'csv', child: Text('CSV (Excel)')),
+            ],
+          ),
+        ],
+      ),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -112,6 +144,16 @@ class _DocumentsHistoryScreenState
                     selected: _type == t,
                     onSelected: (_) => setState(
                         () => _type = _type == t ? null : t),
+                  ),
+                ),
+              for (final s in _statuts.skip(1))
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(s.$2),
+                    selected: _statut == s.$1,
+                    onSelected: (_) => setState(() => _statut =
+                        _statut == s.$1 ? 'tous' : s.$1),
                   ),
                 ),
             ],
@@ -202,6 +244,54 @@ class _DocumentsHistoryScreenState
   /// (le document reste visible : jamais exclu silencieusement).
   static DateTime? _dateDoc(DocumentBati doc) =>
       DocumentService.parseAffichage(doc.date);
+
+  /// Export de l'historique filtré (plan A13) : PDF/Excel/CSV via
+  /// ExportService (jamais vide — garantie du service).
+  Future<void> _exporter(BuildContext context, Store store,
+      List<DocumentBati> docs, String format) async {
+    const entetes = [
+      'Numéro', 'Type', 'Date', 'Client', 'Total HT', 'TVA',
+      'Total TTC', 'Devise', 'Statut'
+    ];
+    final lignes = [
+      for (final d in docs)
+        [
+          d.numero,
+          d.type.titre,
+          d.date,
+          d.client,
+          d.totalHT,
+          d.tva,
+          d.totalTTC,
+          d.devise,
+          _LigneDocument._libelleStatut(d.statut),
+        ],
+    ];
+    final total =
+        docs.fold(0.0, (s, d) => s + d.totalTTC);
+    final nom = 'documents_${docs.length}docs';
+    try {
+      switch (format) {
+        case 'pdf':
+          await ExportService.partagerPdf(nom,
+              titre: 'Documents émis',
+              sousTitre:
+                  '${docs.length} document(s) · Total : ${total.toStringAsFixed(0)}',
+              entetes: entetes,
+              lignes: lignes);
+        case 'xlsx':
+          await ExportService.partagerExcel(
+              nom, 'Documents', entetes, lignes);
+        default:
+          await ExportService.partagerCsv(nom, entetes, lignes);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Export impossible')));
+      }
+    }
+  }
 }
 
 class _LigneDocument extends StatelessWidget {

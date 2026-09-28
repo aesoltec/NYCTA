@@ -1,5 +1,6 @@
 /// Client de l'entreprise (fichier clients).
-/// Champs étendus (point 28) : email, RCCM, RIB, logo — tous optionnels.
+/// Champs étendus (point 28 + plan A14) : email, RCCM, IFU, RIB, logo —
+/// tous optionnels.
 /// Les lignes sans ces clés (anciennes sauvegardes, base non migrée)
 /// retombent sur ''/null : aucune perte, aucune migration forcée.
 class Client {
@@ -10,6 +11,7 @@ class Client {
   final String email;
   final String adresse;
   final String rccm;
+  final String ifu;
   final String rib;
   final String? logoPath;
 
@@ -21,6 +23,7 @@ class Client {
     this.email = '',
     this.adresse = '',
     this.rccm = '',
+    this.ifu = '',
     this.rib = '',
     this.logoPath,
   });
@@ -31,7 +34,7 @@ class Client {
   Map<String, dynamic> toJson() => {
         'id': id, 'boutique_id': boutiqueId, 'nom': nom,
         'telephone': telephone, 'email': email, 'adresse': adresse,
-        'rccm': rccm, 'rib': rib, 'logo_path': logoPath,
+        'rccm': rccm, 'ifu': ifu, 'rib': rib, 'logo_path': logoPath,
       };
 
   factory Client.fromJson(Map<String, dynamic> j) => Client(
@@ -42,6 +45,7 @@ class Client {
         email: j['email']?.toString() ?? '',
         adresse: j['adresse']?.toString() ?? '',
         rccm: j['rccm']?.toString() ?? '',
+        ifu: j['ifu']?.toString() ?? '',
         rib: j['rib']?.toString() ?? '',
         logoPath: j['logo_path']?.toString(),
       );

@@ -101,58 +101,87 @@ class ListesDynamiquesScreen extends StatelessWidget {
   }
 }
 
-class _ListeDynamique extends StatelessWidget {
+class _ListeDynamique extends StatefulWidget {
   final String type;
   final String titre;
   const _ListeDynamique({required this.type, required this.titre});
 
   @override
+  State<_ListeDynamique> createState() => _ListeDynamiqueState();
+}
+
+class _ListeDynamiqueState extends State<_ListeDynamique> {
+  String _recherche = '';
+
+  @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
-    final liste = switch (type) {
+    // Filtre par type = les 4 onglets eux-mêmes (plan A14) ; recherche
+    // par nom dans l'onglet actif.
+    final toutes = switch (widget.type) {
       'operateur_momo' => store.opsMobileMoney,
       'operateur_credit' => store.opsCredit,
       'domaine_prestation' => store.domainesPresta,
       'duree_forfait' => store.dureesForfaitListe,
       _ => const <String>[],
     };
-    if (liste.isEmpty) {
-      return const Center(
-          child: Text('Aucune valeur', style: TextStyle(color: Colors.grey)));
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-      itemCount: liste.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (_, i) => Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 8, offset: Offset(0, 3))],
-        ),
-        child: ListTile(
-          leading: const Icon(Icons.label_outline, size: 20, color: Color(0xFF3D6FB4)),
-          title: Text(liste[i],
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600)),
-          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-            IconButton(icon: const Icon(Icons.edit_outlined, size: 19),
-                onPressed: () => ListesDynamiquesScreen._dialog(
-                    context, type, titre, liste[i])),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, size: 19, color: Colors.redAccent),
-              onPressed: () async {
-                final erreur = await context
-                    .read<Store>().supprimerValeurListe(type, liste[i]);
-                if (context.mounted && erreur != null) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(SnackBar(content: Text('⚠️ $erreur')));
-                }
-              },
-            ),
-          ]),
+    final rech = _recherche.trim().toLowerCase();
+    final liste = rech.isEmpty
+        ? toutes
+        : toutes.where((v) => v.toLowerCase().contains(rech)).toList();
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: TextField(
+          decoration: const InputDecoration(
+            hintText: 'Rechercher une valeur…',
+            prefixIcon: Icon(Icons.search_rounded),
+            filled: true,
+          ),
+          onChanged: (v) => setState(() => _recherche = v),
         ),
       ),
-    );
+      Expanded(
+        child: liste.isEmpty
+            ? const Center(
+                child: Text('Aucune valeur (filtre sans résultat)',
+                    style: TextStyle(color: Colors.grey)))
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
+                itemCount: liste.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (_, i) => Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 8, offset: Offset(0, 3))],
+                  ),
+                  child: ListTile(
+                    leading: const Icon(Icons.label_outline, size: 20, color: Color(0xFF3D6FB4)),
+                    title: Text(liste[i],
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(icon: const Icon(Icons.edit_outlined, size: 19),
+                          onPressed: () => ListesDynamiquesScreen._dialog(
+                              context, widget.type, widget.titre, liste[i])),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 19, color: Colors.redAccent),
+                        onPressed: () async {
+                          final erreur = await context
+                              .read<Store>().supprimerValeurListe(widget.type, liste[i]);
+                          if (context.mounted && erreur != null) {
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(SnackBar(content: Text('⚠️ $erreur')));
+                          }
+                        },
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+      ),
+    ]);
   }
 }
