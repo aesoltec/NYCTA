@@ -38,7 +38,8 @@
 - Batch 6 : 22bis réouverture boutique (RPC SQL + UI + test 4/4, ⚠️ réserve SQL serveur) ; 22ter/23bis hors périmètre v1 (CDC) ; `SUPABASE_A_EXECUTER.sql` (migrations en attente)
 - Finalisation : 22bis complet (RPC vérif + audit trail + confirmation UI + MATRICE_PERMISSIONS) ; `APPLIQUER_MAINTENANT.md` ; `AUDIT_FINAL_NYCTA_v4.md` (39/41 = 95,1 %)
 - Plan correction totale (2026-09-28) : ExportService (formules + en-tête), LigneAchat.images + galerie, FiltrePanel Stock/Charges/Trésorerie, Achats (intervalles + fournisseur), Documents (statut + export), Clients (IFU + crédit), Listes (recherche)
-- Tests : suite complète 157/157 verts ; `flutter analyze` 0 erreur
+- Images renforcées (A2) : noms uniques `<entite>_<id>_<ts>_<hash>`, compression < 300 Ko, dossiers `media/<entite>/`, migration anciens noms, re-téléchargement cloud ; `image_persistence_test.dart` 10/10
+- Tests : suite complète 168/168 verts ; `flutter analyze` 0 erreur
 
 ### Dette warnings `flutter analyze` (justification, 2026-09-26)
 Total 111 = 0 erreur + 69 warnings + 42 infos, aucun introduit comme nouvelle famille par le lot :

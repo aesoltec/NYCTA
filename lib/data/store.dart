@@ -25,6 +25,7 @@ import '../models/transaction.dart';
 import '../services/cloud_repository.dart';
 import '../services/document_service.dart';
 import '../services/local_persistence.dart';
+import '../services/media_service.dart';
 import '../services/supabase_service.dart';
 import '../services/sync_service.dart';
 
@@ -97,9 +98,14 @@ class Store extends ChangeNotifier {
       coordonneesBancaires: p['coordonnees_bancaires']?.toString() ?? '',
       messagePied: p['message_pied']?.toString() ?? '',
       tva: (p['tva'] as num?)?.toDouble() ?? 0,
-      logoPath: p['logo_path']?.toString(),
-      cachetPath: p['cachet_path']?.toString(),
-      signaturePath: p['signature_path']?.toString(),
+      logoPath: MediaService.normaliserChemin(p['logo_path']?.toString(),
+          entite: 'company', id: 'logo'),
+      cachetPath: MediaService.normaliserChemin(p['cachet_path']?.toString(),
+          entite: 'company', id: 'cachet'),
+      signaturePath: MediaService.normaliserChemin(
+          p['signature_path']?.toString(),
+          entite: 'company',
+          id: 'signature'),
       moisChargesGenerees: p['mois_charges_generees']?.toString(),
     );
     boutiques
@@ -122,10 +128,16 @@ class Store extends ChangeNotifier {
             prixVente: (r['prix_vente'] as num?)?.toDouble() ?? 0,
             stock: (r['quantite_stock'] as num?)?.toInt() ?? 0,
             seuil: (r['seuil_alerte'] as num?)?.toInt() ?? 3,
-            imagePath: r['image_path']?.toString(),
+            imagePath: MediaService.normaliserChemin(
+                r['image_path']?.toString(),
+                entite: 'produit',
+                id: r['id'].toString()),
             images: [
               for (final u in (r['images'] as List? ?? const []))
-                u.toString(),
+                MediaService.normaliserChemin(u.toString(),
+                    entite: 'produit',
+                    id: r['id'].toString()) ??
+                    u.toString(),
             ],
           ),
       ]);
@@ -275,7 +287,10 @@ class Store extends ChangeNotifier {
             rccm: r['rccm']?.toString() ?? '',
             ifu: r['ifu']?.toString() ?? '',
             rib: r['rib']?.toString() ?? '',
-            logoPath: r['logo_path']?.toString(),
+            logoPath: MediaService.normaliserChemin(
+                r['logo_path']?.toString(),
+                entite: 'client',
+                id: r['id'].toString()),
           ),
       ]);
     fournisseurs
@@ -365,7 +380,10 @@ class Store extends ChangeNotifier {
             actif: r['actif'] != false,
             images: [
               for (final u in (r['images'] as List? ?? const []))
-                u.toString(),
+                MediaService.normaliserChemin(u.toString(),
+                    entite: 'article',
+                    id: r['id'].toString()) ??
+                    u.toString(),
             ],
           ),
       ]);
@@ -486,8 +504,99 @@ class Store extends ChangeNotifier {
     // effet réel (voir le constructeur, où l'appel équivalent était fait
     // trop tôt — sur une liste encore vide — et ne faisait donc jamais rien).
     await genererChargesRecurrentesSiNouveauMois();
+    // Images distantes (URLs http issues des buckets) : re-téléchargement
+    // vers le stockage local, SANS bloquer le démarrage (plan A2 §Action 4).
+    unawaited(_reparerImagesDistantes());
     return true;
   }
+
+  /// Passe réparatrice (plan A2 §Action 4) : tout chemin http trouvé dans
+  /// les galeries/logos est re-téléchargé (compressé, nom unique) et
+  /// remplacé par le chemin local. Jamais d'exception, jamais de blocage :
+  /// chaque entrée est isolée en try/catch, et l'état est persisté + notifié
+  /// uniquement si au moins un chemin a changé.
+  bool _reparationImagesEnCours = false;
+  Future<void> _reparerImagesDistantes() async {
+    if (_reparationImagesEnCours) return;
+    _reparationImagesEnCours = true;
+    var change = false;
+    try {
+      for (var i = 0; i < produits.length; i++) {
+        final p = produits[i];
+        final imgs = <String>[];
+        for (final u in p.images) {
+          final local = await MediaService.assurerLocal(u,
+              entite: 'produit', id: p.id);
+          imgs.add(local ?? u);
+          if (local != null && local != u) change = true;
+        }
+        final principal = await MediaService.assurerLocal(p.imagePath,
+            entite: 'produit', id: p.id);
+        if (principal != p.imagePath ||
+            !_memeListe(imgs, p.images)) {
+          produits[i] = p.copyWith(
+              imagePath: principal ?? p.imagePath, images: imgs);
+          change = true;
+        }
+      }
+      for (var i = 0; i < catalogue.length; i++) {
+        final t = catalogue[i];
+        final imgs = <String>[];
+        for (final u in t.images) {
+          final local = await MediaService.assurerLocal(u,
+              entite: 'article', id: t.id);
+          imgs.add(local ?? u);
+          if (local != null && local != u) change = true;
+        }
+        if (!_memeListe(imgs, t.images)) {
+          catalogue[i] = t.copyWith(images: imgs);
+          change = true;
+        }
+      }
+      for (var i = 0; i < clients.length; i++) {
+        final c = clients[i];
+        final logo = await MediaService.assurerLocal(c.logoPath,
+            entite: 'client', id: c.id);
+        if (logo != c.logoPath && logo != null) {
+          clients[i] = Client(
+              id: c.id, boutiqueId: c.boutiqueId, nom: c.nom,
+              telephone: c.telephone, email: c.email, adresse: c.adresse,
+              rccm: c.rccm, ifu: c.ifu, rib: c.rib, logoPath: logo);
+          change = true;
+        }
+      }
+      final logo = await MediaService.assurerLocal(profile.logoPath,
+          entite: 'company', id: 'logo');
+      final cachet = await MediaService.assurerLocal(profile.cachetPath,
+          entite: 'company', id: 'cachet');
+      final signature = await MediaService.assurerLocal(
+          profile.signaturePath,
+          entite: 'company',
+          id: 'signature');
+      if (logo != profile.logoPath ||
+          cachet != profile.cachetPath ||
+          signature != profile.signaturePath) {
+        profile = profile.copyWith(
+          logoPath: logo ?? profile.logoPath,
+          cachetPath: cachet ?? profile.cachetPath,
+          signaturePath: signature ?? profile.signaturePath,
+        );
+        change = true;
+      }
+    } catch (_) {
+      // Réparation opportuniste : un échec ne bloque jamais l'app.
+    } finally {
+      _reparationImagesEnCours = false;
+    }
+    if (change) {
+      _persist();
+      notifyListeners();
+    }
+  }
+
+  static bool _memeListe(List<String> a, List<String> b) =>
+      a.length == b.length &&
+      List.generate(a.length, (i) => a[i] == b[i]).every((e) => e);
 
   /// Secours hors-ligne : recharge le dernier snapshot local
   /// (sauvegardé à chaque mutation via _persist) quand Supabase est
@@ -2776,6 +2885,12 @@ class Store extends ChangeNotifier {
         'ecritures': [for (final e in ecritures) e.toJson()],
       };
 
+  /// Rechargement d'un snapshot (boot démo, test de non-régression
+  /// images). Exposée aux tests uniquement.
+  @visibleForTesting
+  void restaurerEtatPourTest(Map<String, dynamic> data) =>
+      _chargerEtat(data);
+
   void _chargerEtat(Map<String, dynamic> data) {
     final p = Map<String, dynamic>.from(data['profil'] as Map? ?? {});
     profile = CompanyProfile(
@@ -2792,9 +2907,14 @@ class Store extends ChangeNotifier {
       coordonneesBancaires: p['coordonnees_bancaires']?.toString() ?? '',
       messagePied: p['message_pied']?.toString() ?? '',
       tva: (p['tva'] as num?)?.toDouble() ?? 0,
-      logoPath: p['logo_path']?.toString(),
-      cachetPath: p['cachet_path']?.toString(),
-      signaturePath: p['signature_path']?.toString(),
+      logoPath: MediaService.normaliserChemin(p['logo_path']?.toString(),
+          entite: 'company', id: 'logo'),
+      cachetPath: MediaService.normaliserChemin(p['cachet_path']?.toString(),
+          entite: 'company', id: 'cachet'),
+      signaturePath: MediaService.normaliserChemin(
+          p['signature_path']?.toString(),
+          entite: 'company',
+          id: 'signature'),
       fondsRoulement: {
         for (final e in (p['fonds_roulement'] as Map? ?? {}).entries)
           e.key.toString(): (e.value as num).toDouble(),
@@ -2878,7 +2998,10 @@ class Store extends ChangeNotifier {
             rccm: c['rccm']?.toString() ?? '',
             ifu: c['ifu']?.toString() ?? '',
             rib: c['rib']?.toString() ?? '',
-            logoPath: c['logo_path']?.toString(),
+            logoPath: MediaService.normaliserChemin(
+                c['logo_path']?.toString(),
+                entite: 'client',
+                id: c['id'].toString()),
           ),
       ]);
     fournisseurs
@@ -2934,7 +3057,10 @@ class Store extends ChangeNotifier {
             actif: t['actif'] != false,
             images: [
               for (final u in (t['images'] as List? ?? const []))
-                u.toString(),
+                MediaService.normaliserChemin(u.toString(),
+                    entite: 'article',
+                    id: t['id'].toString()) ??
+                    u.toString(),
             ],
           ),
       ]);
@@ -2979,10 +3105,16 @@ class Store extends ChangeNotifier {
             prixVente: (p['prix_vente'] as num?)?.toDouble() ?? 0,
             stock: (p['stock'] as num?)?.toInt() ?? 0,
             seuil: (p['seuil'] as num?)?.toInt() ?? 3,
-            imagePath: p['image_path']?.toString(),
+            imagePath: MediaService.normaliserChemin(
+                p['image_path']?.toString(),
+                entite: 'produit',
+                id: p['id'].toString()),
             images: [
               for (final u in (p['images'] as List? ?? const []))
-                u.toString(),
+                MediaService.normaliserChemin(u.toString(),
+                    entite: 'produit',
+                    id: p['id'].toString()) ??
+                    u.toString(),
             ],
           ),
       ]);

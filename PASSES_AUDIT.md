@@ -288,7 +288,7 @@ Contexte : audit d'écarts entre le plan de correction et l'état du code.
 10. Contre-expertise finale ✅ — AppImage limite : URLs http non affichées (fallback) — local-first assumé et documenté (plan A2 : jamais dépendre uniquement du cloud).
 
 ### Vérification AppBar écrans/vues (2026-09-28)
-Audit : 36 Scaffold dans `lib/screens/` — 33 avec AppBar, 3 sans.
+Audit : 36 Scaffold dans `lib/screens/` — 33 avec AppBar, 3 sans (login normal + Stock/Dépenses corrigés en push).
 1. Fonctionnelle ✅ — `login_screen.dart` sans AppBar : normal (écran de connexion).
 2. Métier ✅ — `StockScreen`/`ChargesScreen` sans AppBar en onglet : normal (AppBar globale du AppShell avec sélecteur boutique).
 3. Contre-expertise ✅ — **écart réel** : ces 2 écrans sont aussi poussés depuis le menu Plus → ni titre ni bouton retour. Fix : AppBar conditionnelle (`ModalRoute.canPop`), zéro changement d'API, pas de double barre en onglet.
@@ -299,3 +299,16 @@ Audit : 36 Scaffold dans `lib/screens/` — 33 avec AppBar, 3 sans.
 8. Analyze ✅ — 0 erreur, 0 warning nouveau.
 9. Tests ✅ — nouveau test widget (AppBar absente en onglet, présente + BackButton en push) ; suite 158/158.
 10. Contre-expertise finale ✅ — `AchatListScreen` garde sa double barre en onglet (pré-existant, hors périmètre de cette vérification).
+
+### Images renforcées A2 (2026-09-28) — noms uniques + compression + résilience
+Contexte : images disparaissant après redémarrage (collisions `millisecondes.jpg` + poids non maîtrisé + URLs cloud jamais re-téléchargées).
+1. Fonctionnelle ✅ — `genererNomFichier` (`entite_id_tsSec_6hex.ext`), `compresser` (1280px/JPEG q75 → paliers jusqu'à < 300 Ko), `copierDansApp` vers `media/<entite>/`, `pickImage(s)` avec entité/id.
+2. Métier ✅ — PNG avec transparence conservé (logos/signatures, 800px) ; JPEG sinon ; source non-image retournée intacte.
+3. Contre-expertise ✅ — boucle de compression bornée (jamais d'exception, meilleur résultat gardé) ; `normaliserChemin` synchrone avec try/catch (doute → inchangé) ; `_reparerImagesDistantes` isolée par entrée + fire-and-forget (jamais de blocage boot).
+4. Sécurité ✅ — aucune policy touchée ; URLs cloud inchangées côté serveur.
+5. Overflow ✅ — aucun layout (service pur).
+6. Cycle de vie ✅ — `mounted` gardé dans `_EditeurLigne` ; client http fermé si créé localement.
+7. Persistance ✅ — normalisation aux 8 points de chargement (produits ×2, tarifs ×2, clients ×2, profil ×2) + réparation cloud persistée (`_persist`) + notifiée.
+8. Analyze ✅ — 0 erreur, 0 warning nouveau.
+9. Tests ✅ — `image_persistence_test.dart` 10/10 (schéma, unicité ×500, compression bruit pur, migration, reload Store, MockClient download/404) ; suite 168/168.
+10. Contre-expertise finale ✅ — écarts assumés : hash `Random.secure` (pas SHA-1, unicité équivalente, documenté) ; loopback HTTP bloqué dans l'environnement de test → `MockClient` + injection `@visibleForTesting` (téléchargement réel à valider en manuel/cloud) ; redémarrage physique = test manuel checklist.
