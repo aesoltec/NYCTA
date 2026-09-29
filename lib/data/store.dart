@@ -63,9 +63,12 @@ export 'facade/facade_ventes.dart';
 /// vit dans les 16 Notifiers, les 5 Services purs (`services/`) et la
 /// persistance (`persistence/`, `store_sync.dart`) ; l'API publique
 /// complète est ré-exportée d'ici (façades `facade/`).
+///
+/// Réserve 40octies : `genererId`, `fileUpsert`, `numeroDocument` publics
+/// par NÉCESSITÉ d'extraction (une bibliothèque séparée ne voit pas les
+/// membres privés), pas par choix d'API. `late final _bundle` est sûr
+/// (assigné en 1re instruction) ; un `late` simple = crash (bug 6bis).
 class Store extends ChangeNotifier {
-  // `late final` sûr : assigné en 1re instruction du constructeur, jamais
-  // lu avant (un `late` simple réintroduirait le crash du bug 6bis).
   late final NotifierBundle _bundle;
   SessionNotifier get session => _bundle.session;
   BoutiqueNotifier get boutique => _bundle.boutique;
@@ -137,8 +140,7 @@ class Store extends ChangeNotifier {
         _chargerEtat(Map<String, dynamic>.from(sauvegarde));
       } catch (_) {/* sauvegarde corrompue : on garde la démo */}
     }
-    // `depenses` est peuplé : les charges récurrentes du mois s'appliquent.
-    genererChargesRecurrentesSiNouveauMois();
+    genererChargesRecurrentesSiNouveauMois(); // `depenses` est peuplé
     _syncBoutiqueId();
   }
 
@@ -147,10 +149,9 @@ class Store extends ChangeNotifier {
       StoreSync.synchroniserBoutique(this, _boutiqueId);
 
   /// Relai : une mutation de Notifier rebuild l'UI et persiste (600 ms).
-  /// Public : `StoreSync` l'appelle depuis une autre bibliothèque.
   void notifier() => notifyListeners();
 
-  /// Écrit une ligne dans la file hors-ligne (no-op sans cloud).
+  /// File hors-ligne (no-op sans cloud). Public par extraction — 40octies.
   Future<void> fileUpsert(String table, Map<String, dynamic> payload) =>
       StoreSync.fileUpsert(this, table, payload);
 
@@ -166,8 +167,8 @@ class Store extends ChangeNotifier {
   AppUser get user => session.user;
   set user(AppUser u) => session.user = u;
 
-  /// Auth OK mais aucune ligne `public.users` : l'identité factice est
-  /// remplacée par le VRAI uuid (sinon permissions client illusoires).
+  /// Auth OK mais aucune ligne `public.users` : identité factice remplacée
+  /// par le VRAI uuid (sinon permissions client illusoires).
   bool get profilCloudManquant => session.profilCloudManquant;
   set profilCloudManquant(bool v) => session.profilCloudManquant = v;
 
@@ -189,8 +190,7 @@ class Store extends ChangeNotifier {
     // `depenses` est peuplé : ici, et seulement ici en production, la
     // génération des charges récurrentes a un effet réel.
     await genererChargesRecurrentesSiNouveauMois();
-    // Images distantes : re-téléchargement SANS bloquer le démarrage.
-    unawaited(_reparerImagesDistantes());
+    unawaited(_reparerImagesDistantes()); // images distantes, non bloquant
     return true;
   }
 
@@ -248,8 +248,7 @@ class Store extends ChangeNotifier {
 
   // ---------- Données (listes PARTAGÉES avec les Notifiers) ----------
   // PAS de `late` : en mode cloud le constructeur sort AVANT toute
-  // affectation et le premier chargement lit ce champ. La valeur neutre
-  // `''` évite l'effondrement (bug 6bis : LateInitializationError).
+  // affectation. La valeur neutre `''` évite l'effondrement (bug 6bis).
   String _boutiqueId = '';
   String get boutiqueId => _boutiqueId;
   final boutiques = <Boutique>[];
@@ -274,6 +273,8 @@ class Store extends ChangeNotifier {
   set profile(CompanyProfile p) => profil.profile = p;
   int _seq = 0;
   Timer? _persistTimer;
+
+  /// Id local (uuid cloud, sinon compteur). Public par extraction — 40octies.
   String genererId() => CloudRepository.actif
       ? CloudRepository.uuid()
       : 'id_${++_seq}_${DateTime.now().millisecondsSinceEpoch}';
@@ -317,8 +318,7 @@ class Store extends ChangeNotifier {
     super.dispose();
   }
 
-  /// Normalisation anti-doublon (point 35) : casse + accents. Statique,
-  /// car utilisée par les façades (anti-doublon des libellés).
+  /// Normalisation anti-doublon (point 35) : casse + accents.
   static String sansAccents(String s) => Normalisation.sansAccents(s);
 
   static bool memeCategorie(String a, String b) =>

@@ -525,3 +525,70 @@ publique ni le comportement. **Realise** : 1945 -> 338 lignes.
     d'eligition, pas par un bout-en-bout cloud.
     Verdict : **CONFORME**, correctif livre.
 
+## ═══ LEÇONS APPRISES (Phase 6 → Phase 6bis) ═══
+
+### 1. Ne JAMAIS utiliser `part` pour alléger un fichier
+`part` = même unité de compilation. Un `part` ne réduit **jamais** le
+nombre de lignes du fichier principal : il les déplace. La Phase 6 a
+déplacé ~1800 lignes en 8 `part` et le Store est passé de 1933 →
+1945 (+12). Le suivi MISSION a méme déclaré ce résultat « allègement ».
+
+**Règle** : pour réduire un fichier, il faut des **vraies
+bibliothèques** (`import`), jamais des `part`. Un `part` a un seul usage
+légitime : partager des variables/fonctions **privées** sans changer
+l'API — ce qui n'était pas l'objectif ici.
+
+### 2. Toujours SUPPRIMER PHYSIQUEMENT le code déplacé
+Le piège technique : une méthode dupliquée dans la classe ET dans la
+bibliothèque n'est pas « déplacée », c'est du code mort en
+double. Vérification retenue pour la 6bis : **analyse croisée** des
+membres déclarés par la classe et par chaque extension
+(129 membres) → 0 doublon résiduel. Sans cette étape, les 129
+délégations sont restées dans les DEUX côtés.
+
+### 3. Vérifier la TAILLE du fichier principal après chaque étape
+La Phase 6 a été « vérifiée » par `flutter test` (395/395 verts)
+alors que l'objectif — la taille du fichier — n'était pas mesuré. Une
+suite verte ne prouve pas un objectif de structure.
+
+**Règle** : mesurer `wc -l lib/data/store.dart` après CHAQUE jalon, et
+l'afficher dans le rapport. Journal de la 6bis :
+1945 → 1198 → 1037 → 1036 → 887 → 661 → 569 → 463 → 349.
+Un jalon oisif (1036 → 1036) a décélé une erreur de script ;
+seule la mesure l'a révélé.
+
+### 4. Dart ne résout pas une extension hors de sa bibliothèque
+Une `extension on Store` n'est visible que si l'on importe (ou **ré-exporte**)
+le fichier qui la déclare. D'où l'expression `export 'facade/*.dart'`
+dans `store.dart` : un seul import pour l'application entière, zéro
+churn sur 200+ appelants. Sans cela : 200+ fichiers à modifier.
+
+### 5. Un `late` sur un champ d'instance est une bombe à retardement
+`late String _boutiqueId` ne plante qu'au **premier** chemin qui le lit
+avant l'affectation. En mode démo le champ est toujours affecté →
+395 tests verts ; en production le constructeur sort tôt → crash au
+premier chargement réel. Découvert uniquement en hot restart sur
+appareil configuré.
+
+**Règles** :
+- valeur neutre par défaut (`String _boutiqueId = ''`) plutôt que `late`
+  quand une lecture précoce est possible ;
+- `firstWhere` sur une liste potentiellement vide → `orElse` explicite
+  (17 écrans lisaient `boutiqueCourante.nom` sans repli) ;
+- **test structurel** interdisant tout `late` non-`final` dans `Store`
+  (ajouté dans `snapshot_applier_test.dart`).
+
+### 6. Tester le chemin de PRODUCTION, pas seulement le mode démo
+Le mode démo et le mode Supabase empruntent des chemins de constructeur
+DIFFÉRENTS (`CloudRepository.actif` → sortie anticipée). 395 tests
+verts en démo ne disent rien du chemin cloud, qui n'est atteignable que
+si `Env` est configuré (non mockable sans refonte de `SupabaseService`).
+**Rèserve toujours assumée** : le test cloud de bout en bout reste
+manuel, d'où la validation en hot restart sur appareil.
+
+### 7. Ne jamaishajouter une règle métier pour « réparer » un bug
+Quand l'éligition de boutique a échoué, le correctif a été de
+rejeter l'identifiant fantôme (retour à la valeur neutre) et non
+d'inventer un règle « l'admin peut toujours choisir ». La garde
+`accedeA` reste la source unique de vérité.
+

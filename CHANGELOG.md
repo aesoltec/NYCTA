@@ -2,6 +2,22 @@
 
 > Historique des versions livrées (voir `CAHIER_DES_CHARGES.md` §9 pour le détail).
 
+## 1.12.0 — 2026-09-29 (Phase 6bis — allègement RÉEL du Store)
+- **Store : 1945 → 338 lignes** (objectif < 350). La 1.11.0 avait déplacé la logique dans des fichiers `part`, ce qui n'allège rien (1933 → 1945, soit +12) : régression annulée et refaite en vraies bibliothèques
+- Suppression physique des 5 corps géants (1021 lignes) : `chargerDuCloud` (439), `_chargerEtat` (309), `toJson` (130), `_reparerImagesDistantes` (78), `_seedDemo` (65) → appels courts aux bibliothèques pures
+- 129 délégations déplacées dans 9 vraies `extension on Store` (`lib/data/facade/*.dart` : achats, catalogue, collab, compta_docs, fichiers, session, stock, transverse, ventes), **ré-exportées par `store.dart`** → un seul import, zéro churn sur les 200+ appelants
+- Nouvelles bibliothèques : `StoreSync` (catalogue depuis produit, journal, vente, payloads cloud/file, numérotation) + `SnapshotApplier` (fusion de snapshot, règle catégories cloud-prioritaire, restauration de sauvegarde) ; suppression de `store_persistence.dart` (doublon)
+- Vérification anti-duplication : analyse croisée classe ↔ extensions → 0 doublon résiduel
+- 3 membres privés devenus publics (`genererId`, `fileUpsert`, `numeroDocument`) + 7 lectures transverses en extension (`catsProduit`, `catsCharge`, `opsMobileMoney`, `opsCredit`, `domainesPresta`, `dureesForfaitListe`, `moisCourant`) — coût assumé et documenté d'une extraction réelle
+- Nettoyage : 31 imports inutiles retirés (dont 2 blocs d'imports dupliqués dans `clients_screen.dart` / `fournisseurs_screen.dart`), `_memeLibelle` et `_memeListe` morts supprimés au profit de `StoreHelpers`
+- `wiring_test.dart` réécrit sur la nouvelle API (`EntreesWiring` reçoit le `Store` et construit lui-même ses callbacks) — 4/4
+- Anti-régression : `dart analyze` **0 erreur**, `flutter test` **395/395 verts**
+
+**Dette connue reportée (non traitée par cette phase) :**
+- `lib/screens/stock/stock_screen.dart` = **952 lignes**, bien au-dessus de la règle « widgets < 200 lignes » (AGENTS.md §9). Hérité de la refonte UX R1, pas de la 6bis → tracé au CDC point **40bis**
+- **133 warnings** `inference_failure_*` / `unnecessary_cast` préexistants dans le projet, aucun introduit par la 6bis → tracé au CDC point **40ter** (v1.13.0)
+- Visibilité publique de `genererId` / `fileUpsert` / `numeroDocument` : réductible seulement via une couche d’accès dédiée, non rentable → tracé au CDC point **40quater**
+
 ## 1.12.1 — 2026-09-29 (correctif bloquant : crash au premier chargement cloud)
 - **Crash corrigé** : `LateInitializationError: Field '_boutiqueId' has not been initialized` au tout premier chargement réel (écran de connexion → `chargerDuCloud` → `SnapshotApplier.appliquer` → `changerBoutique`). Introduit par la 1.12.0 : l'éligition de la boutique passait par `changerBoutique`, qui LIT `_boutiqueId` — alors que le champ n'est jamais affecté en mode cloud (le constructeur sort avant).
 - `Store._boutiqueId` : `late String` → `String _boutiqueId = ''`. Suppression du `late` partout ailleurs ; le champ n'est plus une bombe à retardement.

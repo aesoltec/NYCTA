@@ -462,6 +462,15 @@ Filtres livrés (point 22) : recherche nom/adresse, statut actives/fermées/tout
 | 40ter Journal mouvements trésorerie | Modèle `MouvementTresorerie` + journal + filtres type + export | 1-2 j | 🟢 | **v1.10.0** — l'écran actuel est une synthèse (soldes + budgets), pas un journal ; aucun modèle de mouvement n'existe |
 | 40quater Référentiel catégories achats | Référentiel catégorie/sous-catégorie lignes d'achat + filtre | 1 j | 🟢 | **v1.10.0** — lignes d'achat libres sans référentiel ; filtre non applicable en l'état |
 | 40quinquies Filtre boutique mono-écrans | Sélecteur boutique par écran (Stock, Charges, Compta…) | 0,5 j | 🟢 | **v1.10.0** — le sélecteur global AppShell fait office de filtre ; doublon inutile en v1 |
+| 40sexies Réfonte `stock_screen.dart` (< 200 l.) | Extraction des filtres/tri/chargement/export dans des widgets dédiés + `SliverAppBar` ; zachée par R1, bloquant la validation 100 % (AGENTS.md §9 : widgets < 200 l.) | 1-2 j | 🟡 | **Réserve Phase 6bis** — fichier à 952 l. ; dépendance directe de R1 (grille + liste) ; extraction SANS changement fonctionnel ni visuel (goldens 3/3 + commerce_overflow 24/24 à rejouer) |
+| 40septies Nettoyage 133 warnings analyzer | `inference_failure_on_*` (87) + `unnecessary_cast` (4) + résiduels | 0,5-1 j | 🟡 | **Réserve Phase 6bis** — détectés sur `dart analyze`, aucun introduit par la 6bis (le store n'en compte plus aucun) ; v1.13.0 ; lints explicites, pas de changement de comportement |
+| 40octies Réduire la visibilité de 3 membres publics | `Store.genererId` / `fileUpsert` / `numeroDocument` : passer par une couche d’accès (ex. `StoreIo`) pour les rendre internes | 0,5 j | 🟢 | **Réserve Phase 6bis** — coût assumé d'une extraction réelle : une `extension on Store` ne voit pas les membres privés. Solution possible mais surdimensionnée pour le gain ; documenté en commentaire sur chaque méthode |
+
+> **Note d’identifiants** : les réserves Phase 6bis ont reçu les
+> ids **40sexies / 40septies / 40octies** et **non** 40bis/40ter/40quater,
+> déjà occupés ci-dessus (filtre boutique documents, journal
+> mouvements trésorerie, référentiel catégories achats). Deux points ne
+> peuvent pas porter le même numéro sans ambiguïté de traçabilité.
 
 - TVA configurable et factures normalisées (normes fiscales du pays)
 - Gestion des fournisseurs & réapprovisionnement
