@@ -483,3 +483,45 @@ publique ni le comportement. **Realise** : 1945 -> 338 lignes.
         non traites — a planifier.
     Verdict global : **CONFORME** sur l'objectif 6bis.
 
+### Phase 6bis+ — Correctif du crash cloud (2026-09-29)
+**Symptome** : `Unhandled Exception: LateInitializationError: Field
+'_boutiqueId' has not been initialized` au premier chargement reel
+(login -> `chargerDuCloud` -> `SnapshotApplier.appliquer` -> `changerBoutique`).
+
+1. Fonctionnelle ECHEC en 1.12.0 — cause racine : l'eligiton de la boutique
+   passait par `changerBoutique`, qui lit `_boutiqueId`, alors que ce champ
+   n'est JAMAIS affecte en mode cloud (le constructeur sort avant). L'ancien
+   code assignait directement. Detecte en hot restart sur appareil reel,
+   invisible en mode demo (la ou `_boutiqueId` est toujours affecte).
+2. Metier OK — la regle d'eligiton est inchangee (cloud prioritaire, boutique
+   accessible a l'utilisateur) ; seule l'verification d'existence est ajoutee
+   (une boutique fantome n'est pas une regle metier, c'est un trou).
+3. Securite AMELIOREE — `changerBoutique` et `definirBoutiqueCourante`
+   verifient existence ET `accedeA` ; le refus retombe sur la valeur neutre au
+   lieu de laisser un identifiant perime (donnees d'une autre boutique en
+   filtrage, en-tetes incoherents).
+4. Overflow OK — aucun ecran modifie.
+5. Performance OK — un `orElse` de plus sur un `firstWhere` deja borne.
+6. Tests OK — `snapshot_applier_test.dart` **15/15** : eligition, propagation
+   aux 9 Notifiers filtrants, demande non accessible, compte sans acces,
+   snapshot sans boutique, categorie vide (cloud prioritaire), neutre sans
+   liste, `changerBoutique` (fantome refuse / existante acceptee),
+   `elireBoutiqueAccessible` (3 cas), **garde-fou structurel interdisant tout
+   `late` non-`final` dans `Store`**. Suite **410/410**, analyze 0 erreur.
+7. Documentation OK — CHANGELOG 1.12.1, MISSION_STATUS (Phase 6bis+),
+   ce journal.
+8. Regression OK — les 17 appels `boutiqueCourante.nom` restent valides (type
+   inchange, valeur neutre au lieu d'une exception) ; garde d'acces du
+   selecteur de boutique preservee et renforcee.
+9. UX OK — « Aucune boutique » est explicite plutot qu'un crash ; le menu de
+   selection de boutique inchange.
+10. Contre-expertise — reserves : (a) la fenetre entre la connexion et la
+    fin du chargement affiche « Aucune boutique » au lieu d'une impasse
+    (choix assume : mieux vaut un etat neutre explicite qu'un crash) ;
+    (b) `boutiqueNeutre` est une `Boutique` synthetique — jamais stockee,
+    jamais envoyee au cloud (getter pur) ; (c) le test de non-regression du
+    mode CLOUD reel reste non automatise (`CloudRepository.actif` depend de
+    `Env`, non mockable) : couvert par le test structurel + le test
+    d'eligition, pas par un bout-en-bout cloud.
+    Verdict : **CONFORME**, correctif livre.
+

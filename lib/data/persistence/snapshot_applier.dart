@@ -74,15 +74,18 @@ class SnapshotApplier {
         ..addAll(s.dureesForfaitListe);
     }
     if (choisirBoutique && store.boutiques.isNotEmpty) {
+      // On élit parmi les boutiques RÉELLEMENT accessibles, sinon
+      // `definirBoutiqueCourante` refuse et la courante reste neutre.
+      final accessibles = store.boutiques
+          .where((b) => s.user.accedeA(b.id))
+          .toList();
+      final pool =
+          accessibles.isNotEmpty ? accessibles : store.boutiques;
       final bt = s.boutiqueId;
-      final choisie = (bt.isNotEmpty &&
-              store.boutiques.any((b) => b.id == bt))
-          ? store.boutiques.firstWhere((b) => b.id == bt)
-          : store.boutiques.firstWhere(
-              (b) =>
-                  s.user.accedeA(b.id) || s.user.role == Role.admin,
-              orElse: () => store.boutiques.first);
-      store.changerBoutique(choisie.id);
+      store.definirBoutiqueCourante(
+          (bt.isNotEmpty && pool.any((b) => b.id == bt))
+              ? bt
+              : pool.first.id);
     }
   }
 

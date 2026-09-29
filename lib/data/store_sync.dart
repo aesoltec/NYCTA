@@ -90,6 +90,18 @@ class StoreSync {
         details: details,
       );
 
+  /// Élit la boutique courante d'un profil : première boutique réellement
+  /// accessible, sinon la première du jeu. Utilisé par le repli hors-ligne
+  /// (`chargerSnapshotLocal`), où aucun snapshot ne porte d'identifiant
+  /// courant — sans cet appel, l'app démarrerait avec une boutique neutre
+  /// et TOUTES les listes vides alors que les données locales existent.
+  static void elireBoutiqueAccessible(Store s) {
+    if (s.boutiques.isEmpty) return;
+    final accessibles = s.boutiques.where((b) => s.user.accedeA(b.id));
+    s.definirBoutiqueCourante(
+        accessibles.isNotEmpty ? accessibles.first.id : s.boutiques.first.id);
+  }
+
   /// Propage la boutique courante aux Notifiers qui filtrent par boutique.
   static void synchroniserBoutique(Store s, String boutiqueId) {
     s.boutique.boutiqueId = boutiqueId;

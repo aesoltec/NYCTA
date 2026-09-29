@@ -23,8 +23,21 @@ class BoutiqueNotifier extends ChangeNotifier {
     this.boutiqueId = '',
   }) : boutiques = boutiques ?? [];
 
-  Boutique get boutiqueCourante =>
-      boutiques.firstWhere((b) => b.id == boutiqueId);
+  /// Boutique de repli affichée quand aucune n'est élue (jamais stockée).
+  static const boutiqueNeutre = Boutique(id: '', nom: 'Aucune boutique');
+
+  /// Boutique courante, ou [boutiqueNeutre] si aucune n'est élue.
+  ///
+  /// L'`orElse` est OBLIGATOIRE : `boutiqueId` vaut `''` tant qu'aucune
+  /// boutique n'a été choisie — cas réel quand le compte connecté n'a
+  /// accès à aucune boutique, ou pendant la fenêtre entre la connexion et
+  /// la fin de `chargerDuCloud`. Sans lui, les 17 écrans qui affichent
+  /// `boutiqueCourante.nom` faisaient `StateError: No element` et
+  /// l'application plantait sur l'écran d'accueil.
+  Boutique get boutiqueCourante => boutiques.firstWhere(
+        (b) => b.id == boutiqueId,
+        orElse: () => boutiqueNeutre,
+      );
 
   List<Boutique> get boutiquesActives =>
       boutiques.where((b) => b.actif).toList();

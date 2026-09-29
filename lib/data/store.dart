@@ -60,11 +60,12 @@ export 'facade/facade_transverse.dart';
 export 'facade/facade_ventes.dart';
 
 /// Cœur de l'application : façade d'état global. Toute la logique métier
-/// vit dans les 16 Notifiers (`notifiers/`), les 5 Services purs
-/// (`services/`) et la persistance (`persistence/`, `store_sync.dart`) ;
-/// l'API publique complète est ré-exportée d'ici (façades `facade/`).
+/// vit dans les 16 Notifiers, les 5 Services purs (`services/`) et la
+/// persistance (`persistence/`, `store_sync.dart`) ; l'API publique
+/// complète est ré-exportée d'ici (façades `facade/`).
 class Store extends ChangeNotifier {
-  // ---------- Notifiers câblés (Phase 5) ----------
+  // `late final` sûr : assigné en 1re instruction du constructeur, jamais
+  // lu avant (un `late` simple réintroduirait le crash du bug 6bis).
   late final NotifierBundle _bundle;
   SessionNotifier get session => _bundle.session;
   BoutiqueNotifier get boutique => _bundle.boutique;
@@ -110,7 +111,7 @@ class Store extends ChangeNotifier {
       numeroDocument: numeroDocument,
     ));
     for (final n in _bundle.tous) {
-      n.addListener(_relayer);
+      n.addListener(notifier);
     }
     // PRODUCTION : aucune donnée démo (tout vient de Supabase via
     // chargerDuCloud). DÉMO : jeu de données fictif + persistance locale.
@@ -146,18 +147,14 @@ class Store extends ChangeNotifier {
       StoreSync.synchroniserBoutique(this, _boutiqueId);
 
   /// Relai : une mutation de Notifier rebuild l'UI et persiste (600 ms).
-  void _relayer() => notifier();
-
-  /// Relai explicite (appelable depuis une bibliothèque externe).
+  /// Public : `StoreSync` l'appelle depuis une autre bibliothèque.
   void notifier() => notifyListeners();
 
   /// Écrit une ligne dans la file hors-ligne (no-op sans cloud).
   Future<void> fileUpsert(String table, Map<String, dynamic> payload) =>
       StoreSync.fileUpsert(this, table, payload);
 
-  /// Numérotation atomique des documents (compteur). Cloud : RPC
-  /// séquentielle (atomique côté serveur) ; sinon compteur local porté
-  /// par le profil entreprise. API publique (préfixe libre).
+  /// Numérotation atomique (RPC cloud, sinon compteur du profil).
   Future<String> numeroDocument(String prefixe) =>
       StoreSync.numeroDocument(this, prefixe);
 
@@ -169,14 +166,12 @@ class Store extends ChangeNotifier {
   AppUser get user => session.user;
   set user(AppUser u) => session.user = u;
 
-  /// Auth OK mais aucune ligne `public.users` : garde-fou qui remplace
-  /// l'identité locale factice 'u_admin' par le VRAI uuid Supabase
-  /// (sinon : permissions client illusoires + erreurs RLS/UUID invisibles).
+  /// Auth OK mais aucune ligne `public.users` : l'identité factice est
+  /// remplacée par le VRAI uuid (sinon permissions client illusoires).
   bool get profilCloudManquant => session.profilCloudManquant;
   set profilCloudManquant(bool v) => session.profilCloudManquant = v;
 
-  /// Démarrage sur snapshot local faute de réseau : bandeau « hors-ligne »
-  /// + Reconnecter. Les mutations restent possibles (file SyncService).
+  /// Démarrage sur snapshot local (bandeau « hors-ligne » + Reconnecter).
   bool get demarrageHorsLigne => session.demarrageHorsLigne;
   set demarrageHorsLigne(bool v) => session.demarrageHorsLigne = v;
 
@@ -190,10 +185,9 @@ class Store extends ChangeNotifier {
     );
     if (snapshot == null) return false;
     _appliquerSnapshot(snapshot, choisirBoutique: true);
-    _syncBoutiqueId();
     notifyListeners();
-    // `depenses` est peuplé : c'est ici, et seulement ici en production,
-    // que la génération des charges récurrentes a un effet réel.
+    // `depenses` est peuplé : ici, et seulement ici en production, la
+    // génération des charges récurrentes a un effet réel.
     await genererChargesRecurrentesSiNouveauMois();
     // Images distantes : re-téléchargement SANS bloquer le démarrage.
     unawaited(_reparerImagesDistantes());
@@ -207,8 +201,8 @@ class Store extends ChangeNotifier {
       _persist, notifyListeners);
 
   /// Secours hors-ligne : dernier snapshot local quand Supabase est
-  /// injoignable. Identité de session CONSERVÉE (jamais écrasée) pour que
-  /// les écritures en file gardent le bon employe_id au rejeu.
+  /// injoignable. Identité de session CONSERVÉE pour que les écritures en
+  /// file gardent le bon employe_id au rejeu.
   Future<bool> chargerSnapshotLocal() async {
     final sauvegarde = LocalPersistence.load();
     if (sauvegarde == null) return false;
@@ -224,6 +218,10 @@ class Store extends ChangeNotifier {
     user = sessionUser;
     monPartenaireId = sessionPartenaire;
     profilCloudManquant = profilManquant;
+    // L'identité restaurée décide de la boutique courante (le format local
+    // n'en stocke pas) : sans cet appel, l'app démarrerait hors-ligne avec
+    // une boutique neutre et des listes toutes vides.
+    StoreSync.elireBoutiqueAccessible(this);
     demarrageHorsLigne = true;
     notifyListeners();
     return true;
@@ -249,7 +247,10 @@ class Store extends ChangeNotifier {
   }
 
   // ---------- Données (listes PARTAGÉES avec les Notifiers) ----------
-  late String _boutiqueId;
+  // PAS de `late` : en mode cloud le constructeur sort AVANT toute
+  // affectation et le premier chargement lit ce champ. La valeur neutre
+  // `''` évite l'effondrement (bug 6bis : LateInitializationError).
+  String _boutiqueId = '';
   String get boutiqueId => _boutiqueId;
   final boutiques = <Boutique>[];
   final transactions = <Tx>[];
@@ -277,11 +278,24 @@ class Store extends ChangeNotifier {
       ? CloudRepository.uuid()
       : 'id_${++_seq}_${DateTime.now().millisecondsSinceEpoch}';
 
+  /// Boutique courante élue par un chargement cloud : la boutique doit
+  /// exister ET être accessible, sinon on retombe sur la valeur neutre
+  /// (jamais un identifiant fantôme : en-têtes incohérents, listes vides).
+  void definirBoutiqueCourante(String id) {
+    _boutiqueId =
+        (boutiques.any((b) => b.id == id) && user.accedeA(id)) ? id : '';
+    boutique.boutiqueId = _boutiqueId;
+    _syncBoutiqueId();
+    notifyListeners();
+  }
+
+  /// Changement manuel (sélecteur du menu) : refus = no-op silencieux.
   void changerBoutique(String id) {
-    final avant = _boutiqueId;
-    boutique.changerBoutique(id);
-    _boutiqueId = boutique.boutiqueId;
-    if (_boutiqueId != avant) _syncBoutiqueId();
+    if (!boutiques.any((b) => b.id == id) || !user.accedeA(id)) return;
+    if (_boutiqueId == id) return;
+    _boutiqueId = id;
+    boutique.boutiqueId = id;
+    _syncBoutiqueId();
     notifyListeners();
   }
 
@@ -297,17 +311,15 @@ class Store extends ChangeNotifier {
 
   @override
   void dispose() {
-    // Sans cela, le timer de persistance différée survivait à l'arbre de
-    // widgets (fuite mémoire + smoke test rouge : "A Timer is still
-    // pending even after the widget tree was disposed").
+    // Sans cela, le timer de persistance survivait à l'arbre de widgets
+    // (fuite mémoire + "A Timer is still pending even after ...").
     _persistTimer?.cancel();
     super.dispose();
   }
 
-  /// Normalisation anti-doublon (point 35) : casse + accents.
-  /// Statique : utilisée par les façades (anti-doublon libellés).
-  static String sansAccents(String s) =>
-      Normalisation.sansAccents(s);
+  /// Normalisation anti-doublon (point 35) : casse + accents. Statique,
+  /// car utilisée par les façades (anti-doublon des libellés).
+  static String sansAccents(String s) => Normalisation.sansAccents(s);
 
   static bool memeCategorie(String a, String b) =>
       Normalisation.memeCategorie(a, b);
@@ -316,7 +328,7 @@ class Store extends ChangeNotifier {
   Map<String, dynamic> toJson() =>
       StoreSerializer.toJson(StoreSerializer.capturer(this));
 
-  /// Rechargement d'un snapshot (tests de non-régression images).
+  /// Rechargement d'un snapshot (tests de non-régression).
   @visibleForTesting
   void restaurerEtatPourTest(Map<String, dynamic> data) =>
       _chargerEtat(data);
@@ -329,8 +341,7 @@ class Store extends ChangeNotifier {
   void _appliquerSnapshot(StoreSnapshot s,
           {bool inclureDocuments = true, bool choisirBoutique = false}) =>
       SnapshotApplier.appliquer(this, s,
-          inclureDocuments: inclureDocuments,
-          choisirBoutique: choisirBoutique);
+          inclureDocuments: inclureDocuments, choisirBoutique: choisirBoutique);
 
   /// Restauration d'une sauvegarde cloud (BackupService).
   Future<void> restaurerSauvegarde(Map<String, dynamic> data) async =>
