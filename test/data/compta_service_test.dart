@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pme_gestion_pro/data/services/compta_service.dart';
 import 'package:pme_gestion_pro/models/achat.dart';
 import 'package:pme_gestion_pro/models/charge.dart';
-import 'package:pme_gestion_pro/models/enums.dart';
 import 'package:pme_gestion_pro/models/transaction.dart';
 
 /// Phase 0 — ComptaService pur : lignes partie double, TVA,

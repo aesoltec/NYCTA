@@ -2,6 +2,25 @@
 
 > Historique des versions livrées (voir `CAHIER_DES_CHARGES.md` §9 pour le détail).
 
+## 1.12.0 — 2026-09-29 (Phase 6bis — allègement RÉEL du Store)
+- **Store : 1945 → 338 lignes** (objectif < 350). La 1.11.0 avait déplacé la logique dans des fichiers `part`, ce qui n'allège rien (1933 → 1945, soit +12) : régression annulée et refaite en vraies bibliothèques
+- Suppression physique des 5 corps géants (1021 lignes) : `chargerDuCloud` (439), `_chargerEtat` (309), `toJson` (130), `_reparerImagesDistantes` (78), `_seedDemo` (65) → appels courts aux bibliothèques pures
+- 129 délégations déplacées dans 9 vraies `extension on Store` (`lib/data/facade/*.dart` : achats, catalogue, collab, compta_docs, fichiers, session, stock, transverse, ventes), **ré-exportées par `store.dart`** → un seul import, zéro churn sur les 200+ appelants
+- Nouvelles bibliothèques : `StoreSync` (183 l. — catalogue depuis produit, journal, vente, payloads cloud/file, numérotation) + `SnapshotApplier` (129 l. — fusion de snapshot, règle catégories cloud-prioritaire, restauration de sauvegarde) ; suppression de `store_persistence.dart` (doublon)
+- Vérification anti-duplication : analyse croisée classe ↔ extensions → 0 doublon résiduel
+- 3 membres privés devenus publics (`genererId`, `fileUpsert`, `numeroDocument`) + 7 lectures transverses en extension (`catsProduit`, `catsCharge`, `opsMobileMoney`, `opsCredit`, `domainesPresta`, `dureesForfaitListe`, `moisCourant`) — coût assumé et documenté d'une extraction réelle
+- Nettoyage : 31 imports inutiles retirés (dont 2 blocs d'imports dupliqués dans `clients_screen.dart` / `fournisseurs_screen.dart`), `_memeLibelle` et `_memeListe` morts supprimés au profit de `StoreHelpers`
+- `wiring_test.dart` réécrit sur la nouvelle API (`EntreesWiring` reçoit le `Store` et construit lui-même ses callbacks) — 4/4
+- Anti-régression : `dart analyze` **0 erreur**, `flutter test` **395/395 verts**
+- Réserve isolée : `lib/screens/stock/stock_screen.dart` (952 l.) hors périmètre 6bis (refonte UX R1) — à extraire
+
+## 1.11.0 — 2026-09-28 (Phase 6 — découpage du Store, allègement ANNULÉ)
+- ⚠️ **Allègement annulé par la 1.12.0** : les façades créées étaient des `part` (bibliothèque partagée), donc aucun gain sur le fichier principal. Conservée pour la trace ; ne pas s'en servir de référence
+- Nouveaux modules purs (utiles, conservés en 1.12.0) : `StoreSerializer` (JSON local roundtrip), `CloudLoader` (traduction Supabase → snapshot), `DemoSeed` (données démo), `NotifierWiring` (faisceau 16 Notifiers), `StoreHelpers` (normalisation)
+- Store : 3114 → 1933 lignes (Phase 5, commit `84f96e0`) puis 1945 (Phase 6, sans gain net)
+- Anti-régression : suite 395/395 verts, `dart analyze` 0 erreur
+- Écarts documentés : `carousel_slider` installé mais non utilisé (PageView natif), sous-catégorie absente, timeline achat inférée
+
 ## 1.10.0 — 2026-09-28 (refonte UX e-commerce : Stock, Tarifs, Achats)
 - Badges : UNIQUEMENT Nouveau (< 7 j, `dateAjout`) / Stock faible / Rupture — tout badge marketing supprimé ; `ProduitExtension` (rupture/faible/nouveau) + `Tarif.nouveau`
 - Modèle : `Produit.dateAjout` + `Tarif.dateAjout` (remplie à la création, jamais écrasée ; rétrocompatible null) + persistance locale/cloud/file + SQL `date_ajout` (schema + migration + SUPABASE_A_EXECUTER)

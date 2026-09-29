@@ -416,3 +416,70 @@ Contexte : 2 Notifiers créés, testés, NON branchés (Store intact).
 8. Analyze OK — 0 erreur.
 9. Tests OK — 7 widget + 1 golden + 3 parcours intégration (code OK, émulateur ADB absent : non exécutés).
 10. Contre-expertise finale OK — suite 375/375 ; push interdit (commits locaux).
+
+### Phase 6 (1re tentative) — ANNULEE : faux allegement (2026-09-28)
+1. Fonctionnelle ECHEC — la logique avait ete deplacee dans des fichiers
+   `part` : les `part` partagent la bibliotheque, donc aucun allegement
+   reel. Bilan : 1933 -> 1945 lignes, soit +12 (une REGRESSION presentee
+   comme un progres).
+2. Metier OK — aucun changement de comportement.
+3. Securite OK — inchangee.
+4. Overflow OK — aucun ecran touche.
+5. Performance OK — aucune liste copiee.
+6. Tests ECHEC — 395/395 verts, mais la preuve ne portait pas sur
+   l'objectif annonce (taille du Store).
+7. Documentation KO — la ligne Phase 6 de MISSION_STATUS.md annoncait un
+   allegement inexistant.
+8. Regression ECHEC — le Store a grossi.
+9. UX OK — invisible utilisateur.
+10. Contre-expertise ECHEC — un `part` n'est pas une extraction. Verdict :
+    modification rejetee, refaite en 6bis (vraies bibliotheques).
+
+### Phase 6bis — Allegement reel du Store (2026-09-29)
+**Objectif** : `lib/data/store.dart` < 350 lignes, sans changer l'API
+publique ni le comportement. **Realise** : 1945 -> 338 lignes.
+
+1. Fonctionnelle OK — suppression PHYSIQUE des 5 corps geants
+   (`chargerDuCloud` 439 l., `_chargerEtat` 309 l., `toJson` 130 l.,
+   `_reparerImagesDistantes` 78 l., `_seedDemo` 65 l. = 1021 lignes)
+   remplaces par des appels courts aux vraies bibliotheques ; 129
+   delegations deplacees dans 9 `extension on Store` re-exportees par
+   `store.dart` (donc visibles partout avec un seul import) ; helpers
+   metier dans `StoreSync`, fusion de snapshot dans `SnapshotApplier`.
+   **Verification anti-duplication** : analyse croisee des membres
+   declares par la classe et par chaque extension — 0 doublon residuel.
+2. Metier OK — aucune regle inventee ; regle de fusion de categories
+   (cloud prioritaire, jamais d'ecrasement par du vide) et exclusion des
+   documents pour le format local conservees a l'identique dans
+   `SnapshotApplier`. `DemoSeed` reproduit le jeu de demo exact.
+3. Securite OK — permissions, RLS, `can()` : inchangees. Le Store ne
+   detient plus d'etat metier : moins de surface, pas plus.
+4. Overflow OK — aucun ecran modifie ; suite goldens + overflow verte
+   (24 tests 320/360/768/1024 x 1.0/1.3/1.5/2.0).
+5. Performance OK — listes toujours partagees par reference avec les
+   Notifiers (`identical()` verifie dans `wiring_test.dart`) ; aucune
+   copie introduite ; relai 600 ms et `_persistTimer` inchanges.
+6. Tests OK — `flutter test` **395/395 verts** ; `dart analyze`
+   **0 erreur** ; `wiring_test.dart` reecrit sur la nouvelle API (4/4) ;
+   31 imports inutiles retires (aucun code mort).
+7. Documentation OK — CHANGELOG 1.12.0, MISSION_STATUS (Phase 6
+   annulee + Phase 6bis), README (arborescence data/), ce journal.
+8. Regression OK — 395/395 verts apres chaque etape (7 jalons
+   verifies un par un) ; aucun appelant de `store.dart` modifie
+   (`export` des extensions = 0 churn sur 200+ fichiers).
+9. UX OK — strictement invisible : facade transparente, memes
+   signatures, meme ordre de persistance et de notification.
+10. Contre-expertise finale — **reserves assumees** :
+    (a) `extension` n'est visible que si la bibliotheque est importee
+        ou re-exportee : d'ou les 8 `export` dans `store.dart`
+        (`facade_transverse.dart` porte les 7 lectures transverses
+        utilisees par le serializer, donc hors de la classe) ;
+    (b) 3 membres prives deviennent publics (`genererId`, `fileUpsert`,
+        `numeroDocument`) : c'est le cout inevitable d'une extraction
+        reelle, documente en place ;
+    (c) `lib/screens/stock/stock_screen.dart` fait 952 lignes :
+        **hors perimetre 6bis** (refonte UX R1), reserve isolee ;
+    (d) 138 warnings `inference_failure` preexistants (pas de la 6bis)
+        non traites — a planifier.
+    Verdict global : **CONFORME** sur l'objectif 6bis.
+

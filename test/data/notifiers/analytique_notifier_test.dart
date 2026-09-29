@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pme_gestion_pro/data/notifiers/analytique_notifier.dart';
 import 'package:pme_gestion_pro/models/charge.dart';
-import 'package:pme_gestion_pro/models/enums.dart';
 import 'package:pme_gestion_pro/models/transaction.dart';
 
 /// Phase 4 — AnalytiqueNotifier (séries 7j/mois/années).

@@ -66,11 +66,28 @@ flutter run
 lib/
   core/        Thème "soft" + constantes (activités, opérateurs, format FCFA)
   models/      Tx, Produit, Partenaire, Partage, Boutique, AppUser
-  data/store.dart   État global (Provider) + calculs métier + seed démo
+  data/        Cœur d'état (Provider) — découpé en couches :
+    store.dart        (338 l.) façade : câblage des 16 Notifiers,
+                      listes partagées, persistance différée, cycle de vie
+    notifiers/        16 Notifiers (session, boutique, produits, achats…)
+      wiring.dart     construction du faisceau + callbacks
+    services/         5 services purs (analytique, caisse, compta, stock, partage)
+    persistence/      serializer (JSON local), cloud_loader (Supabase),
+                      snapshot_applier (fusion du snapshot)
+    demo/demo_seed.dart   jeu de données du mode démo
+    store_sync.dart   helpers cloud/fichier (payloads, numérotation, sync)
+    facade/           9 `extension on Store` — l'API publique déléguée,
+                      ré-exportée par store.dart (un seul import suffit)
+    helpers.dart      normalisation (anti-doublon casse + accents)
   screens/     login, shell, dashboard, transaction, journal,
                stock, partenaires, rapports
   widgets/     MoneyText, SoftCard, EmptyView, TypeChip
 ```
+
+> **Règle du Store** : `store.dart` ne contient plus de logique métier.
+> Un nouveau comportement se code dans un Notifier (état) ou un Service pur
+> (calcul), puis se délègue depuis une façade. Voir `PASSES_AUDIT.md`
+> (Phase 6bis) pour le détail de l'extraction.
 
 ## Brancher Firebase ensuite (sans casser l'UI)
 

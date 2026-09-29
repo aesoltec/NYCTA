@@ -3,7 +3,6 @@ import 'package:pme_gestion_pro/data/notifiers/compta_notifier.dart';
 import 'package:pme_gestion_pro/models/achat.dart';
 import 'package:pme_gestion_pro/models/charge.dart';
 import 'package:pme_gestion_pro/models/ecriture.dart';
-import 'package:pme_gestion_pro/models/enums.dart';
 import 'package:pme_gestion_pro/models/transaction.dart';
 
 /// Phase 4 — ComptaNotifier (journal immuable, contre-passations).

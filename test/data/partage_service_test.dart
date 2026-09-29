@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pme_gestion_pro/data/services/partage_service.dart';
-import 'package:pme_gestion_pro/models/enums.dart';
 import 'package:pme_gestion_pro/models/transaction.dart';
 
 /// Phase 0 — PartageService pur : total forfait + clôture équilibrée.

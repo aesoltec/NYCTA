@@ -8,7 +8,6 @@ import '../../models/enums.dart';
 import '../../models/produit.dart';
 import '../../services/media_service.dart';
 import '../../widgets/app_image.dart';
-import '../../widgets/date_selector.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
 import 'mouvements_screen.dart';

@@ -5,7 +5,6 @@ import 'package:pme_gestion_pro/models/app_user.dart';
 import 'package:pme_gestion_pro/models/enums.dart';
 import 'package:pme_gestion_pro/models/mouvement_stock.dart';
 import 'package:pme_gestion_pro/models/produit.dart';
-import 'package:pme_gestion_pro/models/tarif.dart';
 import 'package:pme_gestion_pro/models/transaction.dart';
 
 /// Phase 3 — ProduitNotifier (listes partagées injectées).

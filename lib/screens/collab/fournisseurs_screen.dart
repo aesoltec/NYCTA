@@ -3,10 +3,6 @@ import 'package:provider/provider.dart';
 import '../../core/validators.dart';
 import '../../data/store.dart';
 import '../../models/fournisseur.dart';
-
-import '../../core/validators.dart';
-import '../../data/store.dart';
-import '../../models/fournisseur.dart';
 import '../../services/export_service.dart';
 import '../../widgets/filtre_panel.dart';
 

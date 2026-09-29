@@ -1,7 +1,6 @@
 import '../../models/achat.dart';
 import '../../models/charge.dart';
 import '../../models/ecriture.dart';
-import '../../models/enums.dart';
 import '../../models/transaction.dart';
 
 /// Construction des écritures SYSCOHADA (Phase 0 — PUR) : partie double,

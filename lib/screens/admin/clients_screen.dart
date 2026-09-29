@@ -3,10 +3,6 @@ import 'package:provider/provider.dart';
 import '../../core/validators.dart';
 import '../../data/store.dart';
 import '../../models/client.dart';
-
-import '../../core/validators.dart';
-import '../../data/store.dart';
-import '../../models/client.dart';
 import '../../services/export_service.dart';
 import '../../services/media_service.dart';
 import '../../widgets/app_image.dart';

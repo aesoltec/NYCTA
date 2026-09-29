@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pme_gestion_pro/data/notifiers/partenaire_notifier.dart';
-import 'package:pme_gestion_pro/models/enums.dart';
 import 'package:pme_gestion_pro/models/partage.dart';
 import 'package:pme_gestion_pro/models/partenaire.dart';
 import 'package:pme_gestion_pro/models/transaction.dart';

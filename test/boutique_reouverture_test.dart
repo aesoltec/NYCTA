@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:pme_gestion_pro/data/store.dart';
 import 'package:pme_gestion_pro/models/app_user.dart';
-import 'package:pme_gestion_pro/models/boutique.dart';
 import 'package:pme_gestion_pro/models/enums.dart';
 import 'package:pme_gestion_pro/screens/admin/boutiques_screen.dart';
 

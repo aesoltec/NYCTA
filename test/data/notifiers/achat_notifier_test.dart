@@ -3,11 +3,8 @@ import 'package:pme_gestion_pro/data/notifiers/achat_notifier.dart';
 import 'package:pme_gestion_pro/data/notifiers/session_notifier.dart';
 import 'package:pme_gestion_pro/models/achat.dart';
 import 'package:pme_gestion_pro/models/app_user.dart';
-import 'package:pme_gestion_pro/models/charge.dart';
 import 'package:pme_gestion_pro/models/enums.dart';
-import 'package:pme_gestion_pro/models/mouvement_stock.dart';
 import 'package:pme_gestion_pro/models/produit.dart';
-import 'package:pme_gestion_pro/models/tarif.dart';
 
 /// Phase 3 — AchatNotifier : cycle complet (callbacks injectés).
 int _seq = 500;
