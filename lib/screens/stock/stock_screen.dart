@@ -5,8 +5,10 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/validators.dart';
 import '../../data/store.dart';
 import '../../models/enums.dart';
+import '../../data/models/media_item.dart';
 import '../../models/produit.dart';
 import '../../services/media_service.dart';
+import '../gallery/gallery_screen.dart';
 import '../../widgets/app_image.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
@@ -638,6 +640,29 @@ class _FormProduitState extends State<_FormProduit> {
                         if (ajouts.isNotEmpty) {
                           setState(() => _images.addAll(ajouts));
                         }
+                      },
+              ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.collections_outlined, size: 18),
+                label: const Text('Parcourir'),
+                onPressed: _images.length >= Produit.maxImages
+                    ? null
+                    : () async {
+                        final choisi = await Navigator.of(context).push<
+                            MediaItem>(
+                          MaterialPageRoute(
+                              builder: (_) =>
+                                  const GalleryScreen(modeSelection: true)),
+                        );
+                        if (choisi == null) return;
+                        if (_images.contains(choisi.cle)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Déjà dans la galerie')));
+                          return;
+                        }
+                        if (_images.length >= Produit.maxImages) return;
+                        setState(() => _images.add(choisi.cle));
                       },
               ),
               OutlinedButton.icon(

@@ -29,6 +29,7 @@ import 'notifiers/collab_notifier.dart';
 import 'notifiers/compta_notifier.dart';
 import 'notifiers/document_notifier.dart';
 import 'notifiers/fournisseur_notifier.dart';
+import 'notifiers/gallery_notifier.dart';
 import 'notifiers/partenaire_notifier.dart';
 import 'notifiers/produit_notifier.dart';
 import 'notifiers/profile_notifier.dart';
@@ -86,6 +87,7 @@ class Store extends ChangeNotifier {
   DocumentNotifier get document => _bundle.document;
   ComptaNotifier get compta => _bundle.compta;
   AnalytiqueNotifier get analytique => _bundle.analytique;
+  GalleryNotifier get gallery => _bundle.gallery;
 
   Store(AppUser user) {
     _bundle = NotifierWiring.construire(EntreesWiring(
@@ -147,7 +149,6 @@ class Store extends ChangeNotifier {
   /// Boutique courante projetée sur les Notifiers qui filtrent.
   void _syncBoutiqueId() =>
       StoreSync.synchroniserBoutique(this, _boutiqueId);
-
   /// Relai : une mutation de Notifier rebuild l'UI et persiste (600 ms).
   void notifier() => notifyListeners();
 
@@ -162,7 +163,6 @@ class Store extends ChangeNotifier {
   /// Partenaire lié au compte connecté (rôle partenaire) — `session`.
   String? get monPartenaireId => session.monPartenaireId;
   set monPartenaireId(String? v) => session.monPartenaireId = v;
-
   /// Utilisateur connecté — délégué à `session`.
   AppUser get user => session.user;
   set user(AppUser u) => session.user = u;

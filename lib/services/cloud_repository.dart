@@ -886,4 +886,65 @@ class CloudRepository {
     return '$s1-$s2-$s3-$s4-$s5'
         .replaceRange(19, 20, ((int.parse(s4[0], radix: 16) & 0x3 | 0x8).toRadixString(16)));
   }
+
+  // ---------- Galerie interne : bucket « media » ----------
+
+  /// Préfixe de dossier utilisé par la galerie pour ses uploads.
+  static const prefixeGalerie = 'galerie';
+
+  /// Liste les objets d'un préfixe du bucket `media` (galerie interne).
+  /// Retourne des chemins relatifs (`galerie/xxx.jpg`), les plus récents
+  /// d'abord. Sans cloud ou en cas d'erreur : liste vide (jamais de throw).
+  static Future<List<String>> listerMedia([String prefixe = prefixeGalerie]) async {
+    final c = _c;
+    if (c == null) return const [];
+    try {
+      final rep = await c.storage.from('media').list(path: prefixe);
+      return rep
+          .where((o) =>
+              (o.name ?? '').toLowerCase().endsWith('.jpg') ||
+              (o.name ?? '').toLowerCase().endsWith('.jpeg') ||
+              (o.name ?? '').toLowerCase().endsWith('.png'))
+          .map((o) => '$prefixe/${o.name}')
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// URL publique d'un objet `media` (galerie interne).
+  static String urlMedia(String chemin) {
+    final c = _c;
+    return c == null ? '' : c.storage.from('media').getPublicUrl(chemin);
+  }
+
+  /// Monte un fichier local dans la galerie (`media/galerie/`) et
+  /// retourne son chemin relatif. null hors cloud ou en cas d'échec.
+  static Future<String?> televerserMedia(File fichier) async {
+    final c = _c;
+    if (c == null || !fichier.existsSync()) return null;
+    try {
+      final ext = fichier.path.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
+      final nom = 'galerie_${DateTime.now().microsecondsSinceEpoch}.$ext';
+      final chemin = '$prefixeGalerie/$nom';
+      await c.storage.from('media').upload(chemin, fichier);
+      return chemin;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Suppression DÉFINITIVE d'un objet du bucket `media`.
+  /// La policy RLS « media suppression » réserve l'action à admin/gérant.
+  /// false si sans cloud, introuvable ou refusé.
+  static Future<bool> supprimerMedia(String chemin) async {
+    final c = _c;
+    if (c == null || chemin.isEmpty) return false;
+    try {
+      await c.storage.from('media').remove([chemin]);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }

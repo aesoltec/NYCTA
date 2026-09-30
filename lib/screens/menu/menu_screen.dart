@@ -18,6 +18,7 @@ import '../collab/notes_screen.dart';
 import '../config/config_screen.dart';
 import '../config/synchronisation_screen.dart';
 import '../documents/documents_history_screen.dart';
+import '../gallery/gallery_screen.dart';
 import '../documents/documents_screen.dart';
 import '../backup/backup_screen.dart';
 import '../charges/charges_screen.dart';
@@ -161,6 +162,16 @@ class MenuScreen extends StatelessWidget {
             titre: 'Mouvements de stock',
             sousTitre: 'Entrées, sorties, ajustements — traçabilité',
             destination: const MouvementsScreen(),
+          ),
+        if (store.peut(Permission.gererStock) ||
+            store.peut(Permission.vendre))
+          _Tuille(
+            icone: Icons.photo_library_outlined,
+            couleur: const Color(0xFF5E35B1),
+            titre: 'Galerie d\'images',
+            sousTitre: 'Parcourir, téléverser, affecter aux produits'
+                '${store.role == Role.admin || store.role == Role.gerant ? " · suppression admin/gérant" : ""}',
+            destination: const GalleryScreen(),
           ),
 
         // ==================== FINANCES ====================

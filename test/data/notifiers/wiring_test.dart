@@ -46,10 +46,10 @@ NotifierBundle _faisceau(Store store) =>
 
 void main() {
   group('NotifierWiring.construire', () {
-    test('construit les 16 Notifiers', () {
+    test('construit les 17 Notifiers', () {
       final b = _faisceau(Store(
           const AppUser(id: 'u', nom: 'T', role: Role.admin)));
-      expect(b.tous.length, 16);
+      expect(b.tous.length, 17);
     });
 
     test('partage les listes du Store par référence', () {
@@ -62,6 +62,15 @@ void main() {
       expect(identical(b.analytique.transactions, store.transactions),
           isTrue);
       expect(identical(b.achat.depenses, store.depenses), isTrue);
+    });
+
+    test('galerie branchée sur les listes produits et catalogue', () {
+      final store =
+          Store(const AppUser(id: 'u', nom: 'T', role: Role.admin));
+      final b = _faisceau(store);
+      expect(identical(b.gallery.produits, store.produits), isTrue);
+      expect(identical(b.gallery.catalogue, store.catalogue), isTrue);
+      expect(b.gallery.occupe, isFalse);
     });
 
     test('compta câblée : une charge poste 2 écritures équilibrées',

@@ -592,3 +592,52 @@ rejeter l'identifiant fantôme (retour à la valeur neutre) et non
 d'inventer un règle « l'admin peut toujours choisir ». La garde
 `accedeA` reste la source unique de vérité.
 
+### Galerie interne d'images — G1 (2026-09-30)
+1. Fonctionnelle OK — parcours (stockage local + bucket), upload
+   (compression 1280 px / < 300 Ko réutilisée), sélection,
+   affectation produit **et** article, suppression définitive. Accès
+   par 2 portes (menu Plus + formulaire produit), comme demandé.
+2. Métier OK — aucune règle inventée : la galerie n'ajoute
+   AUCUNE source de vérité. Elle déduit l'index du stockage
+   réel + des références existantes. L'image affectée devient
+   `images.first` (convention `imagePath` du modèle déjà en place).
+   Pas de table SQL, pas de migration : le bucket fait office d'index.
+3. Sécurité OK — lecture + affectation ouvertes à tous ; la
+   **suppression définitive est filtrée à admin/gérant** dans
+   l'écran, ce qui correspond à la policy RLS « media suppression »
+   (déjà en base). Double garde : côté client ET côté serveur.
+4. Overflow OK — grille `maxCrossAxisExtent` (2 colonnes à 320 px, 5
+   à 1024 px), libellés ellipsés, `Wrap` pour la barre de filtres,
+   bottom sheet scrollable : vérifié 320/360/768/1024 × 1.0/1.5/2.0
+   (15 tests, 0 exception).
+5. Performance OK — index reconstruit à l'ouverture seulement ;
+   `GalleryService` est pur (aucune I/O testable) ; les vignettes locales
+   ne déclenchent aucun ticker (placeholder **statique**, pas de Shimmer
+   — sinon `pumpAndSettle` casse).
+6. Tests OK — 44 tests : `gallery_service_test` 22 (indexation, usages,
+   bornes 5 images, doublons, détachement), `media_storage_test` 7
+   (listing, tri, suppression physique, refus des URLs), `gallery_overflow_test`
+   15 (12 anti-overflow + 3 garde d'accès) + 1 test de wiring.
+   Suite **455/455**, `dart analyze` **0 erreur**.
+7. Documentation OK — CHANGELOG 1.13.0, MISSION_STATUS (G1), CDC 40novies,
+   ce journal.
+8. Régression OK — suite complète verte ; `wiring_test` mis à jour
+   (16 → 17 Notifiers + test de partage des listes galerie) ; aucun
+   appelant de `Store` modifié hormis 2 ajouts de facade (lignes < 350).
+9. UX OK — l'écran est lisible par tous, la poubelle n'apparaît que
+   pour les rôles autorisés (sous-titre de la tuile menu l'annonce), et
+   supprimer une image rattachée affiche la liste des entités
+   concernées avant confirmation.
+10. Contre-expertise — **réserves** : (a) le scan du dossier local est
+    fait à chaque ouverture (rapide, mais à confirmer sur un grand
+    catalogue) ; (b) pas de cache d'index — décision assumée, un index
+    obsolète est pire qu'un scan ; (c) le test de garde d'accès porte sur
+    la **grille** et non sur `GalleryScreen` (le scan `dart:io` ne se
+    résout pas dans la zone fake-async de `testWidgets`) : la règle
+    testée est bien celle appliquée par l'écran, mais le
+    chaînage complet n'est pas couvert par un test automatique —
+    **à vérifier en exécution réelle** ; (d) la suppression cloud
+    dépend de la policy RLS déjà installée (si elle manque en base,
+    la suppression locale marche, la cloud non — retour false traité).
+    Verdict : **CONFORME**.
+

@@ -79,8 +79,11 @@ lib/
     facade/           9 `extension on Store` — l'API publique déléguée,
                       ré-exportée par store.dart (un seul import suffit)
     helpers.dart      normalisation (anti-doublon casse + accents)
+    models/media_item.dart  MediaItem + MediaUsage (galerie)
+    gallery/gallery_service.dart  indexation + bascule d'affectation (pur)
   screens/     login, shell, dashboard, transaction, journal,
                stock, partenaires, rapports
+    gallery/   Galerie d'images (parcourir, upload, affecter, supprimer)
   widgets/     MoneyText, SoftCard, EmptyView, TypeChip
 ```
 

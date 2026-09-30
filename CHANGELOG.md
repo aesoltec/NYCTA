@@ -18,6 +18,17 @@
 - **133 warnings** `inference_failure_*` / `unnecessary_cast` préexistants dans le projet, aucun introduit par la 6bis → tracé au CDC point **40ter** (v1.13.0)
 - Visibilité publique de `genererId` / `fileUpsert` / `numeroDocument` : réductible seulement via une couche d’accès dédiée, non rentable → tracé au CDC point **40quater**
 
+## 1.13.0 — 2026-09-30 (Galerie interne d'images)
+- **Banque d'images** : parcours des images déjà présentes, téléversement, affectation à un produit du stock ou un article du catalogue, suppression définitive
+- Accès : tuile **Galerie d'images** dans le menu Plus (section Stock) + bouton **Parcourir** dans le formulaire produit
+- **Droits** : lecture et affectation ouvertes à tous les rôles ; **suppression définitive réservée à l'admin et le gérant** (cohérent avec la policy RLS « media suppression » déjà en place)
+- Nouvelles briques manquantes : `MediaService.dossierMedia/listerImages/supprimerFichier` (suppression PHYSIQUE — avant, la croix rouge du formulaire ne faisait que retirer l'item d'une liste en mémoire, le fichier restait) et `CloudRepository.listerMedia/urlMedia/televerserMedia/supprimerMedia`
+- `MediaItem` + `MediaUsage` (modèles), `GalleryService` (indexation + bascule d'affectation, 100 % pur et testable sans UI ni base), `GalleryNotifier` (17e Notifier, branché par `NotifierWiring`)
+- `MediaThumb` : vignette tolérante locale **ou** cloud (`AppImage` ne savait lire qu'un fichier local)
+- Suppression définitive = détachement de tous les produits/articles concerns (avec confirmation nom par nom) puis effacement du fichier local et de l'objet du bucket : aucune référence morte possible
+- Anti-overflow : grille `maxCrossAxisExtent` (2 colonnes à 320 px, 5 à 1024 px) ; vérifié 320/360/768/1024 × TextScaler 1.0/1.5/2.0
+- Tests : +44 (gallery_service 22, media_storage 7, gallery_overflow 15) + 1 test de wiring ; suite **455/455 verts**, `dart analyze` **0 erreur**
+
 ## 1.12.1 — 2026-09-29 (correctif bloquant : crash au premier chargement cloud)
 - **Crash corrigé** : `LateInitializationError: Field '_boutiqueId' has not been initialized` au tout premier chargement réel (écran de connexion → `chargerDuCloud` → `SnapshotApplier.appliquer` → `changerBoutique`). Introduit par la 1.12.0 : l'éligition de la boutique passait par `changerBoutique`, qui LIT `_boutiqueId` — alors que le champ n'est jamais affecté en mode cloud (le constructeur sort avant).
 - `Store._boutiqueId` : `late String` → `String _boutiqueId = ''`. Suppression du `late` partout ailleurs ; le champ n'est plus une bombe à retardement.

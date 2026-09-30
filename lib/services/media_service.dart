@@ -236,6 +236,69 @@ class MediaService {
   static bool estDistant(String? path) =>
       path != null && path.startsWith('http');
 
+  // ---------- Galerie : listage + suppression physique ----------
+
+  /// Extension image acceptée dans la banque interne.
+  static const extensionsImages = ['.jpg', '.jpeg', '.png'];
+
+  /// Jointure de chemin cross-platform (Windows `\`, POSIX `/`).
+  static String _joindre(String base, String a, String b) =>
+      '$base${Platform.pathSeparator}$a${Platform.pathSeparator}$b';
+
+  /// Dossiers scannés par la galerie interne. `galerie` = banque brute
+  /// (uploads non encore rattachés) ; `produit`/`tarif` = copies faites
+  /// lors de l'affectation.
+  static const dossiersGalerie = ['galerie', 'produit', 'tarif'];
+
+  /// Répertoire d'un dossier média (`<docs>/media/<dossier>`), créé si
+  /// besoin. [dossierRacineTest] est honoré (tests).
+  static Future<Directory> dossierMedia(String dossier) async {
+    final racine = await _racine();
+    final d = Directory(_joindre(racine.path, 'media', dossier));
+    if (!d.existsSync()) await d.create(recursive: true);
+    return d;
+  }
+
+  /// Liste les images d'un dossier média (récursif : `media/<dossier>/**`).
+  /// Tri antéchronologique par date de modification. Jamais d'exception.
+  static Future<List<File>> listerImages(String dossier) async {
+    try {
+      final dir =
+          Directory(_joindre((await _racine()).path, 'media', dossier));
+      if (!dir.existsSync()) return const [];
+      final fichiers = <File>[];
+      await for (final e in dir.list(followLinks: false)) {
+        if (e is! File) continue;
+        final ext = e.path.toLowerCase();
+        if (!extensionsImages.any(ext.endsWith)) continue;
+        fichiers.add(e);
+      }
+      fichiers.sort((a, b) => b.statSync().modified.compareTo(
+          a.statSync().modified));
+      return fichiers;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Suppression PHYSIQUE d'un média local (définitif).
+  /// Un fichier encore utilisé par un produit/article n'est PAS supprimé :
+  /// la protection est faite en amont par l'appelant (l'utilisateur
+  /// confirme), ici on ne protège que le chemin distant (jamais d'écriture).
+  /// Retourne true si le fichier a disparu du disque.
+  static Future<bool> supprimerFichier(String? chemin) async {
+    if (chemin == null || chemin.isEmpty) return false;
+    if (chemin.startsWith('http')) return false; // distant : voir cloud
+    try {
+      final f = File(chemin);
+      if (!f.existsSync()) return true; // déjà absent = objectif atteint
+      await f.delete();
+      return !f.existsSync();
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ---------- Migration des anciens noms (Action 6) ----------
 
   /// Si [chemin] local ne respecte pas le schéma unique, le recopie

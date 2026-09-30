@@ -27,6 +27,7 @@ import 'categorie_notifier.dart';
 import 'charge_notifier.dart';
 import 'client_notifier.dart';
 import 'collab_notifier.dart';
+import 'gallery_notifier.dart';
 import 'compta_notifier.dart';
 import 'document_notifier.dart';
 import 'fournisseur_notifier.dart';
@@ -79,6 +80,7 @@ class NotifierBundle {
   final DocumentNotifier document;
   final ComptaNotifier compta;
   final AnalytiqueNotifier analytique;
+  final GalleryNotifier gallery;
 
   const NotifierBundle({
     required this.session,
@@ -97,6 +99,7 @@ class NotifierBundle {
     required this.document,
     required this.compta,
     required this.analytique,
+    required this.gallery,
   });
 
   /// Les 16, pour le relai `notifyListeners` du Store.
@@ -117,6 +120,7 @@ class NotifierBundle {
         document,
         compta,
         analytique,
+        gallery,
       ];
 }
 
@@ -213,6 +217,14 @@ class EntreesWiring {
 
   ComptaNotifier getCompta() => store.compta;
   ProfileNotifier getProfil() => store.profil;
+
+  /// Persistance d'un produit (galerie interne) — délègue au Notifier.
+  Future<String?> majProduit(Produit p) => store.produit.majProduit(p);
+
+  /// Persistance d'un article du catalogue (galerie interne).
+  Future<String?> majTarif(Tarif t) async {
+    await store.majTarif(t);
+  }
 
   EntreesWiring({
     required this.store,
@@ -345,6 +357,19 @@ class NotifierWiring {
         documentsEmis: e.documentsEmis);
     final analytique = AnalytiqueNotifier(
         transactions: e.transactions, depenses: e.depenses);
+    // Galerie interne : lit les listes partagées et persiste via les
+    // Notifiers produits / catalogue (pas de nouvelle source de vérité).
+    final gallery = GalleryNotifier(
+      produits: e.produits,
+      catalogue: e.catalogue,
+      majProduitLocal: (p) async {
+        final err = await e.majProduit(p);
+        if (err != null) throw StateError(err);
+      },
+      // (l'erreur de majTarif est déjà remontée par le Notifier catalogue)
+      majTarifLocal: (t) => e.majTarif(t),
+    );
+
     return NotifierBundle(
       session: session,
       boutique: boutique,
@@ -362,6 +387,7 @@ class NotifierWiring {
       document: document,
       compta: compta,
       analytique: analytique,
+      gallery: gallery,
     );
   }
 }
