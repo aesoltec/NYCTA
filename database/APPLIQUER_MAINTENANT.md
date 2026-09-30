@@ -3,6 +3,29 @@
 > Destinataire : l'utilisateur. Date : 2026-09-26.
 > Tout est **idempotent** : rejouable sans risque sur base existante.
 
+## 0. Nettoyage des médias en double (133 entrées / 19 images réelles)
+
+*Opération de DONNÉES, à faire UNE SEULE FOIS après la correction du code
+(v1.13.1, commit `9adf1fb`).*
+
+| Étape | Fichier | Effet |
+|---|---|---|
+| 1. Diagnostic | `DIAGNOSTIC_DOUBLONS_MEDIA.sql` | Lecture seule : liste les objets et dit lesquels sont utilisés |
+| 2. Fonction | `NETTOYAGE_MEDIA_ORPHELINS.sql` (fonction seule) | Installe `nettoyer_media_orphelins()` — ne supprime rien |
+| 3-5. Nettoyage | idem, 3 appels `select` | Liste → valide le compte → supprime |
+| 6. Vérification | rejouer le diagnostic | Plus aucun orphelin |
+
+**Guide pas à pas : `NETTOYAGE_MEDIA_GUIDE.md`**
+
+⚠️ Sauvegarde obligatoire avant l'étape 5, et application fermée pendant
+l'opération (enregistrer un produit recréerait un objet). La fonction est
+protégée par un seuil de confirmation : elle refuse de supprimer si le
+nombre d'orphelins détectés ne correspond pas exactement au nombre validé.
+
+Le script exclut les images de marque (logo, cachet, signature) et son sens
+d'erreur est volontairement conservateur : une image utilisée n'est jamais
+supprimée, un orphelin peut parfois survivre un passage.
+
 ## 1. SQL — migrations en attente (Supabase réel)
 
 **Fichier unique : `database/SUPABASE_A_EXECUTER.sql`** (ordre interne géré).
