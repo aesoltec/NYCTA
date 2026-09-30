@@ -26,6 +26,39 @@ Le script exclut les images de marque (logo, cachet, signature) et son sens
 d'erreur est volontairement conservateur : une image utilisée n'est jamais
 supprimée, un orphelin peut parfois survivre un passage.
 
+### ERREUR AU LANCEMENT : `Could not find the 'date_ajout' column`
+
+```
+❌ SyncService : opération bloquée définitivement (produits)
+   — PostgrestException(PGRST204 : Could not find the 'date_ajout' column)
+```
+
+**Ce n'est pas une erreur de code** : c'est la migration de la refonte UX
+(badge « Nouveau ») qui n'a pas encore été appliquée à ta base. Elle
+est prête, section 3 de `database/SUPABASE_A_EXECUTER.sql` :
+
+```sql
+alter table public.produits add column if not exists date_ajout timestamptz;
+alter table public.tarifs   add column if not exists date_ajout timestamptz;
+```
+
+**Ce que faire, dans l'ordre :**
+
+1. Ouvre la totalité de `database/SUPABASE_A_EXECUTER.sql` dans le SQL
+   Editor et *Run* (il est **idempotent** : rejouable sans risque).
+2. Relance l'app.
+
+**Ce qui a été fait en attendant** (v1.13.2) : le `SyncService` retry
+maintenant une fois **sans** les colonnes optionnelles quand PostgREST
+signale une colonne absente. Tes saisies hors-ligne ne sont donc plus
+bloquées définitivement ‐ elles se synchronisent, seul le badge
+« Nouveau » manque tant que la migration n'est pas faite.
+
+**Vider la file bloquée** (les entrées passées en `en_erreur` avant le
+correctif restent bloquées) : app → Menu Plus → Synchronisation →
+« Relancer les opérations bloquées ». Ou les supprimer définitivement
+depuis le même écran si tu ne veux pas les rejouer.
+
 ## 1. SQL — migrations en attente (Supabase réel)
 
 **Fichier unique : `database/SUPABASE_A_EXECUTER.sql`** (ordre interne géré).

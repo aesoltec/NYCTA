@@ -18,6 +18,20 @@
 - **133 warnings** `inference_failure_*` / `unnecessary_cast` préexistants dans le projet, aucun introduit par la 6bis → tracé au CDC point **40ter** (v1.13.0)
 - Visibilité publique de `genererId` / `fileUpsert` / `numeroDocument` : réductible seulement via une couche d’accès dédiée, non rentable → tracé au CDC point **40quater**
 
+## 1.13.2 — 2026-09-30 (SyncService résiliant aux colonnes absentes)
+- **Correction du blocage définitif** : `SyncService` détectait `PGRST204` (colonne inexistante) et réessayait à l'identique, [_maxEssais] fois, avant de marquer l'entrée `en_erreur` — donc définitivement. Or une colonne absente ne.réussira **jamais** : toute saisie faite hors-ligne était perdue silencieusement.
+- Désormais : une seule relance **sans les colonnes optionnelles** (`date_ajout`), avec repli sur le même message de log et rappel du fichier SQL à exécuter. Cohérent avec le repli déjà fait par `CloudRepository.upsertProduit`.
+- Liste volontairement restreinte à `date_ajout` : retirer une colonne métier en silence masquerait une vraie perte d'information.
+- Conséquence assumée : tant que la migration n'est pas appliquée, le badge « Nouveau » manque en base, mais plus rien n'est bloqué ni perdu.
+- Cause racine du symptôme : `database/SUPABASE_A_EXECUTER.sql` section 3 (`date_ajout` sur `produits` et `tarifs`) n'avait jamais été exécutée sur la base réelle. Procédure détaillée dans `database/APPLIQUER_MAINTENANT.md`.
+
+## 1.13.2 — 2026-09-30 (SyncService résiliant aux colonnes absentes)
+- **Correction du blocage définitif** : `SyncService` détectait `PGRST204` (colonne inexistante) et réessayait à l'identique, [_maxEssais] fois, avant de marquer l'entrée `en_erreur` — donc définitivement. Or une colonne absente ne.réussira **jamais** : toute saisie faite hors-ligne était perdue silencieusement.
+- Désormais : une seule relance **sans les colonnes optionnelles** (`date_ajout`), avec repli sur le même message de log et rappel du fichier SQL à exécuter. Cohérent avec le repli déjà fait par `CloudRepository.upsertProduit`.
+- Liste volontairement restreinte à `date_ajout` : retirer une colonne métier en silence masquerait une vraie perte d'information.
+- Conséquence assumée : tant que la migration n'est pas appliquée, le badge « Nouveau » manque en base, mais plus rien n'est bloqué ni perdu.
+- Cause racine du symptôme : `database/SUPABASE_A_EXECUTER.sql` section 3 (`date_ajout` sur `produits` et `tarifs`) n'avait jamais été exécutée sur la base réelle. Procédure détaillée dans `database/APPLIQUER_MAINTENANT.md`.
+
 ## 1.13.1 — 2026-09-30 (correctif doublons galerie + lot + images de marque)
 - **Correctif des doublons** (133 entrées affichées pour 19 images réelles) : trois causes cumulées
   1. `CloudRepository._urlMedia/_urlProduits` reconstruisaient le nom cloud en `produits/<millisecondes>.jpg` — chaque `upsertProduit` créait un **nouvel objet** sous un nouveau nom. Le nom d'origine est désormais conservé, avec `upsert: true` (réécrit au même emplacement au lieu d'empiler)

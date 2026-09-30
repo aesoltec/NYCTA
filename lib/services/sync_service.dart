@@ -157,11 +157,16 @@ class SyncService extends ChangeNotifier {
 
   /// Pousse une entrée vers Supabase. Retourne `null` si réussi, sinon le
   /// message d'erreur (au lieu d'avaler l'exception comme avant ce correctif).
-  /// Transactions : upsert sur l'id (création + correction partagent le même
-  /// identifiant client — voir Store.ajouterTransaction qui envoie son id).
-  /// Suppressions : table se terminant par '__delete' → delete par id.
+  /// Suppressions : table se terminant par `__delete` → delete par id.
   /// Autres tables (produits, partenaires, charges, tarifs…) : upsert sur
   /// l'id pour rejouer les créations/modifications saisies hors-ligne.
+  ///
+  /// COLONNE ABSENTE (`PGRST204`) : PostgREST rejette toute la requête si le
+  /// payload contient une colonne inconnue du schéma. Retenter à
+  /// l'identique échouerait [_maxEssais] fois puis bloquerait l'opération
+  /// définitivement — la donnée saisie hors-ligne serait PERDUE. On
+  /// réessaie donc une fois sans les colonnes optionnelles, en cohérence
+  /// avec le repli déjà fait par `CloudRepository.upsertProduit`.
   Future<String?> _pousser(Map entree) async {
     try {
       final table = entree['table'] as String;
@@ -171,16 +176,53 @@ class SyncService extends ChangeNotifier {
         final vraieTable = table.substring(0, table.length - 8);
         final id = payload['id']?.toString() ?? '';
         await client.from(vraieTable).delete().eq('id', id);
-      } else if (table == 'transactions') {
-        await client.from(table).upsert(payload, onConflict: 'id');
       } else {
-        await client.from(table).upsert(payload, onConflict: 'id');
+        try {
+          await client.from(table).upsert(payload, onConflict: 'id');
+        } catch (e) {
+          if (!estColonneAbsente(e)) rethrow;
+          final leger = sansColonnesOptionnelles(payload);
+          if (leger.length == payload.length) rethrow; // rien a retirer
+          debugPrint('SyncService : ${entree['table']} — colonne absente '
+              'en base, nouvelle tentative sans '
+              '${payload.length - leger.length} champ(s) optionnel(s). '
+              'Executer database/SUPABASE_A_EXECUTER.sql pour la creer.');
+          await client.from(table).upsert(leger, onConflict: 'id');
+        }
       }
       return null;
     } catch (e) {
-      return e.toString(); // retry au prochain cycle, erreur conservée
+      return e.toString(); // retry au prochain cycle, erreur conservee
     }
   }
+
+  /// Vrai si l'erreur PostgREST est « colonne inexistante » (PGRST204) ou
+  /// « colonne non trouvee » (42703) : la requête ne peut pas aboutir tant
+  /// que la migration n'est pas appliquée, donc un nouvel essai à
+  /// l'identique est inutile.
+  @visibleForTesting
+  static bool estColonneAbsente(Object e) {
+    final t = e.toString();
+    return t.contains('PGRST204') ||
+        t.contains('42703') ||
+        t.contains('Could not find the') ||
+        (t.contains('column') && t.contains('does not exist'));
+  }
+
+  /// Retire du payload les champs optionnels récemment ajoutés, afin de
+  /// ne pas bloquer une synchronisation sur une migration en attente.
+  /// Liste volontairement restreinte : retirer une colonne métier
+  /// silencieusement masquerait une vraie perte d'information.
+  @visibleForTesting
+  static const colonnesOptionnelles = <String>[
+    'date_ajout', // refonte UX R1 — badge « Nouveau »
+  ];
+
+  @visibleForTesting
+  static Map<String, dynamic> sansColonnesOptionnelles(
+          Map<String, dynamic> payload) =>
+      Map<String, dynamic>.from(payload)
+        ..removeWhere((k, _) => colonnesOptionnelles.contains(k));
 
   @override
   Future<void> dispose() async {
