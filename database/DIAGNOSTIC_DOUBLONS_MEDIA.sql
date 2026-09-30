@@ -12,7 +12,15 @@
 -- =============================================================================
 
 with objets as (
-  select bucket_id, name as nom_objet, (storage.foldername(name))[1] as dossier
+  select
+    bucket_id,
+    name as nom_objet,
+    -- Dossier de premier niveau, en SQL pur : pas de dépendance à
+    -- storage.foldername (absent sur certaines instances).
+    case
+      when position('/' in name) > 0 then split_part(name, '/', 1)
+      else ''
+    end as dossier
   from storage.objects
   where bucket_id in ('media', 'produits')
     and lower(name) ~ '\.(jpg|jpeg|png)$'

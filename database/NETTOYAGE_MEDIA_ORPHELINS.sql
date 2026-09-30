@@ -90,9 +90,13 @@ begin
   end if;
 
   if v_orphelins <> seuil_confirmation then
+    -- ATTENTION : dans un RAISE, `%%` est un pourcent LITERAL (il ne
+    -- compte pas comme placeholder). Ci-dessous : 3 placeholders, donc
+    -- exactement 3 paramètres.
     raise notice 'ARRET : % orphelin(s) detecte(s), seuil de confirmation = %. '
-                 'Reexecuter avec seuil_confirmation = %, ou %% pour annuler.',
-                 v_orphelins, seuil_confirmation, v_orphelins, dry_run;
+                 'Reexecuter avec seuil_confirmation = % pour confirmer, '
+                 'ou -1 pour rester en lecture seule.',
+                 v_orphelins, seuil_confirmation, v_orphelins;
     return query
       select bucket_id, name,
              format('ORPHELIN (conserve : seuil = %s)', seuil_confirmation)
