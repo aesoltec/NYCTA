@@ -247,8 +247,34 @@ class MediaService {
 
   /// Dossiers scannés par la galerie interne. `galerie` = banque brute
   /// (uploads non encore rattachés) ; `produit`/`tarif` = copies faites
-  /// lors de l'affectation.
+  /// lors de l'affectation. `divers` est **exclu** : il accueille les
+  /// images de marque (logo, cachet, signature), qui ne sont pas du stock.
   static const dossiersGalerie = ['galerie', 'produit', 'tarif'];
+
+  /// Préfixes de nom de fichier réservés aux images de marque.
+  /// Le logo, le cachet et la signature ne sont pas des visuels produits :
+  /// ils ne doivent JAMAIS alimenter la galerie interne.
+  static const prefixesImageMarque = ['logo', 'cachet', 'signature'];
+
+  /// Vrai si [chemin] désigne une image de marque (logo/cachet/signature).
+  ///
+  /// Deux formes de nom coexistent : `genererNomFichier` produit
+  /// `<entite>_<id>_<ts>_<hash>.ext` (ex. `logo_marque_…`), et
+  /// `savePng` produit `<nom>.png` (ex. `signature.png`). On accepte donc
+  /// le préfixe suivi d'un séparateur `_` **ou** d'un point, sans quoi un
+  /// logo nommé exactement `logo.png` passerait dans la galerie.
+  static bool estImageDeMarque(String chemin) {
+    final nom = chemin.split('/').last.split('\\').last.toLowerCase();
+    return prefixesImageMarque.any(
+        (p) => nom.startsWith('${p}_') || nom.startsWith('$p.'));
+  }
+
+  /// Supprime le FICHIER d'une image de marque lorsqu'elle est
+  /// remplacée — le remplacement écrase le précédent (condition
+  /// non négociable : pas d'accumulation d'anciens logos/signatures).
+  /// Chemin local uniquement ; le cloud est traité par l'appelant.
+  static Future<bool> effacerAncienneImageMarque(String? ancien) async =>
+      supprimerFichier(ancien);
 
   /// Répertoire d'un dossier média (`<docs>/media/<dossier>`), créé si
   /// besoin. [dossierRacineTest] est honoré (tests).

@@ -111,10 +111,15 @@ class _ConfigScreenState extends State<ConfigScreen> {
               path: p.logoPath,
               fallbackIcon: Icons.business_outlined,
               onPick: (src) async {
-                final path = await MediaService.pickImage(camera: src);
+                // Remplacement = ÉCRASEMENT : l'ancien logo est supprimé
+                // du disque, sinon chaque changement empile un fichier.
+                final ancien = store.profile.logoPath;
+                final path = await MediaService.pickImage(
+                    camera: src, entite: 'logo', id: 'marque');
                 if (path != null) {
                   await store
                       .updateProfile(store.profile.copyWith(logoPath: path));
+                  await MediaService.effacerAncienneImageMarque(ancien);
                 }
               },
               onSigner: null,
@@ -126,10 +131,13 @@ class _ConfigScreenState extends State<ConfigScreen> {
               path: p.cachetPath,
               fallbackIcon: Icons.approval_outlined,
               onPick: (src) async {
-                final path = await MediaService.pickImage(camera: src);
+                final ancien = store.profile.cachetPath;
+                final path = await MediaService.pickImage(
+                    camera: src, entite: 'cachet', id: 'marque');
                 if (path != null) {
                   await store
                       .updateProfile(store.profile.copyWith(cachetPath: path));
+                  await MediaService.effacerAncienneImageMarque(ancien);
                 }
               },
               onSigner: null,
@@ -141,19 +149,25 @@ class _ConfigScreenState extends State<ConfigScreen> {
               path: p.signaturePath,
               fallbackIcon: Icons.gesture_outlined,
               onPick: (src) async {
-                final path = await MediaService.pickImage(camera: src);
+                final ancien = store.profile.signaturePath;
+                final path = await MediaService.pickImage(
+                    camera: src, entite: 'signature', id: 'marque');
                 if (path != null) {
                   await store.updateProfile(
                       store.profile.copyWith(signaturePath: path));
+                  await MediaService.effacerAncienneImageMarque(ancien);
                 }
               },
               onSigner: () async {
+                // Name fixe : la signature est une seule image de marque.
+                // Un nom horodaté empilerait un fichier par signature.
+                final ancien = store.profile.signaturePath;
                 await SignaturePad.ouvrir(context, (bytes) async {
                   if (bytes == null) return;
-                  final path = await MediaService.savePng(bytes,
-                      'signature_${DateTime.now().millisecondsSinceEpoch}');
+                  final path = await MediaService.savePng(bytes, 'signature');
                   await store.updateProfile(
                       store.profile.copyWith(signaturePath: path));
+                  await MediaService.effacerAncienneImageMarque(ancien);
                 });
               },
               onEffacer: () => store.updateProfile(

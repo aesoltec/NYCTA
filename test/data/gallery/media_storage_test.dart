@@ -61,6 +61,34 @@ void main() {
     });
   });
 
+  group('MediaService.estImageDeMarque (exclusion galerie)', () {
+    test('logo, cachet et signature sont exclus', () {
+      for (final n in [
+        'logo_marque_1700000000_aa11bb.jpg',
+        'cachet_marque_1700000000_cc22dd.png',
+        'signature.png',
+        'LOGO_marque_1_aa.jpg',
+      ]) {
+        expect(MediaService.estImageDeMarque(n), isTrue, reason: n);
+      }
+    });
+
+    test('les visuels produits ne sont PAS exclus', () {
+      for (final n in [
+        'produit_p1_1700000000_aa11bb.jpg',
+        'tarif_t1_1700000000_aa11bb.jpg',
+        'galerie_123.jpg',
+        'a.jpg',
+      ]) {
+        expect(MediaService.estImageDeMarque(n), isFalse, reason: n);
+      }
+    });
+
+    test('le dossier de marque (divers) est absent de la galerie', () {
+      expect(MediaService.dossiersGalerie, isNot(contains('divers')));
+    });
+  });
+
   group('MediaService.supprimerFichier', () {
     test('supprime définitivement un fichier local', () async {
       final f = _image('galerie', 'a.jpg');

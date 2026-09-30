@@ -28,6 +28,11 @@ class MediaItem {
   /// retrouver seul (chemins historiques non renommés).
   final bool cleLocale;
 
+  /// Empreinte du contenu (`taille:4 premiers octets`) pour les fichiers
+  /// locaux. Sert à reconnaître deux images de même contenu malgré des
+  /// noms différents (anciens uploads nommés `millisecondes.jpg`).
+  final String? empreinte;
+
   const MediaItem({
     required this.cle,
     this.cheminLocal,
@@ -35,6 +40,7 @@ class MediaItem {
     this.dossier = 'galerie',
     this.modifieLe,
     this.cleLocale = false,
+    this.empreinte,
   });
 
   /// Aperçu affichable : local d'abord (instantané), cloud en secours.
@@ -62,6 +68,7 @@ class MediaItem {
         dossier: dossier,
         modifieLe: modifieLe,
         cleLocale: cleLocale,
+        empreinte: empreinte,
       );
 
   @override

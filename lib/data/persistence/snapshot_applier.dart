@@ -1,4 +1,3 @@
-import '../../models/enums.dart';
 import '../store.dart';
 import 'serializer.dart';
 

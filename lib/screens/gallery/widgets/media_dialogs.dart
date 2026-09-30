@@ -48,6 +48,55 @@ Future<bool> confirmerSuppressionMedia(
   return ok == true;
 }
 
+/// Confirmation d'une suppression en LOT.
+///
+/// Une seule fenêtre pour N images : le détail affiche le nombre TOTAL
+/// de rattachements, pas la liste complète — sinon 30 images
+/// produiraient un dialogue illisible.
+Future<bool> confirmerSuppressionLot(
+  BuildContext context,
+  List<MediaItem> items,
+  List<MediaUsage> Function(MediaItem) usages,
+) async {
+  var totalRefs = 0;
+  for (final m in items) {
+    totalRefs += usages(m).length;
+  }
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Supprimer ${items.length} image(s) ?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Elles seront effacées du stockage local ET du cloud. '
+            'Action irréversible.',
+          ),
+          if (totalRefs > 0) ...[
+            const SizedBox(height: 10),
+            Text('Détachées de $totalRefs entité(s) au total.',
+                style: Theme.of(ctx).textTheme.labelLarge),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: Text('Supprimer ${items.length}'),
+        ),
+      ],
+    ),
+  );
+  return ok == true;
+}
+
 /// Plein écran d'aperçu (zoom au pincement) d'une image de la galerie.
 void ouvrirApercuMedia(BuildContext context, MediaItem item) {
   Navigator.of(context).push(MaterialPageRoute(

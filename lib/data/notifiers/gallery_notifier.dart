@@ -37,41 +37,68 @@ class GalleryNotifier extends ChangeNotifier {
     required this.majTarifLocal,
   });
 
-  /// Reconstruction complète de l'index : scan du stockage local
-  /// (banque + copies d'affectation) + listing du bucket, puis fusion
-  /// avec les images référencées par les entités.
+  /// Reconstruction de l'index de la banque d'images.
+  ///
+  /// Trois règles structurantes :
+  /// 1. **Lecture directe du bucket** : c'est la source de vérité. Le
+  ///    dossier local n'apporte que le chemin local quand le nom de
+  ///    fichier correspond déjà à un objet cloud (donc pas de doublon).
+  /// 2. **Déduplication par NOM DE FICHIER** : c'est la clé d'identité.
+  ///    Comparer le chemin complet local au chemin cloud (nom seul) ne
+  ///    coïncidait jamais, donc chaque image apparaissait 2 fois.
+  /// 3. **Exclusion des images de marque** : logo, cachet et signature
+  ///    ne sont pas du stock produit — ils ne doivent jamais alimenter la
+  ///    galerie (voir [MediaService.estImageDeMarque]).
   Future<List<MediaItem>> charger() async {
     erreur = null;
     try {
-      final stockes = <MediaItem>[];
+      // --- Index local, indexé par NOM DE FICHIER (cle d'identité) ---
+      final locauxParNom = <String, File>{};
       for (final dossier in MediaService.dossiersGalerie) {
         for (final f in await MediaService.listerImages(dossier)) {
-          stockes.add(MediaItem(
-            cle: f.path,
-            cheminLocal: f.path,
-            dossier: dossier,
-            modifieLe: f.statSync().modified,
-          ));
+          if (MediaService.estImageDeMarque(f.path)) continue;
+          locauxParNom.putIfAbsent(_nomFichier(f.path), () => f);
         }
       }
-      // Cloud : la banque survit au reinstall / changement d'appareil.
-      for (final chemin in await CloudRepository.listerMedia()) {
-        final url = CloudRepository.urlMedia(chemin);
+
+      final items = <String, MediaItem>{};
+
+      // --- Cloud d'abord : la banque survit au reinstall ---
+      for (final cheminCloud in await CloudRepository.listerMedia()) {
+        final nom = _nomFichier(cheminCloud);
+        if (MediaService.estImageDeMarque(nom)) continue;
+        final url = CloudRepository.urlMedia(cheminCloud);
         if (url.isEmpty) continue;
-        final dejaVu = stockes.indexWhere(
-            (m) => m.cheminCloud != null && m.cheminCloud == chemin.split('/').last);
-        if (dejaVu >= 0) {
-          stockes[dejaVu] = stockes[dejaVu].copyWith(urlCloud: url);
-        } else {
-          stockes.add(MediaItem(
-            cle: chemin,
-            urlCloud: url,
-            dossier: 'galerie',
-          ));
-        }
+        final local = locauxParNom[nom];
+        items[nom] = MediaItem(
+          cle: nom,
+          cheminLocal: local?.path,
+          urlCloud: url,
+          dossier: _dossierDe(cheminCloud),
+          modifieLe: local?.statSync().modified,
+          empreinte: await _empreinteFichier(local),
+        );
       }
+
+      // --- Puis le local-only (image jamais montée, ex. upload raté) ---
+      locauxParNom.forEach((nom, f) {
+        if (items.containsKey(nom)) return;
+        items[nom] = MediaItem(
+          cle: nom,
+          cheminLocal: f.path,
+          dossier: _dossierDe(f.path),
+          modifieLe: f.statSync().modified,
+          empreinte: _empreinteFichierSync(f),
+        );
+      });
+
+      // Les images déjàUploaded (uniquement en base, pas encore en cloud)
+      // arrivent par GalleryService.indexer avec `cle` = clé d'entité. On
+      // ne les fusionne pas ici : nom et empreinte ne sont pas
+      // comparables de part et d'autre du bucket.
+
       return GalleryService.indexer(
-        stockes: stockes,
+        stockes: items.values.toList(),
         produits: produits,
         tarifs: catalogue,
       );
@@ -79,6 +106,41 @@ class GalleryNotifier extends ChangeNotifier {
       erreur = 'Galerie illisible : $e';
       return const [];
     }
+  }
+
+  /// Nom de fichier seul : la clé d'identité d'une image, identique
+  /// qu'elle vienne du dossier local ou du bucket.
+  static String _nomFichier(String chemin) =>
+      chemin.split('/').last.split('\\').last;
+
+  /// Empreinte « taille + 4 premiers octets » d'un fichier local.
+  /// Permet de reconnaître deux fichiers de MÊME contenu malgré des noms
+  /// différents (cas des anciens uploads nommés `millisecondes.jpg`).
+  static String? _empreinteFichierSync(File? f) {
+    if (f == null) return null;
+    try {
+      final raf = f.openSync();
+      try {
+        final tete = raf.readSync(4);
+        return '${f.lengthSync()}:${tete.join(',')}';
+      } finally {
+        raf.closeSync();
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String?> _empreinteFichier(File? f) async =>
+      _empreinteFichierSync(f);
+
+  /// Dossier de rangement (`galerie`, `produit`, `tarif`) déduit du chemin.
+  static String _dossierDe(String chemin) {
+    final parties = chemin.split('/').where((p) => p.isNotEmpty).toList();
+    for (final p in parties) {
+      if (MediaService.dossiersGalerie.contains(p)) return p;
+    }
+    return 'galerie';
   }
 
   /// Usages d'une image (produits / articles qui la référencent).

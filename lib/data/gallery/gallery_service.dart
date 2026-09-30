@@ -16,14 +16,15 @@ class GalleryService {
   static bool estDistant(String? chemin) =>
       chemin != null && chemin.startsWith('http');
 
-  /// Index des médias de la banque.
+  /// Index des médias de la banque, **sans doublon**.
   ///
-  /// Deux sources sont fusionnées, sans doublon :
-  /// 1. les **fichiers réellement présents** sur le stockage (clé = nom de
-  ///    fichier) — la banque brute, y compris les uploads jamais rattachés ;
-  /// 2. les **images référencées** par un produit ou un article, y compris
-  ///    chemins distants ou historiques dont le fichier local a disparu
-  ///    (clé = chemin, marquée `cleLocale`).
+  /// Trois passes de fusion :
+  /// 1. par **clé** (nom de fichier) — l'appariement local ↔ bucket ;
+  /// 2. par **empreinte de contenu** — deux fichiers de même contenu mais
+  ///    de noms différents (anciens uploads `millisecondes.jpg`) ne
+  ///    comptent qu'une fois ;
+  /// 3. les **références** des produits/articles non encore vues, avec
+  ///    report des usages de la clé dédupliquée.
   ///
   /// Tri : les images rattachées d'abord, puis les plus récentes.
   static List<MediaItem> indexer({
@@ -31,24 +32,84 @@ class GalleryService {
     required List<Produit> produits,
     required List<Tarif> tarifs,
   }) {
+    final utilisees = usages(produits: produits, tarifs: tarifs);
+
+    // --- passe 1 : par clé, en FUSIONNANT les champs ---
+    // Deux entrées de même nom (le fichier local et son objet bucket)
+    // doivent devenir une seule ligne qui a les DEUX : chemin local pour
+    // l'affichage instantané, URL pour la persistance. `putIfAbsent`
+    // seul garderait la première et perdrait l'URL.
     final parCle = <String, MediaItem>{};
     for (final m in stockes) {
-      parCle.putIfAbsent(m.cle, () => m);
+      final deja = parCle[m.cle];
+      if (deja == null) {
+        parCle[m.cle] = m;
+      } else {
+        parCle[m.cle] = _fusionner(deja, m);
+      }
     }
+
+    // --- passe 2 : par empreinte (le premier arrivé garde la place) ---
+    final parEmpreinte = <String, MediaItem>{};
+    for (final m in parCle.values) {
+      final e = m.empreinte;
+      if (e == null) continue;
+      parEmpreinte.putIfAbsent(e, () => m);
+    }
+    final doublons = parEmpreinte.length == 0
+        ? const <MediaItem>[]
+        : parCle.values
+            .where((m) =>
+                m.empreinte != null && !identical(parEmpreinte[m.empreinte], m))
+            .toList();
+
+    final liste = <MediaItem>[
+      for (final m in parCle.values)
+        if (!doublons.any((d) => d.cle == m.cle)) m,
+    ];
+
+    // --- passe 3 : références absentes du stockage ---
+    // Une entité peut pointer une URL distante dont le fichier local a
+    // disparu (cloud-only) : on l'affiche pour qu'elle ne soit jamais
+    // orpheline. En revanche, si la banque contient déjà une image
+    // rattachée, on n'ajoute PAS une seconde entrée pour la même entité.
     for (final ref in references(produits: produits, tarifs: tarifs)) {
-      parCle.putIfAbsent(ref.cle, () => ref);
+      if (liste.any((m) => m.cle == ref.cle)) continue;
+      final dejaRattachee = utilisees.containsKey(ref.cle) &&
+          liste.any((m) => utilisees.containsKey(m.cle));
+      if (dejaRattachee) continue;
+      liste.add(ref);
     }
-    final utilisees = usages(produits: produits, tarifs: tarifs);
-    final liste = parCle.values.toList()
-      ..sort((a, b) {
-        final ua = utilisees.containsKey(a.cle);
-        final ub = utilisees.containsKey(b.cle);
-        if (ua != ub) return ua ? -1 : 1; // rattachées d'abord
-        final da = a.modifieLe ?? DateTime(2000);
-        final db = b.modifieLe ?? DateTime(2000);
-        return db.compareTo(da);
-      });
+
+    liste.sort((a, b) {
+      final ua = utilisees.containsKey(a.cle);
+      final ub = utilisees.containsKey(b.cle);
+      if (ua != ub) return ua ? -1 : 1; // rattachées d'abord
+      final da = a.modifieLe ?? DateTime(2000);
+      final db = b.modifieLe ?? DateTime(2000);
+      return db.compareTo(da);
+    });
     return liste;
+  }
+
+  /// Fusionne deux vues de la MÊME image (local + cloud) : on garde le
+  /// chemin local si l'un des deux l'a, l'URL si l'un des deux l'a, et
+  /// la date la plus récente. `dossier` : celui qui a le plus de contexte
+  /// (produit/tarif) gagne sur le `galerie` générique.
+  static MediaItem _fusionner(MediaItem a, MediaItem b) => MediaItem(
+        cle: a.cle,
+        cheminLocal: a.cheminLocal ?? b.cheminLocal,
+        urlCloud: a.urlCloud ?? b.urlCloud,
+        dossier: a.dossier == 'galerie' ? b.dossier : a.dossier,
+        modifieLe: _plusRecent(a.modifieLe, b.modifieLe),
+        cleLocale: a.cleLocale || b.cleLocale,
+        empreinte: a.empreinte ?? b.empreinte,
+      );
+
+  static DateTime? _plusRecent(DateTime? a, DateTime? b) {
+    if (a == null) return b;
+    if (b == null) return a;
+    return a.isAfter(b) ? a : b;
   }
 
   /// Toutes les images référencées par les entités (galerie + principale).

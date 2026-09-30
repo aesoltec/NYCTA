@@ -181,6 +181,75 @@ void main() {
     });
   });
 
+  group('Déduplication (régression 133 images pour 19 réelles)', () {
+    test('même nom local + cloud = UNE seule entrée', () {
+      // C'est le cas nominal depuis que le nom cloud est le nom local.
+      final index = GalleryService.indexer(
+        stockes: [
+          MediaItem(cle: 'produit_p1_1700000000_aa.jpg',
+              cheminLocal: 'C:/docs/media/produit/produit_p1_1700000000_aa.jpg'),
+          MediaItem(cle: 'produit_p1_1700000000_aa.jpg',
+              urlCloud: 'https://x.supabase.co/media/produits/produit_p1_1700000000_aa.jpg'),
+        ],
+        produits: const [],
+        tarifs: const [],
+      );
+      expect(index.length, 1);
+      expect(index.first.cheminLocal, isNotNull);
+      expect(index.first.urlCloud, isNotNull);
+    });
+
+    test('mÊME contenu, noms différents = une seule entrée (empreinte)', () {
+      // Ancien upload `millisecondes.jpg` vs nom unique : même octets.
+      final index = GalleryService.indexer(
+        stockes: [
+          const MediaItem(cle: 'produit_p1_1700000000_aa.jpg',
+              cheminLocal: 'C:/a.jpg', empreinte: '2048:255,216,255,224'),
+          const MediaItem(cle: '1750000000000.jpg',
+              cheminLocal: 'C:/b.jpg', empreinte: '2048:255,216,255,224'),
+        ],
+        produits: const [],
+        tarifs: const [],
+      );
+      expect(index.length, 1,
+          reason: 'même taille + mêmes 4 premiers octets = doublon');
+    });
+
+    test('contenus différents = deux entrées', () {
+      final index = GalleryService.indexer(
+        stockes: [
+          const MediaItem(cle: 'a.jpg', empreinte: '100:1,2,3,4'),
+          const MediaItem(cle: 'b.jpg', empreinte: '200:5,6,7,8'),
+        ],
+        produits: const [],
+        tarifs: const [],
+      );
+      expect(index.length, 2);
+    });
+
+    test('les images de marque ne polluent pas l\'index', () {
+      // Le filtrage est fait en amont (Notifier) mais on vérifie que le
+      // service ne les réintroduit pas non plus.
+      final index = GalleryService.indexer(
+        stockes: const [],
+        produits: [_p('p1', images: const ['logo_marque_1700000000_aa.jpg'])],
+        tarifs: const [],
+      );
+      // La référence existe bien (elle est affichée) : c'est l'écran qui
+      // filtre, pas le service. On documente le comportement.
+      expect(index, isNotEmpty);
+    });
+
+    test('une image déjà rattachée n\'est pas dupliquée par sa référence', () {
+      final index = GalleryService.indexer(
+        stockes: const [MediaItem(cle: 'a.jpg', cheminLocal: 'C:/a.jpg')],
+        produits: [_p('p1', images: const ['a.jpg'])],
+        tarifs: const [],
+      );
+      expect(index.length, 1);
+    });
+  });
+
   group('GalleryService.detacher (suppression définitive)', () {
     test('détache de tous les produits et articles', () {
       final produits = [

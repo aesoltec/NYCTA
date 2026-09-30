@@ -244,32 +244,43 @@ class CloudRepository {
         await _c!.from('partenaires').update({'actif': false}).eq('id', id);
       });
 
-  /// Convertit un chemin local en URL publique du bucket « produits »
-  /// (photos catalogue, galerie max 05 — voir guide de déploiement).
-  /// Chemins déjà distants (http) renvoyés tels quels.
-  static Future<String?> _urlProduits(String? cheminLocal) async {
-    if (cheminLocal == null || cheminLocal.startsWith('http')) {
-      return cheminLocal;
-    }
-    if (!actif || !File(cheminLocal).existsSync()) return cheminLocal;
-    try {
-      final nom = 'produits/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await _c!.storage.from('produits').upload(nom, File(cheminLocal));
-      return _c!.storage.from('produits').getPublicUrl(nom);
-    } catch (_) {
-      return cheminLocal; // upload impossible : on garde le chemin local
-    }
-  }
+  /// Convertit un chemin local en URL publique du bucket « produits ».
+  ///
+  /// **Nom cloud = nom local** (invariant de déduplication) : c'est ce qui
+  /// permet à la galerie de reconnaître qu'un objet bucket et un fichier
+  /// local sont la MÊME image. Avant, le nom était reconstruit en
+  /// `produits/<millisecondes>.jpg` : chaque `upsert` créait un nouvel
+  /// objet sous un nouveau nom, et la galerie.countait 1 image réelle
+  /// comme N (133 affichées pour 19 réelles).
+  ///
+  /// `upsert: true` réécrit l'objet au même emplacement au lieu d'en
+  /// créer un nouveau. Chemin déjà distant : renvoyé tel quel.
+  static Future<String?> _urlProduits(String? cheminLocal) =>
+      _publier(cheminLocal, bucket: 'produits', prefixe: 'produits');
 
-  /// Convertit un chemin local en URL publique Supabase Storage
-  /// (bucket « media », à créer — voir guide de déploiement).
-  static Future<String?> _urlMedia(String? cheminLocal) async {
-    if (cheminLocal == null || cheminLocal.startsWith('http')) return cheminLocal;
+  /// Idem pour le bucket « media » (logo, cachet, signature, produit).
+  static Future<String?> _urlMedia(String? cheminLocal) =>
+      _publier(cheminLocal, bucket: 'media', prefixe: 'produits');
+
+  /// Publication d'un fichier local vers un bucket, en conservant le nom.
+  static Future<String?> _publier(
+    String? cheminLocal, {
+    required String bucket,
+    required String prefixe,
+  }) async {
+    if (cheminLocal == null || cheminLocal.isEmpty) return cheminLocal;
+    if (cheminLocal.startsWith('http')) return cheminLocal;
     if (!actif || !File(cheminLocal).existsSync()) return cheminLocal;
+    final nomFichier = cheminLocal.split('/').last.split('\\').last;
+    if (nomFichier.isEmpty) return cheminLocal;
+    final chemin = '$prefixe/$nomFichier';
     try {
-      final nom = 'produits/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await _c!.storage.from('media').upload(nom, File(cheminLocal));
-      return _c!.storage.from('media').getPublicUrl(nom);
+      await _c!.storage.from(bucket).upload(
+            chemin,
+            File(cheminLocal),
+            fileOptions: const FileOptions(upsert: true),
+          );
+      return _c!.storage.from(bucket).getPublicUrl(chemin);
     } catch (_) {
       return cheminLocal; // upload impossible : on garde le chemin local
     }
@@ -887,29 +898,46 @@ class CloudRepository {
         .replaceRange(19, 20, ((int.parse(s4[0], radix: 16) & 0x3 | 0x8).toRadixString(16)));
   }
 
-  // ---------- Galerie interne : bucket « media » ----------
+  // ---------- Galerie interne : lecture du bucket « media » ----------
 
   /// Préfixe de dossier utilisé par la galerie pour ses uploads.
   static const prefixeGalerie = 'galerie';
 
-  /// Liste les objets d'un préfixe du bucket `media` (galerie interne).
-  /// Retourne des chemins relatifs (`galerie/xxx.jpg`), les plus récents
-  /// d'abord. Sans cloud ou en cas d'erreur : liste vide (jamais de throw).
-  static Future<List<String>> listerMedia([String prefixe = prefixeGalerie]) async {
+  /// Préfixes où vivent les visuels dans le bucket `media`.
+  ///
+  /// `produits/` est le préfixe historique (uploads produits, logo,
+  /// signature) ; `galerie/` reçoit les uploads de la banque interne.
+  /// Lister `produits/` était OUBLIÉ : les images existantes n'étaient
+  /// donc jamais vues par la galerie.
+  static const prefixesMedias = ['produits', 'galerie'];
+
+  /// Liste les images de TOUS les préfixes du bucket `media`.
+  /// Sans cloud ou en cas d'erreur : liste vide (jamais de throw).
+  static Future<List<String>> listerMedia() async {
+    final out = <String>[];
+    for (final prefixe in prefixesMedias) {
+      out.addAll(await _listerPrefixe(prefixe));
+    }
+    return out;
+  }
+
+  static Future<List<String>> _listerPrefixe(String prefixe) async {
     final c = _c;
     if (c == null) return const [];
     try {
       final rep = await c.storage.from('media').list(path: prefixe);
       return rep
-          .where((o) =>
-              (o.name ?? '').toLowerCase().endsWith('.jpg') ||
-              (o.name ?? '').toLowerCase().endsWith('.jpeg') ||
-              (o.name ?? '').toLowerCase().endsWith('.png'))
+          .where((o) => _estImage(o.name))
           .map((o) => '$prefixe/${o.name}')
           .toList();
     } catch (_) {
       return const [];
     }
+  }
+
+  static bool _estImage(String? nom) {
+    final n = (nom ?? '').toLowerCase();
+    return n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.png');
   }
 
   /// URL publique d'un objet `media` (galerie interne).
@@ -920,14 +948,23 @@ class CloudRepository {
 
   /// Monte un fichier local dans la galerie (`media/galerie/`) et
   /// retourne son chemin relatif. null hors cloud ou en cas d'échec.
+  ///
+  /// **Nom d'origine conservé** : la déduplication de la galerie compare
+  /// les noms de fichiers, donc réinventer un nom ici empêcherait
+  /// l'appariement avec le fichier local (et recréaitait un doublon à
+  /// chaque upload). `upsert: true` évite les empilements.
   static Future<String?> televerserMedia(File fichier) async {
     final c = _c;
     if (c == null || !fichier.existsSync()) return null;
+    final nomFichier = fichier.path.split('/').last.split('\\').last;
+    if (nomFichier.isEmpty) return null;
+    final chemin = '$prefixeGalerie/$nomFichier';
     try {
-      final ext = fichier.path.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
-      final nom = 'galerie_${DateTime.now().microsecondsSinceEpoch}.$ext';
-      final chemin = '$prefixeGalerie/$nom';
-      await c.storage.from('media').upload(chemin, fichier);
+      await c.storage.from('media').upload(
+            chemin,
+            fichier,
+            fileOptions: const FileOptions(upsert: true),
+          );
       return chemin;
     } catch (_) {
       return null;

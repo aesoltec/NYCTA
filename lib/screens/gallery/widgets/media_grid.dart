@@ -14,6 +14,7 @@ class MediaGrid extends StatelessWidget {
   final void Function(MediaItem) onApercu;
   final void Function(MediaItem) onSelection;
   final bool modeSelection;
+  final bool Function(MediaItem) selectionne;
 
   const MediaGrid({
     super.key,
@@ -24,7 +25,10 @@ class MediaGrid extends StatelessWidget {
     required this.onApercu,
     required this.onSelection,
     required this.modeSelection,
+    this.selectionne = _jamais,
   });
+
+  static bool _jamais(MediaItem _) => false;
 
   @override
   Widget build(BuildContext context) => GridView.builder(
@@ -42,6 +46,7 @@ class MediaGrid extends StatelessWidget {
             key: ValueKey(m.cle),
             item: m,
             usages: usages(m),
+            selectionne: selectionne(m),
             onAffecter: () => onAffecter(m),
             onSupprimer:
                 onSupprimer == null ? null : () => onSupprimer!(m),

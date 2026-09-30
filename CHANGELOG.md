@@ -18,6 +18,18 @@
 - **133 warnings** `inference_failure_*` / `unnecessary_cast` préexistants dans le projet, aucun introduit par la 6bis → tracé au CDC point **40ter** (v1.13.0)
 - Visibilité publique de `genererId` / `fileUpsert` / `numeroDocument` : réductible seulement via une couche d’accès dédiée, non rentable → tracé au CDC point **40quater**
 
+## 1.13.1 — 2026-09-30 (correctif doublons galerie + lot + images de marque)
+- **Correctif des doublons** (133 entrées affichées pour 19 images réelles) : trois causes cumulées
+  1. `CloudRepository._urlMedia/_urlProduits` reconstruisaient le nom cloud en `produits/<millisecondes>.jpg` — chaque `upsertProduit` créait un **nouvel objet** sous un nouveau nom. Le nom d'origine est désormais conservé, avec `upsert: true` (réécrit au même emplacement au lieu d'empiler)
+  2. `listerMedia()` ne listait que le préfixe `galerie/` — les images existantes, stockées dans `produits/`, n'étaient **jamais vues**. Les deux préfixes sont désormais listés
+  3. la déduplication comparait le chemin **local complet** au chemin **cloud (nom seul)** → jamais égaux. La clé d'identité est désormais le **nom de fichier**, et les deux vues sont **fusionnées** (local + URL) au lieu que l'une écrase l'autre
+- **Déduplication par empreinte de contenu** (`taille + 4 premiers octets`) : rattrape les anciens uploads `millisecondes.jpg`, où le nom ne peut pas apparier local et cloud
+- **Images de marque exclues de la galerie** : logo, cachet et signature ne sont pas des visuels produits. `MediaService.estImageDeMarque` (préfixes `logo_`, `cachet_`, `signature_`, et formes `logo.`/`signature.`)
+- **Remplacement = écrasement** (exigence non négociable) : changer logo/cachet/signature **supprime le fichier précédent**. La signature passait par `savePng` avec un nom horodaté → un fichier empilé par signature ; elle utilise désormais un nom fixe
+- **Multi-sélection** : mode lot (cocher/décocher, Tout, Désélectionner), suppression groupée avec une seule confirmation agrégée
+- **Une image → plusieurs articles/produits** : le parcours par la banque utilise une clé par image, donc un seul fichier pour N rattachements (le doublon imagePath + images.first du modèle est traité par `sansImage()`/copyWith)
+- Tests : +8 (5 de déduplication, 3 d'images de marque) → suite **463/463 verts**, `dart analyze` **0 erreur**
+
 ## 1.13.0 — 2026-09-30 (Galerie interne d'images)
 - **Banque d'images** : parcours des images déjà présentes, téléversement, affectation à un produit du stock ou un article du catalogue, suppression définitive
 - Accès : tuile **Galerie d'images** dans le menu Plus (section Stock) + bouton **Parcourir** dans le formulaire produit
