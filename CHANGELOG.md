@@ -18,6 +18,37 @@
 - **133 warnings** `inference_failure_*` / `unnecessary_cast` préexistants dans le projet, aucun introduit par la 6bis → tracé au CDC point **40ter** (v1.13.0)
 - Visibilité publique de `genererId` / `fileUpsert` / `numeroDocument` : réductible seulement via une couche d’accès dédiée, non rentable → tracé au CDC point **40quater**
 
+## 1.13.3 — 2026-10-02 (association d'images : les anciennes images revenaient)
+- **Symptôme** : « même si on utilise de nouvelles images, les anciennes reviennent
+  remplacer les nouvelles », et l'association depuis la galerie ne fonctionne pas.
+- **Bug 1 — `Produit.copyWith`, `imagePath` collant** : `imagePath` est une valeur
+  DÉRIVÉE de `images` (`images.first`), mais le repli
+  `imagePath ?? (imgs.isNotEmpty ? imgs.first : this.imagePath)` conservait
+  l'ANCIENNE valeur quand la nouvelle liste devenait vide. Une image
+  retirée de la galerie survivait donc en `imagePath` et revenait à la
+  sauvegarde.
+  Règle désormais sans ambiguïté : `effacerImagePath` > `imagePath`
+  fourni > `images` fourni (`images.first`, ou null si vide) > dérivé de la
+  galerie existante.
+- **Bug 2 — la galerie stockait le NOM DE FICHIER dans le produit** : `Produit.images`
+  attend un CHEMIN LOCAL COMPLET (affichage hors-ligne) ou une URL
+  (persistance). La galerie y mettait `MediaItem.cle`, c'est-à-dire un nom
+  de fichier seul, ce qui : (a) ne s'affichait pas (`AppImage` teste
+  `File(path).existsSync()`), (b) ne pouvait pas être téléversé
+  (`CloudRepository._publier` teste aussi `existsSync()`), (c) ne
+  s'appariait pas avec les chemins déjà présents.
+  On stocke désormais `MediaItem.apercu` (chemin local si disponible,
+  sinon URL) et l'apparient se fait par NOM DE FICHIER
+  (`GalleryService.meme` / `nomFichier`), plus par égalité de chaîne.
+- **Bouton « Parcourir » du formulaire produit** : même défaut corrigé
+  (il ajoutait `choisi.cle`).
+- `ProduitNotifier._payload` : absence d'`image_path`/`images` VOLONTAIREMENT
+  documentée (un chemin local rejoué écraserait les URL cloud — c'est
+  exactement le mécanisme des « anciennes images qui reviennent »).
+- Tests : +10 (`produit_images_test.dart`) dont l'invariant
+  `imagePath == images.first`, + 2 sur le stockage du chemin. Suite
+  **482/482 verts**, `dart analyze` **0 erreur**.
+
 ## 1.13.2 — 2026-09-30 (SyncService résiliant aux colonnes absentes)
 - **Correction du blocage définitif** : `SyncService` détectait `PGRST204` (colonne inexistante) et réessayait à l'identique, [_maxEssais] fois, avant de marquer l'entrée `en_erreur` — donc définitivement. Or une colonne absente ne.réussira **jamais** : toute saisie faite hors-ligne était perdue silencieusement.
 - Désormais : une seule relance **sans les colonnes optionnelles** (`date_ajout`), avec repli sur le même message de log et rappel du fichier SQL à exécuter. Cohérent avec le repli déjà fait par `CloudRepository.upsertProduit`.

@@ -4,6 +4,13 @@ import 'package:pme_gestion_pro/data/models/media_item.dart';
 import 'package:pme_gestion_pro/models/produit.dart';
 import 'package:pme_gestion_pro/models/tarif.dart';
 
+/// Image de galerie : le nom seul est la CLE d'identite, le chemin
+/// local est ce qu'on stocke reellement dans le produit.
+MediaItem _item(String nom, {String? local}) => MediaItem(
+      cle: nom,
+      cheminLocal: local ?? 'C:/docs/media/galerie/$nom',
+    );
+
 Produit _p(String id, {List<String> images = const [], String? principale}) =>
     Produit(
       id: id,
@@ -96,17 +103,32 @@ void main() {
   group('GalleryService.affecterProduit', () {
     test('ajoute en tête (devient la photo principale)', () {
       final liste = [_p('p1', images: ['a.jpg'])];
-      final r = GalleryService.affecterProduit(liste[0], 'b.jpg',
+      final r = GalleryService.affecterProduit(liste[0], _item('b.jpg'),
           produits: liste);
-      expect(r!.images.first, 'b.jpg');
-      expect(r.images.length, 2);
-      expect(r.imagePath, 'b.jpg');
+      expect(r!.images.length, 2);
+      expect(r.imagePath, r.images.first);
+      // BUG 2 : on stocke le CHEMIN LOCAL, pas le nom de fichier seul.
+      // Le nom seul ne s'affiche pas (AppImage teste existsSync) et ne
+      // peut pas etre televerse (CloudRepository._publier idem).
+      expect(r.images.first, 'C:/docs/media/galerie/b.jpg');
+      expect(r.images.first.contains('/'), isTrue,
+          reason: 'un chemin sans separateur ne peut pas exister sur disque');
+    });
+
+    test('stocke l URL quand l image est cloud-only', () {
+      final liste = [_p('p1')];
+      const item = MediaItem(
+          cle: 'x.jpg', urlCloud: 'https://h.supabase.co/media/galerie/x.jpg');
+      final r =
+          GalleryService.affecterProduit(liste[0], item, produits: liste);
+      expect(r!.images.first, startsWith('https://'));
     });
 
     test('refuse un doublon', () {
       final liste = [_p('p1', images: ['a.jpg'])];
       expect(
-        GalleryService.affecterProduit(liste[0], 'a.jpg', produits: liste),
+        GalleryService.affecterProduit(liste[0], _item('a.jpg'),
+          produits: liste),
         isNull,
       );
     });
@@ -116,21 +138,24 @@ void main() {
         _p('p1', images: ['1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg'])
       ];
       expect(
-        GalleryService.affecterProduit(liste[0], '6.jpg', produits: liste),
+        GalleryService.affecterProduit(liste[0], _item('6.jpg'),
+          produits: liste),
         isNull,
       );
     });
 
     test('refuse un produit inexistant', () {
       expect(
-        GalleryService.affecterProduit(_p('fantome'), 'a.jpg', produits: []),
+        GalleryService.affecterProduit(_p('fantome'), _item('a.jpg'),
+          produits: []),
         isNull,
       );
     });
 
     test('refuse une clé vide', () {
       final liste = [_p('p1')];
-      expect(GalleryService.affecterProduit(liste[0], '', produits: liste),
+      expect(
+          GalleryService.affecterProduit(liste[0], _item(''), produits: liste),
           isNull);
     });
   });
@@ -138,7 +163,7 @@ void main() {
   group('GalleryService.retirerProduit', () {
     test('retire et promeut la suivante comme principale', () {
       final liste = [_p('p1', images: ['a.jpg', 'b.jpg'])];
-      final r = GalleryService.retirerProduit(liste[0], 'a.jpg',
+      final r = GalleryService.retirerProduit(liste[0], _item('a.jpg'),
           produits: liste);
       expect(r!.images, ['b.jpg']);
       expect(r.imagePath, 'b.jpg');
@@ -146,7 +171,7 @@ void main() {
 
     test('retirer la dernière : imagePath null', () {
       final liste = [_p('p1', images: ['a.jpg'])];
-      final r = GalleryService.retirerProduit(liste[0], 'a.jpg',
+      final r = GalleryService.retirerProduit(liste[0], _item('a.jpg'),
           produits: liste);
       expect(r!.images, isEmpty);
       expect(r.imagePath, isNull);
@@ -155,7 +180,8 @@ void main() {
     test('image absente : null (no-op)', () {
       final liste = [_p('p1', images: ['a.jpg'])];
       expect(
-        GalleryService.retirerProduit(liste[0], 'z.jpg', produits: liste),
+        GalleryService.retirerProduit(liste[0], _item('z.jpg'),
+          produits: liste),
         isNull,
       );
     });
@@ -164,19 +190,21 @@ void main() {
   group('GalleryService — articles du catalogue', () {
     test('affecter un article', () {
       final liste = [_t('t1')];
-      final r = GalleryService.affecterTarif(liste[0], 'a.jpg', tarifs: liste);
-      expect(r!.images, ['a.jpg']);
+      final r =
+          GalleryService.affecterTarif(liste[0], _item('a.jpg'), tarifs: liste);
+      expect(r!.images, hasLength(1));
+      expect(r.images.first, 'C:/docs/media/galerie/a.jpg');
     });
 
     test('refuser doublon et liste pleine', () {
       final liste = [_t('t1', images: ['a.jpg'])];
-      expect(GalleryService.affecterTarif(liste[0], 'a.jpg', tarifs: liste),
+      expect(GalleryService.affecterTarif(liste[0], _item('a.jpg'), tarifs: liste),
           isNull);
     });
 
     test('retirer un article', () {
       final liste = [_t('t1', images: ['a.jpg', 'b.jpg'])];
-      final r = GalleryService.retirerTarif(liste[0], 'a.jpg', tarifs: liste);
+      final r = GalleryService.retirerTarif(liste[0], _item('a.jpg'), tarifs: liste);
       expect(r!.images, ['b.jpg']);
     });
   });

@@ -16,6 +16,29 @@ class GalleryService {
   static bool estDistant(String? chemin) =>
       chemin != null && chemin.startsWith('http');
 
+/// Nom de fichier d'un chemin (local complet, URL, ou nom seul) : c'est
+  /// la clé d'identité commune à la galerie et aux entités.
+  static String nomFichier(String chemin) => chemin
+      .split('/')
+      .last
+      .split('\\')
+      .last
+      .toLowerCase();
+
+  /// Vrai si [reference] pointe l'image [cle] — par son nom de fichier
+  /// (forme galerie) ou par son chemin exact (forme historique).
+  static bool meme(MediaItem item, String reference) =>
+      nomFichier(reference) == nomFichier(item.cle);
+
+  /// Valeur à stocker dans `Produit.images` / `Tarif.images` : le chemin
+  /// local si l'image est sur l'appareil, sinon l'URL cloud.
+  ///
+  /// Stocker `item.cle` (nom seul) casserait deux choses : `AppImage`
+  /// teste `File(path).existsSync()` (donc placeholder), et
+  /// `CloudRepository._publier` teste aussi `existsSync()` (donc rien
+  /// n'est téléversé et la référence cloud est perdue).
+  static String valeurStockable(MediaItem item) => item.apercu;
+
   /// Index des médias de la banque, **sans doublon**.
   ///
   /// Trois passes de fusion :
@@ -179,90 +202,103 @@ class GalleryService {
   }) =>
       (usages(produits: produits, tarifs: tarifs)[cle] ?? const []).length;
 
-  /// Rattache [cle] au produit [id]. null si : clé vide, produit
-  /// introuvable, image déjà présente, ou liste pleine (5 max).
+  /// Rattache [item] au produit [id]. null si : produit introuvable,
+  /// image déjà présente, ou liste pleine (5 max).
   ///
   /// L'image est mise en TÊTE : elle devient la photo principale
   /// (`imagePath` = `images.first`), convention du modèle.
   static Produit? affecterProduit(
     Produit produit,
-    String cle, {
+    MediaItem item, {
     required List<Produit> produits,
   }) {
-    if (cle.isEmpty) return null;
+    if (item.cle.isEmpty) return null;
     if (produits.indexWhere((p) => p.id == produit.id) < 0) return null;
-    if (produit.images.contains(cle)) return null;
+    if (produit.images.any((c) => meme(item, c))) return null;
+    if (produit.imagePath != null && meme(item, produit.imagePath!)) {
+      return null;
+    }
     if (produit.images.length >= Produit.maxImages) return null;
-    return produit.copyWith(images: [cle, ...produit.images]);
+    return produit.copyWith(
+        images: [valeurStockable(item), ...produit.images]);
   }
 
-  /// Retire [cle] du produit [id]. Si c'était la photo principale, la
-  /// suivante de la galerie le devient (et `sansImage()` si la liste se
-  /// vide — `copyWith` seul ne peut pas mettre `imagePath` à null).
+  /// Retire [item] du produit [id]. Si c'était la photo principale, la
+  /// suivante de la galerie le devient (et la photo est retirée si la
+  /// liste se vide — `copyWith` dérive désormais le principal, donc une
+  /// image retirée ne peut plus revenir).
   static Produit? retirerProduit(
     Produit produit,
-    String cle, {
+    MediaItem item, {
     required List<Produit> produits,
   }) {
     if (produits.indexWhere((p) => p.id == produit.id) < 0) return null;
-    final dansGalerie = produit.images.contains(cle);
-    if (!dansGalerie && produit.imagePath != cle) return null;
-    final reste = produit.images.where((c) => c != cle).toList();
-    if (produit.imagePath != cle) return produit.copyWith(images: reste);
-    return reste.isEmpty ? produit.sansImage() : produit.copyWith(images: reste);
+    final dansGalerie = produit.images.any((c) => meme(item, c));
+    final principalMeme = produit.imagePath != null &&
+        meme(item, produit.imagePath!);
+    if (!dansGalerie && !principalMeme) return null;
+    final reste = produit.images
+        .where((c) => !meme(item, c))
+        .toList();
+    return produit.copyWith(images: reste);
   }
 
-  /// Rattache [cle] à l'article [id] du catalogue. null si déjà présente,
-  /// liste pleine, ou article introuvable.
+  /// Rattache [item] à l'article [id] du catalogue. null si déjà
+  /// présente, liste pleine, ou article introuvable.
   static Tarif? affecterTarif(
     Tarif tarif,
-    String cle, {
+    MediaItem item, {
     required List<Tarif> tarifs,
   }) {
-    if (cle.isEmpty) return null;
+    if (item.cle.isEmpty) return null;
     if (tarifs.indexWhere((t) => t.id == tarif.id) < 0) return null;
-    if (tarif.images.contains(cle)) return null;
+    if (tarif.images.any((c) => meme(item, c))) return null;
     if (tarif.images.length >= Produit.maxImages) return null;
-    return tarif.copyWith(images: [cle, ...tarif.images]);
+    return tarif.copyWith(images: [valeurStockable(item), ...tarif.images]);
   }
 
-  /// Retire [cle] de l'article [id]. null si absente.
+  /// Retire [item] de l'article [id]. null si absente.
   static Tarif? retirerTarif(
     Tarif tarif,
-    String cle, {
+    MediaItem item, {
     required List<Tarif> tarifs,
   }) {
     if (tarifs.indexWhere((t) => t.id == tarif.id) < 0) return null;
-    if (!tarif.images.contains(cle)) return null;
-    return tarif.copyWith(images: tarif.images.where((c) => c != cle).toList());
+    if (!tarif.images.any((c) => meme(item, c))) return null;
+    return tarif.copyWith(
+        images: tarif.images.where((c) => !meme(item, c)).toList());
   }
 
   /// Retire [cle] de TOUTES les entités, sur place (les listes du Store
   /// sont partagées avec les Notifiers). Retourne les identifiants des
   /// entités détachées — utilisé avant une suppression DÉFINITIVE pour ne
   /// jamais laisser de référence morte, et ne persister QUE celles-ci.
+  ///
+  /// L'apparient se fait par NOM DE FICHIER : l'entité peut porter un
+  /// chemin complet alors que la galerie connaît le nom seul.
   static ({List<String> produits, List<String> tarifs}) detacher(
     String cle, {
     required List<Produit> produits,
     required List<Tarif> tarifs,
   }) {
+    bool cible(String reference) => nomFichier(reference) == nomFichier(cle);
     final pIds = <String>[];
     final tIds = <String>[];
     for (var i = 0; i < produits.length; i++) {
       final p = produits[i];
-      if (!p.images.contains(cle) && p.imagePath != cle) continue;
-      final reste = p.images.where((c) => c != cle).toList();
-      // `copyWith` ne peut pas mettre `imagePath` à null : d'où
-      // `sansImage()` quand la galerie se vide.
-      produits[i] = p.imagePath == cle && reste.isEmpty
-          ? p.sansImage()
-          : p.copyWith(images: reste);
+      final dansGalerie = p.images.any(cible);
+      final principalMeme = p.imagePath != null && cible(p.imagePath!);
+      if (!dansGalerie && !principalMeme) continue;
+      final reste = p.images.where((c) => !cible(c)).toList();
+      // `copyWith(images: reste)` dérive le principal : plus besoin du
+      // `sansImage()` manuel qui masquait le cas « liste vidée ».
+      produits[i] = p.copyWith(images: reste);
       pIds.add(p.id);
     }
     for (var i = 0; i < tarifs.length; i++) {
       final t = tarifs[i];
-      if (!t.images.contains(cle)) continue;
-      tarifs[i] = t.copyWith(images: t.images.where((c) => c != cle).toList());
+      if (!t.images.any(cible)) continue;
+      tarifs[i] = t.copyWith(images: t.images.where((c) => !cible(c)).toList());
       tIds.add(t.id);
     }
     return (produits: pIds, tarifs: tIds);

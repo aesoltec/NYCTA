@@ -98,6 +98,19 @@ class ProduitNotifier extends ChangeNotifier {
     return null;
   }
 
+  /// Payload de la FILE hors-ligne (rejeu a la reconnexion).
+  ///
+  /// `image_path` et `images` en sont VOLONTAIREMENT absents : le modele
+  /// stocke des CHEMINS LOCAUX (`<docs>/media/produit/...`) alors que la
+  /// base doit contenir des URL publiques. Les rejouer tel quel
+  /// ecraserait les URL deja publiees par un chemin local inexistant sur
+  /// les autres appareils - les images « reviendraient » en placeholder.
+  /// La publication est faite par `CloudRepository.upsertProduit`, appele
+  /// systematiquement, qui applique `_publier`.
+  ///
+  /// Consequence assumee : un produit cree HORS LIGNE n'aura pas ses
+  /// images en base tant qu'il n'est pas re-enregistre avec le cloud
+  /// joignable. Ne surtout pas « corriger » en ajoutant les images ici.
   Map<String, dynamic> _payload(Produit p) => {
         'id': p.id,
         'boutique_id': p.boutiqueId,

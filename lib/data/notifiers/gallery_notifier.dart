@@ -182,9 +182,9 @@ class GalleryNotifier extends ChangeNotifier {
       return erreur;
     }
     final maj = GalleryService.affecterProduit(
-        produits[i], item.cle, produits: produits);
+        produits[i], item, produits: produits);
     if (maj == null) {
-      erreur = produits[i].images.contains(item.cle)
+      erreur = produits[i].images.any((c) => GalleryService.meme(item, c))
           ? 'Cette image est déjà sur ce produit'
           : 'Galerie pleine (${Produit.maxImages} images maximum)';
       return erreur;
@@ -201,7 +201,7 @@ class GalleryNotifier extends ChangeNotifier {
     final i = produits.indexWhere((p) => p.id == produitId);
     if (i < 0) return erreur = 'Produit introuvable';
     final maj = GalleryService.retirerProduit(
-        produits[i], item.cle, produits: produits);
+        produits[i], item, produits: produits);
     if (maj == null) return erreur = 'Image non attachée à ce produit';
     await majProduitLocal(maj);
     succes = 'Image retirée de « ${maj.libelle} »';
@@ -215,9 +215,9 @@ class GalleryNotifier extends ChangeNotifier {
     final i = catalogue.indexWhere((t) => t.id == tarifId);
     if (i < 0) return erreur = 'Article introuvable';
     final maj =
-        GalleryService.affecterTarif(catalogue[i], item.cle, tarifs: catalogue);
+        GalleryService.affecterTarif(catalogue[i], item, tarifs: catalogue);
     if (maj == null) {
-      erreur = catalogue[i].images.contains(item.cle)
+      erreur = catalogue[i].images.any((c) => GalleryService.meme(item, c))
           ? 'Cette image est déjà sur cet article'
           : 'Galerie pleine (${Produit.maxImages} images maximum)';
       return erreur;
@@ -234,7 +234,7 @@ class GalleryNotifier extends ChangeNotifier {
     final i = catalogue.indexWhere((t) => t.id == tarifId);
     if (i < 0) return erreur = 'Article introuvable';
     final maj =
-        GalleryService.retirerTarif(catalogue[i], item.cle, tarifs: catalogue);
+        GalleryService.retirerTarif(catalogue[i], item, tarifs: catalogue);
     if (maj == null) return erreur = 'Image non attachée à cet article';
     await majTarifLocal(maj);
     succes = 'Image retirée de « ${maj.libelle} »';

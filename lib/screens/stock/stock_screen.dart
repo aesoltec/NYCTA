@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/validators.dart';
 import '../../data/store.dart';
 import '../../models/enums.dart';
+import '../../data/gallery/gallery_service.dart';
 import '../../data/models/media_item.dart';
 import '../../models/produit.dart';
 import '../../services/media_service.dart';
@@ -655,14 +656,21 @@ class _FormProduitState extends State<_FormProduit> {
                                   const GalleryScreen(modeSelection: true)),
                         );
                         if (choisi == null) return;
-                        if (_images.contains(choisi.cle)) {
+                        // On stocke la VALEUR STOCKABLE (chemin local si
+                        // disponible, sinon URL), jamais `choisi.cle` qui
+                        // n'est qu'un nom de fichier : un nom seul ne
+                        // s'affiche pas (AppImage teste existsSync) et ne
+                        // peut pas etre televerse. Le doublon se detecte
+                        // par NOM de fichier, pas par egalite de chaine.
+                        if (_images.any((c) => GalleryService.meme(choisi, c))) {
                           ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                  content: Text('Déjà dans la galerie')));
+                                  content: Text('Deja dans la galerie')));
                           return;
                         }
                         if (_images.length >= Produit.maxImages) return;
-                        setState(() => _images.add(choisi.cle));
+                        setState(() => _images
+                            .add(GalleryService.valeurStockable(choisi)));
                       },
               ),
               OutlinedButton.icon(

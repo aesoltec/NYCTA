@@ -34,10 +34,25 @@ class Produit {
   bool get alerte => stock <= seuil;
   double get margeUnitaire => prixVente - prixAchat;
 
+  /// `imagePath` est une valeur DÉRIVÉE de [images] (`images.first`),
+  /// jamais une donnée indépendante : c'est ce qui garantit qu'une image
+  /// retirée de la galerie ne réapparaisse pas.
+  ///
+  /// Avant, le repli `imagePath ?? (imgs.isNotEmpty ? imgs.first :
+  /// this.imagePath)` rendait la valeur COLLANTE : vider la galerie
+  /// laissait l'ancien chemin principal survivre et l'ancienne image
+  /// revenait à la sauvegarde (symptôme observé sur l'écran Stock).
+  ///
+  /// Règle de résolution, sans ambiguïté :
+  /// 1. [effacerImagePath] → principal nul ;
+  /// 2. [imagePath] fourni → il gagne (appelant explicite) ;
+  /// 3. [images] fourni → `images.first`, ou null si la liste est vide ;
+  /// 4. sinon → dérivé de la galerie existante.
   Produit copyWith({
     int? stock,
     String? imagePath,
     List<String>? images,
+    bool effacerImagePath = false,
     String? libelle,
     String? categorie,
     double? prixAchat,
@@ -47,6 +62,9 @@ class Produit {
     DateTime? dateAjout,
   }) {
     final imgs = images ?? this.images;
+    final String? principal = effacerImagePath
+        ? null
+        : (imagePath ?? (imgs.isNotEmpty ? imgs.first : null));
     return Produit(
       id: id,
       boutiqueId: boutiqueId ?? this.boutiqueId,
@@ -56,13 +74,14 @@ class Produit {
       prixVente: prixVente ?? this.prixVente,
       stock: stock ?? this.stock,
       seuil: seuil ?? this.seuil,
-      imagePath: imagePath ?? (imgs.isNotEmpty ? imgs.first : this.imagePath),
+      imagePath: principal,
       images: imgs,
       dateAjout: dateAjout ?? this.dateAjout,
     );
   }
 
-  /// Retire explicitement la photo (copyWith ne peut pas mettre un null).
+  /// Retire explicitement la photo (équivalent
+  /// à `copyWith(effacerImagePath: true)`).
   Produit sansImage() => Produit(
         id: id,
         boutiqueId: boutiqueId,
