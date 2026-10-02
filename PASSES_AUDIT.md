@@ -761,3 +761,105 @@ corrige l'un en croyant corriger l'autre.
 
 `test/produit_images_test.dart` -> `test/data/produit_galerie_store_test.dart`
 (`git mv`, contenu inchangé). Aucun appelant : ce sont des suites de tests.
+
+## 2026-10-02 - 1.13.4 (suite) : VERBE de la file de sync + ponctuation PDF
+
+**Origine** : logs de la session MANUELLE de l'utilisateur sur
+l'Infinix X6840. Deux messages que ni les 493 tests unitaires ni les
+10 scenarios d'integration ne pouvaient produire : ils exigent une
+vraie session cloud avec une base reelle.
+
+```
+SyncService : operation bloquee definitivement (produits)
+ - PostgrestException(null value in column "boutique_id" of relation
+   "produits" violates not-null constraint, code: 23502)
+
+Unable to find a font to draw "-" (U+2014) try to provide a
+TextStyle.fontFallback
+```
+
+### Bug 5 — VERBE de la file de sync (bloquant)
+
+1. Fonctionnel OK - le blocage etait **definitif** : `en_erreur` a
+   8 essais, `synchroniser()` ignore ces entrees, et le seul moyen de
+   les relancer (`reessayerTout`) les faisait **echouer encore**, la
+   cause n'ayant pas ete corrigee. L'utilisateur etait donc bloque avec
+   une file qu'il ne pouvait pas debloquer depuis l'app.
+2. Metier OK - correction du VERBE, pas du contenu : un payload
+   `{id, actif: false}` ne peut pas creer une ligne dans aucune table
+   metier (il manque `libelle`, `montant`, `boutique_id`...). Le
+   re-classer en `UPDATE` ne change donc **aucune** donnee, et la
+   migration `reparerEntreesLegacy()` ne touche que le nom de table
+   (`payload`, `cree_le`, `essais` intacts).
+3. Securite OK - RLS inchangee, aucune donnee supprimee cote serveur.
+   `__delete` reste une suppression par `id`, filtree par les memes
+   policies qu'avant.
+4. Overflow OK - sans objet.
+5. Performance OK - `operationPour()` est une cascade de deux
+   `endsWith` par entree ; negligeable devant l'aller-retour reseau.
+   `reparerEntreesLegacy()` parcourt la box une fois au demarrage.
+6. Tests OK - +11 : routage des 3 verbes, `tableReelle`, detection
+   d'un payload partiel, **garde-fou structurel** qui relit `lib/` et
+   refuse tout `fileUpsert` a payload partiel sur table nue, et 2
+   verifications ciblees (archivage produit, ajustement de stock).
+   Suite **506/506**, `dart analyze` **0 erreur**.
+7. Documentation OK - CHANGELOG 1.13.4 (bug 5), MISSION_STATUS (G8),
+   ce journal.
+8. Regression OK - **le garde-fou a trouve un 4e site que la relecture
+   avait rate** : `supprimerPartenaire` supprimait la ligne puis mettait
+   en file `{id, actif: false}`, ce qui **recraitait** le partenaire
+   supprime (ou tentait de le creer, 23502). Route `__delete`. C'est la
+   justification du test structurel : 4 appelants disperses, une regle,
+   un piege que la lecture manuelle ne voit pas de facon fiable.
+   Point d'attention assume : `messages` et `feedbacks` envoient aussi
+   des payloads partiels (colonnes `date`/`lu` absentes). Je ne les
+   touche pas : sans le schema reel de ces tables, je ne peux pas
+   affirmer que leur insertion echoue, et modifier a l'aveugle serait
+   inventer une regle (AGENTS.md §10.8). **Reserve tracee.**
+9. UX OK - l'archivage et l'ajustement de stock atteignent enfin la
+   base ; le badge de file d'attente ne se fige plus sur une erreur
+   irreversible.
+10. Contre-expertise - **reserve** : `patch` sur une ligne inexistante
+    consomme l'entree sans effet (0 ligne mise a jour). C'est le
+    comportement honnete : creer la ligne depuis un payload partiel
+    est impossible sans inventer `libelle`/`prix`, et bloquer l'entree
+    definitivement serait pire. La trace reste en console. Une
+    synchronisation complete (`upsert` avec le payload complet) est
+   emplacee par `CloudRepository` juste avant, qui cree la ligne.
+    Verdict : **CONFORME**.
+
+### Bug 6 — ponctuation absente des PDF
+
+1. Fonctionnel OK - le tiret cadratin des libelles de signature, de la
+   ligne bancaire, du rapport journalier et du total analytique
+   disparaissait du PDF (trou ou caractere de remplacement).
+2. Metier OK - substitution par un tiret ASCII, pas par une police
+   Unicode. Charger une TTF (~400 Ko) pour un separateur serait
+   disproportionne ; les accents, l'euro et le degré sont deja Latin-1 et
+   s'impriment correctement. Aucune typographie d'accent modifiee.
+3. Securite OK - sans objet.
+4. Overflow OK - un tiret ASCII est plus etroit qu'un tiret cadratin :
+   aucun risque de debordement ajoute, au contraire.
+5. Performance OK - identique (pas de police chargee).
+6. Tests OK - +2 : garde-fou Latin-1 sur les 3 fichiers produisant un
+   PDF, plus un test qui verifie que les accents **restent presents**
+   (pour interdire qu'un futur "correctif" supprime la typographie
+   française au lieu de la remplacer).
+   Perimetre assume : dans les ecrans, seules les lignes contenant
+   `pw.` sont controlees — une `SnackBar('⚠')` ou un
+   `Text('Rechercher…')` sont valides a l'ecran (Roboto est Unicode).
+   `pdf_service.dart`, constructeur de tous les documents, est controle
+   en entier.
+7. Documentation OK - CHANGELOG 1.13.4 (bug 6), MISSION_STATUS (G9).
+8. Regression OK - les tests PDF existants continu e9 de passer ; le
+   contenu des documents est inchange, seule la ponctuation des
+   libelles differe.
+9. UX OK - les documents n'ont plus de trous. **Cela ne corrige pas**
+   les 12 points de mise en page signales (positions, cadres,
+   signatures) : ils demandent le PDF genere par l'utilisateur.
+10. Contre-expertise - **reserve** : une donnee saisie par
+    l'utilisateur contenant un caractere hors Latin-1 (par exemple un
+    emoji dans un libelle de produit) disparaitra toujours du PDF.
+    Traiter cela demande une police Unicode embarquee — decision
+    d'architecture a poser, pas adeviner. Verdict : **CONFORME** sur le
+    perimetre des libelles, **reserve** sur les donnees utilisateur.

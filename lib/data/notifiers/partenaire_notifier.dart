@@ -89,7 +89,8 @@ class PartenaireNotifier extends ChangeNotifier {
     partenaires[i] = p;
     notifyListeners();
     await CloudRepository.upsertPartenaire(p);
-    await fileUpsert?.call('partenaires', {'id': p.id, 'actif': false});
+    await fileUpsert?.call(
+          'partenaires__update', {'id': p.id, 'actif': false});
   }
 
   /// Suppression définitive : refusée si ventes ou clôtures.
@@ -104,7 +105,10 @@ class PartenaireNotifier extends ChangeNotifier {
     partenaires.removeAt(i);
     notifyListeners();
     await CloudRepository.supprimerPartenaire(id);
-    await fileUpsert?.call('partenaires', {'id': id, 'actif': false});
+    // Suppression : la file doit rejouer une SUPPRESSION. Un
+    // `{id, actif: false}` passe par `upsert` recraitait la ligne
+    // qu'on vient de supprimer (ou tentait de la creer, 23502).
+    await fileUpsert?.call('partenaires__delete', {'id': id});
     return null;
   }
 

@@ -4,6 +4,37 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'supabase_service.dart';
 
+/// Verbe a employer pour rejouer une entree de la file.
+///
+/// Le routage est extrait de `_pousser` dans une fonction PURE pour
+/// etre testable sans client Supabase : c'est la decision qui compte,
+/// car un mauvais verbe donne une erreur serveur trompeuse
+/// (23502 sur une colonne absente du payload).
+enum SyncOperation {
+  /// `INSERT ... ON CONFLICT DO UPDATE` : la ligne peut ne pas exister.
+  upsert,
+
+  /// `UPDATE ... WHERE id = ?` : la ligne doit deja exister, le payload
+  /// peut etre partiel (archivage, correction d'un champ).
+  patch,
+
+  /// `DELETE ... WHERE id = ?`.
+  delete,
+}
+
+/// Extension conventionnelle des noms de table dans la file de sync,
+/// alignee sur la colonne `table` : suffixe `__delete` (suppression) et
+/// `__update` (mise a jour partielle).
+class SyncTable {
+  static const suffixeDelete = '__delete';
+  static const suffixeUpdate = '__update';
+}
+
+/// Suffixe de suppression, conserve ici pour compatibilite de lecture.
+const _suffixeDelete = '__delete';
+/// Suffixe de mise a jour partielle.
+const _suffixeUpdate = '__update';
+
 /// Synchronisation offline-first (phase P7).
 ///
 /// Principe terrain : une vente saisie SANS réseau n'est JAMAIS perdue.
@@ -14,6 +45,14 @@ import 'supabase_service.dart';
 /// Anticipation : la file contient un champ `essais` — après N échecs,
 /// l'entrée est marquée `en_erreur` pour investigation (jamais supprimée
 /// silencieusement : une donnée financière ne se perd pas).
+///
+/// VERBE, PAS QUE LE NOM DE LA TABLE : `upsert` est un
+/// `INSERT ... ON CONFLICT DO UPDATE`. Un payload PARTIEL
+/// (`{'id', 'actif': false}` pour un archivage) passe sans erreur tant que
+/// la ligne existe, mais déclenche `23502 NOT NULL` dès qu'elle
+/// n'existe pas encore — cas normal d'un produit créé hors-ligne —
+/// puis se bloque définitivement après [_maxEssais] essais. Les mises à
+/// jour partielles doivent donc porter le suffixe [SyncTable.suffixeUpdate].
 class SyncService extends ChangeNotifier {
   // ChangeNotifier : avant ce correctif, une opération bloquée (ex. RLS
   // refusant l'insertion) restait invisible — aucun écran ne lisait
@@ -43,6 +82,7 @@ class SyncService extends ChangeNotifier {
       final connecte = resultats.any((r) => r != ConnectivityResult.none);
       if (connecte) unawaited(synchroniser());
     });
+    await reparerEntreesLegacy();
     // Tentative immédiate au démarrage (si déjà en ligne).
     await synchroniser();
   }
@@ -167,28 +207,109 @@ class SyncService extends ChangeNotifier {
   /// définitivement — la donnée saisie hors-ligne serait PERDUE. On
   /// réessaie donc une fois sans les colonnes optionnelles, en cohérence
   /// avec le repli déjà fait par `CloudRepository.upsertProduit`.
+  /// Un payload {id, actif} (ou {id} seul) ne peut pas correspondre a une
+  /// CREATION : il manquerait les colonnes NOT NULL de toute table metier
+  /// (libelle, montant, boutique_id...). C'est donc un patch herite des
+  /// versions qui n'avaient pas de routage par verbe.
+  static bool estPatchLegacy(Map payload) {
+    if (!payload.containsKey('id')) return false;
+    return payload.keys.every((k) => k == 'id' || k == 'actif');
+  }
+
+  /// Re-route les entrees bloquees avant le correctif du verbe.
+  ///
+  /// Sans cela, une entree `{id, actif: false}` deja marquee `en_erreur`
+  /// sur l'appareil echouerait encore a chaque `reessayerTout()`, et
+  /// l'utilisateur n'aurait aucun moyen de debloquer sa file depuis
+  /// l'ecran de diagnostic.
+  ///
+  /// Ne touche QUE le nom de table : le payload, l'horodatage et
+  /// l'historique d'essais restent intacts.
+  Future<int> reparerEntreesLegacy() async {
+    if (_box == null) return 0;
+    var repares = 0;
+    for (final cle in _box!.keys.toList()) {
+      final e = _box!.get(cle);
+      if (e == null) continue;
+      final table = e['table'];
+      if (table is! String) continue;
+      if (operationPour(table) != SyncOperation.upsert) continue;
+      final payload = e['payload'];
+      if (payload is! Map || !estPatchLegacy(payload)) continue;
+      e['table'] = '$table$SyncTable.suffixeUpdate';
+      e['en_erreur'] = false;
+      e['essais'] = 0;
+      await _box!.put(cle, e);
+      repares++;
+    }
+    if (repares > 0) {
+      debugPrint('SyncService : $repares entree(s) partielle(s) re-routee(s) '
+          'vers une mise a jour partielle (au lieu d\'un upsert qui aurait '
+          'viole boutique_id NOT NULL).');
+    }
+    return repares;
+  }
+
+  /// Verbe a employer pour [table], en fonction du suffixe.
+  ///
+  /// Fonction PURE : c'est elle, et non le SQL, qui decide si une entree
+  /// peut creer une ligne ou seulement la modifier. Un `upsert` sur un
+  /// payload partiel est la cause du blocage `23502 boutique_id`.
+  static SyncOperation operationPour(String table) {
+    if (table.endsWith(_suffixeDelete)) return SyncOperation.delete;
+    if (table.endsWith(_suffixeUpdate)) return SyncOperation.patch;
+    return SyncOperation.upsert;
+  }
+
+  /// Nom de table reel, suffixe de route retire.
+  static String tableReelle(String table) => (operationPour(table) ==
+          SyncOperation.upsert)
+      ? table
+      : table.substring(0, table.length - _suffixeDelete.length);
+
   Future<String?> _pousser(Map entree) async {
     try {
       final table = entree['table'] as String;
       final payload = Map<String, dynamic>.from(entree['payload'] as Map);
       final client = SupabaseService.client!;
-      if (table.endsWith('__delete')) {
-        final vraieTable = table.substring(0, table.length - 8);
-        final id = payload['id']?.toString() ?? '';
-        await client.from(vraieTable).delete().eq('id', id);
-      } else {
-        try {
-          await client.from(table).upsert(payload, onConflict: 'id');
-        } catch (e) {
-          if (!estColonneAbsente(e)) rethrow;
-          final leger = sansColonnesOptionnelles(payload);
-          if (leger.length == payload.length) rethrow; // rien a retirer
-          debugPrint('SyncService : ${entree['table']} — colonne absente '
-              'en base, nouvelle tentative sans '
-              '${payload.length - leger.length} champ(s) optionnel(s). '
-              'Executer database/SUPABASE_A_EXECUTER.sql pour la creer.');
-          await client.from(table).upsert(leger, onConflict: 'id');
-        }
+      switch (operationPour(table)) {
+        case SyncOperation.delete:
+          final id = payload['id']?.toString() ?? '';
+          await client.from(tableReelle(table)).delete().eq('id', id);
+
+        case SyncOperation.patch:
+          // `patch` : la ligne doit deja exister en base. `id` sert de
+          // filtre et ne doit pas figurer dans le corps de l'UPDATE.
+          final id = payload.remove('id')?.toString() ?? '';
+          if (id.isEmpty) return 'entree sans identifiant';
+          final touchees = await client
+              .from(tableReelle(table))
+              .update(payload)
+              .eq('id', id)
+              .select();
+          if (touchees.isEmpty) {
+            // 0 ligne mise a jour : la ligne n'existe pas en base. On ne
+            // peut PAS la creer depuis un payload partiel (NOT NULL), et
+            // on ne doit pas inventer de donnee metier. L'entree est donc
+            // consommee, mais la trace reste visible dans la console.
+            debugPrint('SyncService : mise a jour sans effet sur '
+                '${tableReelle(table)}/$id — la ligne n existe pas en base '
+                '(creation hors-ligne non encore synchronisee).');
+          }
+
+        case SyncOperation.upsert:
+          try {
+            await client.from(table).upsert(payload, onConflict: 'id');
+          } catch (e) {
+            if (!estColonneAbsente(e)) rethrow;
+            final leger = sansColonnesOptionnelles(payload);
+            if (leger.length == payload.length) rethrow; // rien a retirer
+            debugPrint('SyncService : ${entree['table']} — colonne absente '
+                'en base, nouvelle tentative sans '
+                '${payload.length - leger.length} champ(s) optionnel(s). '
+                'Executer database/SUPABASE_A_EXECUTER.sql pour la creer.');
+            await client.from(table).upsert(leger, onConflict: 'id');
+          }
       }
       return null;
     } catch (e) {

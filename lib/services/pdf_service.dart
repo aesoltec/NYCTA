@@ -231,8 +231,8 @@ class PdfService {
                     pw.SizedBox(height: 3),
                     pw.Text(
                         doc.type == TypeDocument.bonLivraison
-                            ? 'Réceptionnaire (à droite) — stylo après impression'
-                            : 'Signature client (à droite) — stylo après impression',
+                            ? 'Réceptionnaire (à droite) - stylo après impression'
+                            : 'Signature client (à droite) - stylo après impression',
                         style: const pw.TextStyle(fontSize: 8)),
                   ]),
                 ),
@@ -246,7 +246,7 @@ class PdfService {
                       pw.Image(cachet, fit: pw.BoxFit.contain)),
             pw.SizedBox(height: 10),
             if (profile.banque.isNotEmpty)
-              pw.Text('Banque : ${profile.banque} — ${profile.coordonneesBancaires}',
+              pw.Text('Banque : ${profile.banque} - ${profile.coordonneesBancaires}',
                   style: const pw.TextStyle(fontSize: 8)),
             pw.Text(profile.messagePied,
                 style: const pw.TextStyle(fontSize: 8)),
@@ -318,7 +318,7 @@ class PdfService {
         build: (context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Text('RAPPORT JOURNALIER — $boutiqueNom',
+            pw.Text('RAPPORT JOURNALIER - $boutiqueNom',
                 style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold)),
             pw.Text(date, style: const pw.TextStyle(fontSize: 10)),
             pw.SizedBox(height: 12),
@@ -360,7 +360,7 @@ class PdfService {
                 for (final t in transactions)
                   [
                     '${t.date.hour.toString().padLeft(2, '0')}h${t.date.minute.toString().padLeft(2, '0')}',
-                    '${t.type.name}${t.clientNom != null ? ' — ${t.clientNom}' : ''}',
+                    '${t.type.name}${t.clientNom != null ? ' - ${t.clientNom}' : ''}',
                     C.money(t.montant, devise),
                   ],
               ],

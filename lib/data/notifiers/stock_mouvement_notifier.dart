@@ -4,6 +4,7 @@ import '../../models/mouvement_stock.dart';
 import '../../models/produit.dart';
 import '../../services/cloud_repository.dart';
 import 'session_notifier.dart';
+import 'package:pme_gestion_pro/data/store_sync.dart';
 
 /// Mouvements de stock (Phase 2 — découpage Store) : journal traçable +
 /// ajustement manuel.
@@ -97,7 +98,11 @@ class StockMouvementNotifier extends ChangeNotifier {
     produits[i] = maj;
     notifyListeners();
     await CloudRepository.upsertProduit(maj);
-    await fileUpsert?.call('produits', {'id': maj.id});
+    // Payload COMPLET : `{'id'}` seul faisait echouer l'upsert
+    // (INSERT sans boutique_id -> 23502) des que le produit n'existe
+    // pas encore en base, ce qui est le cas d'un produit cree
+    // hors-ligne. Meme payload que la creation (cf. wiring.dart).
+    await fileUpsert?.call('produits', StoreSync.payloadProduit(maj));
     await journaliser(
       produitId: maj.id,
       produitNom: maj.libelle,

@@ -353,7 +353,7 @@ class _AnalytiqueDetailScreenState extends State<AnalytiqueDetailScreen> {
                 style: pw.TextStyle(
                     fontSize: 15, fontWeight: pw.FontWeight.bold)),
             pw.SizedBox(height: 4),
-            pw.Text('${lignes.length} opération(s) — Total : '
+            pw.Text('${lignes.length} opération(s) - Total : '
                 '${total.toStringAsFixed(0)} FCFA'),
             pw.SizedBox(height: 12),
             pw.TableHelper.fromTextArray(

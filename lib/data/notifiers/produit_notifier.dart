@@ -166,7 +166,7 @@ class ProduitNotifier extends ChangeNotifier {
       produits.removeAt(i);
       notifyListeners();
       await CloudRepository.archiverProduit(id);
-      await fileUpsert?.call('produits', {'id': id, 'actif': false});
+      await fileUpsert?.call('produits__update', {'id': id, 'actif': false});
     }
   }
 

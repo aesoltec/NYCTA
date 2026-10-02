@@ -67,7 +67,50 @@
 - `integration_test/image_flow_test.dart` porte désormais 10 scénarios
   jouables sur l'appareil (modèle, galerie, écrans, déserialisation) :
   **10/10 verts sur l'Infinix X6840 (Android 16)**.
-- Suite unitaire **493/493 verts**, `dart analyze` **0 erreur**.
+- **Bug 5 — VERBE de la file de sync (bloquant, visible sur l'appareil)** :
+  `SyncService : opération bloquée définitivement (produits) — null value in
+  column "boutique_id" of relation "produits" violates not-null constraint
+  (23502)`. Ce n'était ni une colonne manquante (le repli `PGRST204` ne
+  s'applique pas) ni un problème RLS : c'était le **verbe**.
+  `upsert` en PostgREST est un `INSERT ... ON CONFLICT DO UPDATE`. Quatre
+  appelants envoyaient un payload **partiel** (`{id, actif: false}`,
+  `{id}`) : la ligne passant sans erreur tant qu'elle existe en base, mais
+  dès qu'elle n'existe pas — cas normal d'un produit créé hors-ligne —
+  le serveur tentait d'insérer une ligne sans `boutique_id`, et
+  l'entrée était bloquée définitivement après 8 essais.
+  - `SyncService` : nouveau suffixe `__update` (symétrique du `__delete`
+    existant) → vrai `UPDATE ... WHERE id = ?`. Routage extrait dans des
+    fonctions **pures** `operationPour()` / `tableReelle()` (testables
+    sans client Supabase). `id` est sorti du corps de l'UPDATE.
+    0 ligne mise à jour → trace explicite en console (la ligne n'existe
+    pas encore en base ; on ne peut ni la créer depuis un payload
+    partiel, ni inventer de donnée métier).
+  - `SyncService.reparerEntreesLegacy()` au démarrage : re-route les
+    entrées déjà bloquées sur le téléphone (elles échoueraient
+    encore à chaque `reessayerTout()`, sans issue pour l'utilisateur).
+    Un payload `{id, actif}` ne peut correspondre à aucune création dans
+    aucune table métier — la re-classer en patch n'invente rien.
+  - `produit_notifier` / `partenaire_notifier` : archivage → `__update`.
+  - `stock_mouvement_notifier:100` : `{'id'}` était inutile (ligne 99 fait
+    déjà l'upsert complet) ET fatalement incomplet → payload complet
+    `StoreSync.payloadProduit(maj)`, comme `wiring.dart`.
+  - `supprimerPartenaire` : la ligne était supprimée puis un patch
+    `{'id', 'actif': false}` était mis en file — la file **recréait** le
+    partenaire supprimé. Route `→ partenaires__delete`. *(4e site
+    découvert par le garde-fou structurel, pas par la relecture.)*
+  - Test **structurel** : plus aucun `fileUpsert` ne doit envoyer de payload
+    partiel sur une table sans suffixe de route. Il relit `lib/` et
+    énumère les coupables.
+- **Bug 6 — ponctuation absente des PDF (visible sur l'appareil)** :
+  `Unable to find a font to draw "—" (U+2014)`. Les polices intégrées de
+  `package:pdf` (Helvetica, Times) sont **Latin-1** : toute ponctuation
+  typographique est **silencieusement perdue** du PDF généré.
+  6 libellés imprimés en étaient concernés (signatures, banque,
+  rapport journalier, total du rapport analytique) → tiret ASCII.
+  Les accents / euro / degré sont Latin-1 : ils s'impriment, on ne touche
+  à rien. Test garde-fou sur le 3 fichiers qui produisent un PDF.
+- Tests : +11 (verbes de la file) +2 (Latin-1 PDF) → suite
+  **506/506 verts**, `dart analyze` **0 erreur**.
 
 ## 1.13.3 — 2026-10-02 (association d'images : les anciennes images revenaient)
 - **Symptôme** : « même si on utilise de nouvelles images, les anciennes reviennent
