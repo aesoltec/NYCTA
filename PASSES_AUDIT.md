@@ -641,3 +641,123 @@ d'inventer un règle « l'admin peut toujours choisir ». La garde
     la suppression locale marche, la cloud non — retour false traité).
     Verdict : **CONFORME**.
 
+## 2026-10-02 - 1.13.4 : invariant `imagePath` applique AU CONSTRUCTEUR
+
+**Modification unique** : `lib/models/produit.dart` - le constructeur
+derive `imagePath` de `images` avec un sentinelle prive.
+**Preuve d'origine** : test d'integration joue sur l'appareil
+(Infinix X6840 / Android 16), 6/7 verts, le 7e en echec.
+
+1. Fonctionnel OK - `Produit(images: ['/a.jpg']).imagePath` vaut
+   maintenant `/a.jpg` au lieu de `null`. L'invariant annonce dans la
+   doc du modele (`imagePath == images.first`) tient desormais des la
+   CONSTRUCTION, pas seulement apres `copyWith`.
+2. Metier OK - aucune regle inventee. On applique partout la regle
+   deja documentee et deja appliquee par `copyWith`. La priorite
+   `imagePath` explicite > `images.first` est preservee (chemins
+   historiques, image cloud-only) : un `Produit` deserialize depuis le
+   cloud qui porte `image_path` garde exactement cette valeur.
+3. Securite OK - aucun acces, aucune donnee, aucun secret. Perimetre
+   strictement `lib/models/produit.dart` + tests.
+4. Overflow OK - sans objet (modele, aucun widget).
+5. Performance OK - un `identical()` sur un `static const` + un
+   `isNotEmpty`. Négligeable ; aucun champ calculé dans une boucle.
+6. Tests OK - `produit_images_test.dart` passe de 8 a **15 tests**
+   (helper desarme, +7 cas de contrat du constructeur dont
+   « constructeur == copyWith » sur 3 entrees). Integration
+   `image_flow_test.dart` : **7/7 sur l'appareil**.
+   Suite **487/487 verts**, `dart analyze` **0 erreur**.
+7. Documentation OK - CHANGELOG 1.13.4, ce journal, et suppression
+   d'une **section 1.13.2 dupliquee** dans le CHANGELOG (interdit par
+   AGENTS.md §10).
+8. Regression OK - **piege evite et documente** : sans sentinelle, la
+   correction du bug 3 aurait ANNULE le bug 1 (`copyWith(effacerImagePath:
+   true` redevient inoperant car le constructeur re-derive `images.first`).
+   Test dedie : « imagePath explicitement nul : le constructeur NE
+   rederive pas ». Cout de la correction : `const Produit(...)` devient
+   illegal ; les 8 appelants `const` ont ete convertis. Verification
+   qu'**aucun appelant en `lib/` n'etait concerne** (grep : 8
+   occurrences, toutes dans `test/`) - donc pas de degression en
+   production.
+9. UX OK - l'utilisateur ne voit aucun changement d'interface, mais le
+   comportement devient celui annonce : une photo ajoutee au produit
+   s'affiche des la construction de la fiche, et une photo retiree ne
+   revient plus a la sauvegarde.
+10. Contre-expertise - **reserves assumees** : (a) perte de `const`
+    sur `Produit` : impact negligeable (le modele n'est jamais place
+    dans un `const` de collection en `lib/`, verifie par grep ; en
+    contrepartie l'invariant est garanti, ce qui vaut mieux qu'une
+    optimisation de compilation) ; (b) le sentinelle est `private`, donc
+    un appelant externe **ne peut pas** demander explicitement
+    « derive de la galerie » s'il veut aussi passer une liste vide non
+    intentionnellement - c'est exactement le comportement voulu, et
+    `copyWith` couvre le cas ; (c) le test d'integration joue les
+    ecrans mais ne simule pas le tactile : la verification du
+    parcours « j'ajoute une image puis j'appuie sur Enregistrer » reste
+    **manuelle** sur l'appareil.
+    Verdict : **CONFORME**.
+
+## 2026-10-02 - 1.13.4 (suite) : trou de RELECTURE `image_path`
+
+**Modification** : `StoreSnapshot._produit` + `CloudLoader._produit`
+(nouveaux, sortie des comprehensions) + `Produit.principal(...)`.
+**Preuve d'origine** : lecture du code d'ecriture, `grep "image_path"`
+dans `serializer.dart` → le serialiseur ecrit `image_path` ET `images`
+(2 lignes, 321-322).
+
+1. Fonctionnel OK - une fiche relue avec `image_path` nul et une galerie
+   non vide retrouve sa photo principale. C'est l'état de TOUTES les
+   données déjà enregistrées sur l'appareil (le bug 3 existait
+   depuis toujours, donc tout instantané écrit par lui porte
+   `image_path: null` + une galerie non vide).
+2. Metier OK - `image_path` reste prioritaire quand il existe (donnée
+   écrite par l'application, chemins historiques). Le repli ne s'applique
+   qu'à l'absence de valeur, jamais en concurrence. Aucune règle
+   inventée, aucune priorité inversée par rapport à la doc du modèle.
+3. Sécurité OK - aucun accès, aucune donnée, aucun secret.
+   Le repli ne peut introduire qu'une image **déjà présente dans la
+   galerie du même produit** : il ne peut pas afficher une image
+   étrangère au produit (la galerie en est la definition même).
+4. Overflow OK - sans objet (modèle + deserialisation).
+5. Performance OK - une liste de plus par produit, allouée une fois au
+   chargement. `MediaService.normaliserChemin` était déjà appelé
+   autant de fois qu'avant : **aucun appel en double**, la galerie est
+   calculée une seule fois puis réutilisée par `images` ET par le
+   repli de `imagePath`.
+6. Tests OK - +6 (3 par déserialiseur : régression du repli, priorité
+   de la valeur écrite, absence totale). Integration :
+   10 scénarios joués sur l'appareil dont 3 de déserialisation.
+   Suite **493/493**, `dart analyze` **0 erreur**.
+7. Documentation OK - CHANGELOG 1.13.4 (bug 4), MISSION_STATUS (G6),
+   ce journal.
+8. Régression OK - **chaîne de dépendances vérifiée** : corriger le
+   bug 3 (constructeur) sans ce correctif aurait rendu les photos
+   *moins* visibles qu'avant, car `null` est devenu « explicitement
+   nul ». Les 2 bugs sont donc indissociables — découvert et fermé
+   dans la même passe.
+   Contrainte de test rencontrée : le littéral de `cloud_loader_test`
+   est inféré `Map<String, Object>` (valeurs non nul) et refuse
+   d'écrire un `image_path` nul — exactement le cas testé. Corrigé par
+   `Map<String, dynamic>.from(...)` + réaffectation, commenté.
+9. UX OK - l'utilisateur ne voit aucun changement d'interface ; en
+   revanche les produits dont la photo était dans la galerie mais pas
+   dans `image_path` **redeviennent affichables au redémarrage**.
+10. Contre-expertise - **réserve** : le repli s'appuie sur la galerie
+    comme source de vérité du principal. C'est la même hypothèse
+    que le modèle documente depuis le début (`imagePath == images.first`)
+    et que G3/G4 ont installée ; elle n'est donc pas nouvelle. En
+    revanche elle est désormais **appliquée à la relecture**, ce qui
+    wasn't le cas. Une photo cloud-only absente de `images` mais
+    présente dans `image_path` reste correctement affichée (priorité
+    de la valeur écrite). Verdict : **CONFORME**.
+
+## 2026-10-02 - Renommage `test/produit_images_test.dart`
+
+Deux fichiers se nommaient presque identiquement pour des périmètres
+différents : `test/produit_images_test.dart` (galerie via le **Store**,
+roundtrip de persistance) et `test/models/produit_images_test.dart`
+(invariant du **modèle**, `copyWith`/constructeur). Risque : un agent
+corrige l'un en croyant corriger l'autre.
+
+`test/produit_images_test.dart` -> `test/data/produit_galerie_store_test.dart`
+(`git mv`, contenu inchangé). Aucun appelant : ce sont des suites de tests.

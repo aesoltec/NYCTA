@@ -19,7 +19,7 @@ int _seq = 500;
     numeroDocument: (p) async => '$p-2026-00001',
     achats: [],
     produits: [
-      const Produit(
+      Produit(
           id: 'p1',
           boutiqueId: 'b1',
           libelle: 'Câble',

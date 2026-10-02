@@ -18,7 +18,7 @@ int _seq = 400;
         AppUser(id: 'u1', nom: 'T', role: role)),
     genererId: () => 'p${_seq++}',
     produits: [
-      const Produit(
+      Produit(
           id: 'p1',
           boutiqueId: 'b1',
           libelle: 'Câble',
@@ -205,7 +205,7 @@ void main() {
     test('produitsBoutique + alertesStock filtrent', () async {
       final (:n, :appels) = _notifier();
       expect(appels, isEmpty);
-      n.produits.add(const Produit(
+      n.produits.add(Produit(
           id: 'p9',
           boutiqueId: 'b2',
           libelle: 'Autre',

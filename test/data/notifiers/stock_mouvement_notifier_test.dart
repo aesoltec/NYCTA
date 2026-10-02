@@ -15,7 +15,7 @@ StockMouvementNotifier _notifier({Role role = Role.admin}) =>
           AppUser(id: 'u1', nom: 'T', role: role)),
       genererId: () => 'm${_seq++}',
       produits: [
-        const Produit(
+        Produit(
             id: 'p1',
             boutiqueId: 'b1',
             libelle: 'Câble',

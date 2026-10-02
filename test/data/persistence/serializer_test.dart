@@ -175,4 +175,38 @@ void main() {
       expect(s.user.id, 'sess');
     });
   });
+
+  group('image_path hereditaire (fiches ecrites avant la 1.13.4)', () {
+    Map<String, dynamic> _jsonLegacy(String? imagePath, List<String> imgs) {
+      final json = StoreSerializer.toJson(_snapshot());
+      final p = (json['produits'] as List).first as Map<String, dynamic>;
+      p['image_path'] = imagePath;
+      p['images'] = imgs;
+      return json;
+    }
+
+    test('image_path nul + galerie pleine : la photo redevient principale',
+        () {
+      final json = _jsonLegacy(null, ['/docs/media/produit/p1_1_ab.jpg']);
+      final s2 = StoreSerializer.fromJson(json, genererId: () => 'g1');
+      final p = s2.produits.first;
+      expect(p.images, ['/docs/media/produit/p1_1_ab.jpg']);
+      expect(p.imagePath, '/docs/media/produit/p1_1_ab.jpg',
+          reason: 'la photo est dans la galerie, elle doit etre visible');
+    });
+
+    test('image_path fourni reste prioritaire', () {
+      final json = _jsonLegacy('/forcer.jpg', ['/a.jpg', '/b.jpg']);
+      final s2 = StoreSerializer.fromJson(json, genererId: () => 'g1');
+      expect(s2.produits.first.imagePath, '/forcer.jpg');
+    });
+
+    test('ni image_path ni galerie : aucune photo', () {
+      final json = _jsonLegacy(null, const []);
+      final s2 = StoreSerializer.fromJson(json, genererId: () => 'g1');
+      expect(s2.produits.first.imagePath, isNull);
+      expect(s2.produits.first.images, isEmpty);
+    });
+  });
+
 }

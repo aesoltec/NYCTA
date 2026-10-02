@@ -7,7 +7,7 @@ import 'package:pme_gestion_pro/models/produit.dart';
 /// Phase 1 — CategorieNotifier (listes injectées, anti-doublon accents).
 CategorieNotifier _notifier() => CategorieNotifier(
     produits: [
-      const Produit(
+      Produit(
           id: 'p1', boutiqueId: 'b1', libelle: 'Câble',
           categorie: 'Électricité', prixAchat: 100, prixVente: 150),
     ],

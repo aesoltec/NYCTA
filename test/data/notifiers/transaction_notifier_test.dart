@@ -16,7 +16,7 @@ import 'package:pme_gestion_pro/models/transaction.dart';
     genererId: () => 'tx${appels.length}',
     transactions: [],
     produits: [
-      const Produit(
+      Produit(
           id: 'p1',
           boutiqueId: 'b1',
           libelle: 'Câble',

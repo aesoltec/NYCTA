@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pme_gestion_pro/data/persistence/cloud_loader.dart';
+import 'package:pme_gestion_pro/data/persistence/serializer.dart';
 import 'package:pme_gestion_pro/models/app_user.dart';
 import 'package:pme_gestion_pro/models/enums.dart';
 import 'package:pme_gestion_pro/models/transaction.dart';
@@ -171,4 +172,46 @@ void main() {
           TypeTransaction.prestationService);
     });
   });
+
+  group('image_path hereditaire (lignes ecrites avant la 1.13.4)', () {
+    Future<StoreSnapshot> _traduire(
+        String? imagePath, List<String> imgs) async {
+      final d = _data();
+      // `Map<String, dynamic>` explicite : le litteral de `_data()` est
+      // infere `Map<String, Object>` (toutes valeurs non nul) et refuserait
+      // alors d'y ecrire un `image_path` nul — precisement le cas teste.
+      final p =
+          Map<String, dynamic>.from((d['produits'] as List).first as Map);
+      p['image_path'] = imagePath;
+      p['images'] = imgs;
+      d['produits'] = [p];
+      return CloudLoader.traduire(d,
+          sessionUser:
+              const AppUser(id: 'x', nom: 'S', role: Role.admin),
+          sessionPartenaireId: null,
+          sessionProfilManquant: false,
+          genererId: () => 'g');
+    }
+
+    test('image_path nul + galerie pleine : la photo redevient principale',
+        () async {
+      final s = await _traduire(null, ['/docs/media/produit/p1_1_ab.jpg']);
+      final p = s.produits.first;
+      expect(p.images, ['/docs/media/produit/p1_1_ab.jpg']);
+      expect(p.imagePath, '/docs/media/produit/p1_1_ab.jpg',
+          reason: 'la photo est dans la galerie, elle doit etre visible');
+    });
+
+    test('image_path fourni reste prioritaire', () async {
+      final s = await _traduire('/forcer.jpg', ['/a.jpg', '/b.jpg']);
+      expect(s.produits.first.imagePath, '/forcer.jpg');
+    });
+
+    test('ni image_path ni galerie : aucune photo', () async {
+      final s = await _traduire(null, const []);
+      expect(s.produits.first.imagePath, isNull);
+      expect(s.produits.first.images, isEmpty);
+    });
+  });
+
 }

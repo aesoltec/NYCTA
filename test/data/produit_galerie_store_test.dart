@@ -4,7 +4,7 @@ import 'package:pme_gestion_pro/models/app_user.dart';
 import 'package:pme_gestion_pro/models/enums.dart';
 import 'package:pme_gestion_pro/models/produit.dart';
 
-Produit _produit() => const Produit(
+Produit _produit() => Produit(
       id: 'pr_test',
       boutiqueId: 'bt_siege',
       libelle: 'Produit galerie',

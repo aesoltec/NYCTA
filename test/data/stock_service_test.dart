@@ -4,10 +4,12 @@ import 'package:pme_gestion_pro/models/produit.dart';
 
 /// Phase 0 — StockService pur : CUMP, valorisation, mouvements, alertes.
 void main() {
-  const p1 = Produit(
+  // `final` et non `const` : le constructeur de `Produit` dérive
+  // `imagePath` de `images` et n'est donc plus un constructeur `const`.
+  final p1 = Produit(
       id: 'p1', boutiqueId: 'b1', libelle: 'Câble', categorie: 'A',
       prixAchat: 1000, prixVente: 1500, stock: 10, seuil: 3);
-  const p2 = Produit(
+  final p2 = Produit(
       id: 'p2', boutiqueId: 'b1', libelle: 'Prise', categorie: 'A',
       prixAchat: 500, prixVente: 800, stock: 2, seuil: 3);
 

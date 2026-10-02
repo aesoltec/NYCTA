@@ -9,7 +9,9 @@ class Produit {
   final double prixVente;
   final int stock;
   final int seuil;
-  final String? imagePath; // photo principale (galerie/appareil)
+  /// Photo principale : DERIVEE de [images], sauf valeur fournie
+  /// explicitement (voir le constructeur).
+  final String? imagePath;
   /// Galerie (max 05, optionnelle) : imagePath vaut images.firstOrNull
   /// pour compatibilité avec l'existant.
   final List<String> images;
@@ -17,7 +19,45 @@ class Produit {
   /// Nullable pour rétrocompatibilité (anciennes fiches sans date).
   final DateTime? dateAjout;
 
-  const Produit({
+  /// `imagePath` est une valeur DERIVEE de [images] (`images.first`), pas
+  /// une donnee independante. Le constructeur applique donc la meme regle
+  /// que [copyWith] :
+  /// 1. [imagePath] fourni explicitement → il gagne (chemins historiques,
+  ///    image cloud-only) ;
+  /// 2. sinon → `images.first`, ou null si la galerie est vide.
+  ///
+  /// Avant, le constructeur ne derivait rien : `Produit(images: ['/a.jpg'])`
+  /// avait `imagePath == null` alors que `copyWith()` de ce meme produit
+  /// valait '/a.jpg'. Deux manieres de construire le meme produit, deux
+  /// etats differents — exactement la famille de bugs « l image revient ».
+  /// Regle UNIQUE de resolution de la photo principale, partagee par
+  /// le constructeur et par les deserialiseurs (stockage local + cloud).
+  ///
+  /// - [imagePath] non nul : c'est la valeur ecrite par l'application,
+  ///   elle prime (chemins historiques, image cloud-only) ;
+  /// - [imagePath] nul et [images] non vide : la photo EST dans la
+  ///   galerie, donc `images.first` — c'est le cas des fiches ecrites
+  ///   par les versions anterieures a la 1.13.4, ou `image_path` etait
+  ///   enregistre nul alors que la galerie contenait l'image ;
+  /// - les deux vides : pas de photo.
+  ///
+  /// Coller cette regle ici evite que les deserialiseurs la
+  /// reimplementent (et divergent) — c'etait precisement le defaut
+  /// corrige en 1.13.3/1.13.4.
+  static String? principal({String? imagePath, required List<String> images}) =>
+      imagePath ?? (images.isNotEmpty ? images.first : null);
+
+  /// Marqueur interne : distingue « [imagePath] non fourni » (on derive
+  /// alors le principal de la galerie) de « [imagePath] explicitement
+  /// nul » (la photo a ete retiree, le principal doit le rester).
+  ///
+  /// Dart ne permet pas un parametre nullable avec cette distinction :
+  /// `String? imagePath = null` ne distingue pas les deux cas. Sans ce
+  /// sentinelle, `copyWith(effacerImagePath: true)` etait silencieusement
+  /// annule par le constructeur, qui re-derivait `images.first`.
+  static const Object _deriveImagePath = Object();
+
+  Produit({
     required this.id,
     required this.boutiqueId,
     required this.libelle,
@@ -26,10 +66,12 @@ class Produit {
     required this.prixVente,
     this.stock = 0,
     this.seuil = 3,
-    this.imagePath,
+    Object? imagePath = _deriveImagePath,
     this.images = const [],
     this.dateAjout,
-  });
+  }) : imagePath = identical(imagePath, _deriveImagePath)
+            ? principal(images: images)
+            : imagePath as String?;
 
   bool get alerte => stock <= seuil;
   double get margeUnitaire => prixVente - prixAchat;
@@ -62,9 +104,11 @@ class Produit {
     DateTime? dateAjout,
   }) {
     final imgs = images ?? this.images;
-    final String? principal = effacerImagePath
-        ? null
-        : (imagePath ?? (imgs.isNotEmpty ? imgs.first : null));
+    // `null` = a effacer ou explicitement demande ; sinon le constructeur
+    // derive de la galerie (pas de duplication de regle).
+    final Object? principal = effacerImagePath || imagePath != null
+        ? imagePath
+        : _deriveImagePath;
     return Produit(
       id: id,
       boutiqueId: boutiqueId ?? this.boutiqueId,

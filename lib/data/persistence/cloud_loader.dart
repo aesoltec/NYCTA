@@ -75,6 +75,43 @@ class CloudLoader {
       );
 
   /// Traduction pure (testable) des lignes Supabase → snapshot.
+  /// Reconstruit un produit depuis sa ligne Supabase.
+  ///
+  /// La galerie est resolue AVANT le constructeur afin de pouvoir servir
+  /// de repli a `image_path` : les lignes ecrites avant la 1.13.4
+  /// portent `image_path` nul alors que `images` contient la photo (le
+  /// constructeur ne derivait alors rien). Sans ce repli la photo
+  /// restait invisible au chargement du cloud. Regle unique de
+  /// resolution : [Produit.principal].
+  static Produit _produit(Map<String, dynamic> r) {
+    final id = r['id'].toString();
+    final galerie = <String>[
+      for (final u in (r['images'] as List? ?? const []))
+        MediaService.normaliserChemin(u.toString(),
+                entite: 'produit', id: id) ??
+            u.toString(),
+    ];
+    return Produit(
+      id: id,
+      boutiqueId: r['boutique_id'].toString(),
+      libelle: r['libelle'].toString(),
+      categorie: r['categorie'].toString(),
+      prixAchat: (r['prix_achat'] as num?)?.toDouble() ?? 0,
+      prixVente: (r['prix_vente'] as num?)?.toDouble() ?? 0,
+      stock: (r['quantite_stock'] as num?)?.toInt() ?? 0,
+      seuil: (r['seuil_alerte'] as num?)?.toInt() ?? 3,
+      dateAjout: DateTime.tryParse(r['date_ajout']?.toString() ?? ''),
+      imagePath: Produit.principal(
+        imagePath: MediaService.normaliserChemin(
+            r['image_path']?.toString(),
+            entite: 'produit',
+            id: id),
+        images: galerie,
+      ),
+      images: galerie,
+    );
+  }
+
   static Future<StoreSnapshot> traduire(
     Map<String, dynamic> data, {
     required AppUser sessionUser,
@@ -133,30 +170,7 @@ class CloudLoader {
             siege: b['siege'] == true),
     ]);
     s.produits.addAll([
-      for (final r in (data['produits'] as List))
-        Produit(
-          id: r['id'].toString(),
-          boutiqueId: r['boutique_id'].toString(),
-          libelle: r['libelle'].toString(),
-          categorie: r['categorie'].toString(),
-          prixAchat: (r['prix_achat'] as num?)?.toDouble() ?? 0,
-          prixVente: (r['prix_vente'] as num?)?.toDouble() ?? 0,
-          stock: (r['quantite_stock'] as num?)?.toInt() ?? 0,
-          seuil: (r['seuil_alerte'] as num?)?.toInt() ?? 3,
-          dateAjout: DateTime.tryParse(
-              r['date_ajout']?.toString() ?? ''),
-          imagePath: MediaService.normaliserChemin(
-              r['image_path']?.toString(),
-              entite: 'produit',
-              id: r['id'].toString()),
-          images: [
-            for (final u in (r['images'] as List? ?? const []))
-              MediaService.normaliserChemin(u.toString(),
-                      entite: 'produit',
-                      id: r['id'].toString()) ??
-                  u.toString(),
-          ],
-        ),
+      for (final r in (data['produits'] as List)) _produit(r as Map<String, dynamic>),
     ]);
     s.partenaires.addAll([
       for (final r in (data['partenaires'] as List))

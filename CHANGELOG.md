@@ -18,6 +18,57 @@
 - **133 warnings** `inference_failure_*` / `unnecessary_cast` préexistants dans le projet, aucun introduit par la 6bis → tracé au CDC point **40ter** (v1.13.0)
 - Visibilité publique de `genererId` / `fileUpsert` / `numeroDocument` : réductible seulement via une couche d’accès dédiée, non rentable → tracé au CDC point **40quater**
 
+## 1.13.4 - 2026-10-02 (invariant imagePath applique AU CONSTRUCTEUR)
+- **Decouverte sur l'appareil** (test d'integration `integration_test/image_flow_test.dart`
+  joue sur le Infinix X6840, Android 16) : 6/7 tests verts, le 7e a echoue.
+- **Bug 3 (meme famille que les bugs 1 et 2 de la 1.13.3)** : le CONSTRUCTEUR
+  de `Produit` ne derivait PAS `imagePath` de `images`, alors que la
+  documentation du modele annonce « `imagePath` vaut `images.firstOrNull` »
+  et que `copyWith` le fait. Resultat : deux facons de construire le meme
+  produit, deux etats differents.
+  - `Produit(images: ['/a.jpg']).imagePath` -> **null**
+  - `Produit(images: ['/a.jpg']).copyWith().imagePath` -> `/a.jpg`
+  C'est exactement la famille « l'image revient / l'image disparait selon le
+  chemin emprunte » ; le chemin d'ecriture « construire puis sauvegarder »
+  perdait la photo principale.
+- **Pourquoi les tests unitaires ne l'avaient PAS vu** : le helper de
+  `test/models/produit_images_test.dart` passait
+  `imagePath: imagePath ?? (images.isEmpty ? null : images.first)` - il
+  reintroduisait a la main la regle que le constructeur n'appliquait pas.
+  **Le test masquait la regression.** Le helper est desormais conformiste
+  (construit SANS `imagePath`), et un test dedie compare constructeur et
+  `copyWith` sur les memes entrees.
+- **Correction** : le constructeur applique la regle de `copyWith`, avec un
+  **sentinelle prive** `static const Object _deriveImagePath` car Dart ne
+  permet pas a un parametre nullable de distinguer « non fourni » de
+  « explicitement nul ». Sans ce sentinelle, la correction du bug 3 aurait
+  **annule le bug 1** : `copyWith(effacerImagePath: true)` serait redevenu
+  inoperant, le constructeur re-derivant `images.first`. Piege reel, evite.
+- Le constructeur n'est donc plus `const` (il calcule une valeur) : les 8
+  appelants `const Produit(...)` (tous dans `test/`, aucun en `lib/`) ont
+  ete convertis en `Produit(...)`.
+- Tests : +5 (contrat du constructeur : derivation, galerie vide, explicite
+  prioritaire, explicitement nul, constructeur == copyWith).
+  `integration_test/image_flow_test.dart` : 7 scenarios jouables sur l'appareil.
+  Suite intermediaire : **487/487 verts** (avant le bug 4).
+- **Bug 4 — trou de RELECTURE, invisible sans test sur l'appareil** : les deux
+  deserialiseurs (`StoreSnapshot.fromJson` et `CloudLoader.traduire`) passaient
+  `imagePath:` en dur. Or c'est exactement l'état écrit par les versions
+  précédentes : le serialiseur sauvegarde `image_path` **et** `images`, donc
+  tous les instantanés / lignes déjà présents sur l'appareil portent
+  `image_path: null` avec une galerie non vide. Après le bug 3, `null` signifie
+  « explicitement nul » → la photo restait **invisible au rechargement**, même
+  une fois le bug 3 corrigé. La correction du bug 3 seule ne suffisait donc pas.
+  Règle unique extraite dans `Produit.principal(imagePath:, images:)`, appelée
+  par le constructeur **et** les deux deserialiseurs (pas de règle dupliquée
+  qui diverge). Les 2 comprehensions sont extraites en `StoreSnapshot._produit` /
+  `CloudLoader._produit` pour disposer de la galerie avant la construction.
+  Tests +3 par deserialiseur.
+- `integration_test/image_flow_test.dart` porte désormais 10 scénarios
+  jouables sur l'appareil (modèle, galerie, écrans, déserialisation) :
+  **10/10 verts sur l'Infinix X6840 (Android 16)**.
+- Suite unitaire **493/493 verts**, `dart analyze` **0 erreur**.
+
 ## 1.13.3 — 2026-10-02 (association d'images : les anciennes images revenaient)
 - **Symptôme** : « même si on utilise de nouvelles images, les anciennes reviennent
   remplacer les nouvelles », et l'association depuis la galerie ne fonctionne pas.
@@ -48,13 +99,6 @@
 - Tests : +10 (`produit_images_test.dart`) dont l'invariant
   `imagePath == images.first`, + 2 sur le stockage du chemin. Suite
   **482/482 verts**, `dart analyze` **0 erreur**.
-
-## 1.13.2 — 2026-09-30 (SyncService résiliant aux colonnes absentes)
-- **Correction du blocage définitif** : `SyncService` détectait `PGRST204` (colonne inexistante) et réessayait à l'identique, [_maxEssais] fois, avant de marquer l'entrée `en_erreur` — donc définitivement. Or une colonne absente ne.réussira **jamais** : toute saisie faite hors-ligne était perdue silencieusement.
-- Désormais : une seule relance **sans les colonnes optionnelles** (`date_ajout`), avec repli sur le même message de log et rappel du fichier SQL à exécuter. Cohérent avec le repli déjà fait par `CloudRepository.upsertProduit`.
-- Liste volontairement restreinte à `date_ajout` : retirer une colonne métier en silence masquerait une vraie perte d'information.
-- Conséquence assumée : tant que la migration n'est pas appliquée, le badge « Nouveau » manque en base, mais plus rien n'est bloqué ni perdu.
-- Cause racine du symptôme : `database/SUPABASE_A_EXECUTER.sql` section 3 (`date_ajout` sur `produits` et `tarifs`) n'avait jamais été exécutée sur la base réelle. Procédure détaillée dans `database/APPLIQUER_MAINTENANT.md`.
 
 ## 1.13.2 — 2026-09-30 (SyncService résiliant aux colonnes absentes)
 - **Correction du blocage définitif** : `SyncService` détectait `PGRST204` (colonne inexistante) et réessayait à l'identique, [_maxEssais] fois, avant de marquer l'entrée `en_erreur` — donc définitivement. Or une colonne absente ne.réussira **jamais** : toute saisie faite hors-ligne était perdue silencieusement.

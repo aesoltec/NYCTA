@@ -382,6 +382,43 @@ class StoreSerializer {
   /// alors cet auteur — origine : `user.id` de session).
   /// [genererId] : ids des partages reconstruits (calculés, jamais
   /// persistés — origine conservée).
+  /// Reconstruit un produit depuis sa ligne serialisee.
+  ///
+  /// La galerie est resolue AVANT le constructeur afin de pouvoir servir
+  /// de repli a `image_path` : les instantanes ecrits par les versions
+  /// anterieures a la 1.13.4 contiennent `image_path: null` avec une
+  /// galerie NON vide (le constructeur ne derivait alors rien du tout),
+  /// donc la photo y restait invisible meme si elle etait la. Regle
+  /// unique de resolution : [Produit.principal].
+  static Produit _produit(Map<String, dynamic> p) {
+    final id = p['id'].toString();
+    final galerie = <String>[
+      for (final u in (p['images'] as List? ?? const []))
+        MediaService.normaliserChemin(u.toString(),
+                entite: 'produit', id: id) ??
+            u.toString(),
+    ];
+    return Produit(
+      id: id,
+      boutiqueId: p['boutique_id'].toString(),
+      libelle: p['libelle'].toString(),
+      categorie: p['categorie'].toString(),
+      prixAchat: (p['prix_achat'] as num?)?.toDouble() ?? 0,
+      prixVente: (p['prix_vente'] as num?)?.toDouble() ?? 0,
+      stock: (p['stock'] as num?)?.toInt() ?? 0,
+      seuil: (p['seuil'] as num?)?.toInt() ?? 3,
+      dateAjout: DateTime.tryParse(p['date_ajout']?.toString() ?? ''),
+      imagePath: Produit.principal(
+        imagePath: MediaService.normaliserChemin(
+            p['image_path']?.toString(),
+            entite: 'produit',
+            id: id),
+        images: galerie,
+      ),
+      images: galerie,
+    );
+  }
+
   static StoreSnapshot fromJson(
     Map<String, dynamic> data, {
     AppUser? utilisateurSecours,
@@ -592,30 +629,7 @@ class StoreSerializer {
         ),
     ]);
     s.produits.addAll([
-      for (final p in (data['produits'] as List? ?? []))
-        Produit(
-          id: p['id'].toString(),
-          boutiqueId: p['boutique_id'].toString(),
-          libelle: p['libelle'].toString(),
-          categorie: p['categorie'].toString(),
-          prixAchat: (p['prix_achat'] as num?)?.toDouble() ?? 0,
-          prixVente: (p['prix_vente'] as num?)?.toDouble() ?? 0,
-          stock: (p['stock'] as num?)?.toInt() ?? 0,
-          seuil: (p['seuil'] as num?)?.toInt() ?? 3,
-          dateAjout: DateTime.tryParse(
-              p['date_ajout']?.toString() ?? ''),
-          imagePath: MediaService.normaliserChemin(
-              p['image_path']?.toString(),
-              entite: 'produit',
-              id: p['id'].toString()),
-          images: [
-            for (final u in (p['images'] as List? ?? const []))
-              MediaService.normaliserChemin(u.toString(),
-                      entite: 'produit',
-                      id: p['id'].toString()) ??
-                  u.toString(),
-          ],
-        ),
+      for (final p in (data['produits'] as List? ?? [])) _produit(p as Map<String, dynamic>),
     ]);
     s.partenaires.addAll([
       for (final p in (data['partenaires'] as List? ?? []))
