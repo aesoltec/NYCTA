@@ -903,3 +903,108 @@ code, aucun re-execution necessaire).
 journal des lots reste dans `MISSION_STATUS.md` et `CHANGELOG.md`, qui
 sont commites dans `main` — c'est la que se trouve la tracabilite, pas
 dans les noms de branches.
+
+## 2026-10-03 - 1.13.5 : debordement de l'ecran Synchronisation
+
+**Origine** : signale par l'utilisateur SUR L'APPAREIL, puis confirme par
+la stack trace Flutter capturee :
+
+```
+A RenderFlex overflowed by 140 pixels on the right.
+The relevant error-causing widget was:
+  Row
+  Row: lib/screens/config/synchronisation_screen.dart:137:25
+constraints: BoxConstraints(0.0<=w<=349.4, 0.0<=h<=Infinity)
+size: Size(349.4, 20.0)
+```
+
+1. Fonctionnel OK - cause unique et identifiee : dans le `Row` d'en-tete
+   de chaque entree, `Text(table)` etait dimensionne a sa largeur
+   NATURELLE. `Spacer` ne peut rien faire quand les enfants non
+   flexibles depassent deja la place. Correction : `Expanded` + ellipsis
+   sur le nom de table, `Flexible` (loose) + ellipsis sur le compteur,
+   `Spacer` supprime.
+2. Metier OK - aucune regle inventee : c'est de la mise en page. Le nom
+   de table provient du nom de table de la file, donc longueur variable
+   (`mouvements_stock`, `partenaires__update`, ...).
+3. Securite OK - sans objet.
+4. Overflow OK - **grille complete, et le test a ete PROUVE** :
+   320 / 360 / 768 / 1024 x TextScaler 1.0 / 1.5 / 2.0, plus les cas
+   « une seule erreur », « nom de table tres long + compteur 128 »,
+   « entree en attente », « file vide », « 10 erreurs ». 7 tests, 0
+   exception.
+   **Preuve de valeur du test** : le defaut a ete reintroduit, le test
+   echoue (2 cas sur 7 : TextScaler 1.5/2.0 et nom de table long),
+   le correctif restaure, le test repasse. Un test qui ne sait pas
+   echouer ne prouve rien.
+5. Performance OK - `Expanded`/`Flexible` : aucun surcout mesurable.
+6. Tests OK - +7 (`test/widget/synchronisation_overflow_test.dart`).
+   Suite **516/516 verts**, `dart analyze` **0 erreur**.
+7. Documentation OK - CHANGELOG 1.13.5, MISSION_STATUS (G10), ce journal.
+8. Regression OK - **seam de test ajoute** : `SyncService` n'exposait
+   aucune liste d'entrees injectables, donc cet ecran n'etait
+   testable qu'a vide. `entreesPourTest` (null = file reelle) permet de
+   peupler la file sans Hive, et `enAttente` / `enErreur` sont
+   maintenant comptes sur `detailFile` — donc le test pilote la
+   totalite de l'ecran. Aucun changement de comportement en production.
+   Point de vigilance assumee : **un `Store` par mesuree** programme des
+   debounces de 600 ms ; le test en cree un seul pour toute la suite et
+   fait avancer l'horloge virtuelle de 700 ms. Sans cela le test echoue
+   sur « pending timers » AVANT que l'overflow ne soit constate — j'ai
+  perddu du temps la-dessus, c'est note.
+9. UX OK - l'ecran affiche enfin ses erreurs sans barres jaunes ni
+   stripes. Le nom de table long est tronque avec `...` plutot que de
+   pousser le compteur hors champ.
+10. Contre-expertise - **explication de la reproduction** : a
+    TextScaler 1.0 et 320 px, le defaut ne deborde PAS (le test le
+    confirme). L'utilisateur voit 140 px parce que son systeme est a
+    une echelle de police superieure a 1.0, courante sur Infinix, ou
+    parce que sa file contient un nom de table plus long. C'est
+    exactement pourquoi la grille de tests couvre 1.5 et 2.0 et pas
+    seulement 1.0 : tester uniquement la taille par defaut aurait laisse
+    passer ce bug. Verdict : **CONFORME**.
+
+## 2026-10-03 - 1.13.4 (complement) : 22P02 uuid vide
+
+**Origine** : logs de l'appareil.
+`SyncService : operation bloquee definitivement (mouvements_stock) -
+PostgrestException(invalid input syntax for type uuid: "", code: 22P02)`
+
+`MouvementStock.refId` est documente « '' si manuel » et `createdBy`
+vaut '' par defaut ; le schema declare les deux colonnes `uuid` et
+NULLABLE. `''` n'est pas un uuid.
+
+1. Fonctionnel OK - les AJUSTEMENTS MANUELS de stock ne se
+   synchronisaient plus : historique de stock perdu. Correctif
+   preventif (`''` -> `null`, convention deja appliquee par
+   `compta_notifier`) + reparation des entrees deja bloquees au
+   demarrage.
+2. Metier OK - aucune regle inventee : meme convention que le code
+   existant. La table `colonnesUuidOptionnelles` est volontairement
+   RESTREINTE aux colonnes dont le modele utilise `''` pour « aucune
+   reference » : une colonne obligatoire recevant `''` doit continuer
+   d'echouer bruyamment plutot que d'etre coupee en silence.
+3. Securite OK - aucune donnee supprimee, seule une valeur invalide
+   devient NULL, ce qui est la representation correcte de « aucune
+   reference ».
+4. Overflow OK - sans objet.
+5. Performance OK - deux `isEmpty` par mouvement.
+6. Tests OK - +3 : le test relit `database/supabase_schema.sql` et
+   verifie qu'aucune colonne de la table n'est `uuid NOT NULL` — sur
+   une colonne NOT NULL, la reparation rebloquerait l'entree ET
+   masquerait une vraie erreur de donnee. La regle suit le schema.
+   Suite **516/516**, `dart analyze` **0 erreur**.
+7. Documentation OK - CHANGELOG 1.13.4, MISSION_STATUS (G9bis).
+8. Regression OK - avant de corriger, les autres tables ont ete
+   verifiees et NON modifiees : `Message.destinataireId` est un vrai
+   `String?` nullable (`null = tous`) donc deja correct ;
+   `achats.created_by` n'est pas envoye ; `ecritures.ref_id` etait
+   deja converti. `stock_screen.dart:959` passe `imagePath:` en dur,
+   mais `_imagePath` est un getter `isEmpty ? null : first` : coherent,
+   **aucune modification**.
+9. UX OK - l'historique de stock se synchronise a nouveau.
+10. Contre-expertise - **reserve tracee** : `messages` et `feedbacks`
+    envoient eux aussi des payloads partiels. Sans le schema REEL de
+    ces tables je ne peux pas affirmer que leur insertion echoue ; les
+    modifier a l'aveugle serait inventer une regle (AGENTS.md 10.8).
+    Verdict : **CONFORME** sur le perimetre verifie.

@@ -18,6 +18,61 @@
 - **133 warnings** `inference_failure_*` / `unnecessary_cast` préexistants dans le projet, aucun introduit par la 6bis → tracé au CDC point **40ter** (v1.13.0)
 - Visibilité publique de `genererId` / `fileUpsert` / `numeroDocument` : réductible seulement via une couche d’accès dédiée, non rentable → tracé au CDC point **40quater**
 
+## 1.13.5 - 2026-10-03 (debordement de l'ecran Synchronisation)
+- **Signale par l'utilisateur sur l'appareil**, puis confirme par la stack
+  trace Flutter :
+  `A RenderFlex overflowed by 140 pixels on the right` —
+  `synchronisation_screen.dart:137:25`, contraintes `w <= 349.4`.
+- **Cause** : dans le `Row` d'en-tete de chaque entree, `Text(table)` etait
+  dimensionne a sa largeur **naturelle**, sans borne. Le `Spacer` ne peut
+  rien faire quand les enfants non flexibles depassent deja la place. Le
+  nom de table est une donnee (`mouvements_stock`,
+  `partenaires__update`, ...) : sa longueur n'est pas maitrisee.
+- **Correction** : `Expanded` + `ellipsis` sur le nom de table,
+  `Flexible` (loose) + `ellipsis` sur le compteur d'essais, `Spacer`
+  supprime.
+- **Reproduction** : a TextScaler 1.0 et 320 px, le defaut ne deborde
+  **pas**. L'utilisateur le voit parce que son systeme est a une echelle
+  de police superieure a 1.0 (courante sur Infinix). C'est
+  precisement pourquoi la grille de tests couvre 1.5 et 2.0, et pas
+  seulement la taille par defaut.
+- **Test** : `test/widget/synchronisation_overflow_test.dart`, 7 cas
+  (320/360/768/1024 x 1.0/1.5/2.0, une seule erreur, nom de table long +
+  compteur 128, entree en attente, file vide, 10 erreurs).
+  **Le test a ete PROUVE** : le defaut reintroduit → 2 echecs sur 7 ; le
+  correctif restaure → 7/7. Un test qui ne sait pas echouer ne
+  prouve rien.
+- **Testabilite** : `SyncService` n'exposait aucune liste d'entrees
+  injectables, donc cet ecran n'etait testable qu'a vide — le cas
+  « plusieurs erreurs » ne l'etait pas du tout.
+  `SyncService.entreesPourTest` (null = file reelle) permet de peupler
+  la file sans Hive ; `enAttente` / `enErreur` sont desormais comptes
+  sur `detailFile`, donc le test pilote tout l'ecran. Aucun changement
+  de comportement en production.
+- Suite **516/516 verts**, `dart analyze` **0 erreur**.
+
+## 1.13.4 (complement) - 2026-10-03 : `22P02` uuid vide
+- **Origine** : logs de l'appareil — `SyncService : operation bloquee
+  definitivement (mouvements_stock)` /
+  `PostgrestException(invalid input syntax for type uuid: "", code: 22P02)`.
+- `MouvementStock.refId` est documente « '' si manuel » et `createdBy`
+  vaut '' par defaut ; le schema declare `ref_id uuid` et
+  `created_by uuid`, tous deux **nullable**. `''` n'est pas un uuid.
+  Consequence metier : **les ajustements manuels de stock ne se
+  synchronisaient plus**.
+- Correctif preventif (`''` -> `null`, convention deja appliquee par
+  `compta_notifier._payload`) + `SyncService.colonnesUuidOptionnelles`
+  et reparation au demarrage des entrees deja bloquees.
+- Test : relit `database/supabase_schema.sql` et verifie qu'aucune
+  colonne de la table n'est `uuid NOT NULL` — sur une colonne NOT NULL la
+  reparation rebloquerait l'entree ET masquerait une vraie erreur de
+  donnee. La regle suit le schema, elle ne peut pas vieillir seule.
+- Verifie et **non modifie** : `Message.destinataireId` est un vrai
+  `String?` nullable (`null = tous`), `achats.created_by` n'est pas
+  envoye, `ecritures.ref_id` etait deja converti, et
+  `stock_screen.dart:959` passe un `imagePath` issu du getter
+  `isEmpty ? null : first` — coherent.
+
 ## 1.13.4 - 2026-10-02 (invariant imagePath applique AU CONSTRUCTEUR)
 - **Decouverte sur l'appareil** (test d'integration `integration_test/image_flow_test.dart`
   joue sur le Infinix X6840, Android 16) : 6/7 tests verts, le 7e a echoue.

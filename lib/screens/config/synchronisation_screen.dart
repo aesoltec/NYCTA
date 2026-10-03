@@ -144,11 +144,28 @@ class SynchronisationScreen extends StatelessWidget {
                                   ? const Color(0xFFC62828)
                                   : const Color(0xFF3D6FB4)),
                           const SizedBox(width: 8),
-                          Text('${e['table']}',
-                              style: const TextStyle(fontWeight: FontWeight.w700)),
-                          const Spacer(),
-                          Text('${e['essais'] ?? 0} essai(s)',
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          // Le nom de table et le message d'erreur sont
+                          // des DONNEES : longueur non maitrisee. Sans
+                          // Expanded, la ligne deborde (constate sur
+                          // l'appareil : 140 px, `mouvements_stock` avec
+                          // plusieurs erreurs).
+                          Expanded(
+                            child: Text('${e['table']}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700)),
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text('${e['essais'] ?? 0} essai(s)',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.end,
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600)),
+                          ),
                         ]),
                         if (e['cree_le'] != null) ...[
                           const SizedBox(height: 4),

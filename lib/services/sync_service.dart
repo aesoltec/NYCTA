@@ -66,6 +66,23 @@ class SyncService extends ChangeNotifier {
   factory SyncService() => _instance;
   SyncService._interne();
 
+  /// File d'entrees injectee pour les TESTS D'AFFICHAGE uniquement.
+  ///
+  /// `SynchronisationScreen` affiche des messages d'erreur serveur dont
+  /// la longueur n'est pas maitrisee : c'est l'ecran le plus expose a un
+  /// debordement (constate sur l'appareil : 140 px avec plusieurs
+  /// erreurs). Tester exigeait de peupler la file, impossible via un
+  /// singleton a Box privee.
+  ///
+  /// `null` = file reelle. Comportement de production inchange.
+  @visibleForTesting
+  static List<Map>? entreesPourTest;
+
+  /// Notifie les ecouteurs apres une injection (la liste doit se
+  /// reconstruire pour refleter les entrees injectees).
+  @visibleForTesting
+  static void notifierPourTest() => _instance.notifyListeners();
+
   static const _boxName = 'file_sync';
   static const _maxEssais = 8;
 
@@ -106,22 +123,24 @@ class SyncService extends ChangeNotifier {
   }
 
   /// Nombre d'opérations en attente (pas encore en erreur définitive).
-  int get enAttente => _box == null
-      ? 0
-      : _box!.values.where((e) => e['en_erreur'] != true).length;
+  int get enAttente =>
+      detailFile.where((e) => e['en_erreur'] != true).length;
 
   /// Opérations bloquées après [_maxEssais] échecs — jamais retentées tant
   /// que [reessayerTout] n'est pas appelé. Avant ce correctif, une entrée
   /// marquée en_erreur restait bloquée pour toujours, y compris après
   /// correction du problème côté serveur (ex. politique RLS ajustée) :
   /// `synchroniser()` l'ignore explicitement (`if (... en_erreur == true) continue`).
-  int get enErreur => _box == null
-      ? 0
-      : _box!.values.where((e) => e['en_erreur'] == true).length;
+  int get enErreur =>
+      detailFile.where((e) => e['en_erreur'] == true).length;
 
   /// Détail des opérations en attente/bloquées, pour un écran de diagnostic.
   /// Chaque entrée : table, payload, essais, dernière erreur capturée.
-  List<Map> get detailFile => _box == null ? [] : _box!.values.toList();
+  List<Map> get detailFile {
+    final injectees = entreesPourTest;
+    if (injectees != null) return injectees;
+    return _box == null ? [] : _box!.values.toList();
+  }
 
   /// Remet en circulation toutes les opérations bloquées (en_erreur) et
   /// relance immédiatement une synchronisation. À utiliser après avoir
