@@ -26,38 +26,46 @@ Le script exclut les images de marque (logo, cachet, signature) et son sens
 d'erreur est volontairement conservateur : une image utilisée n'est jamais
 supprimée, un orphelin peut parfois survivre un passage.
 
-### ERREUR AU LANCEMENT : `Could not find the 'date_ajout' column`
+### Migration appliquée le 2026-10-03
+
+`database/SUPABASE_A_EXECUTER.sql` a été exécuté sur la base réelle.
+**Vérification immédiate** (lecture seule, 9 contrôles attendus `ok = true`) :
+
+```sql
+-- coller dans Supabase Dashboard -> SQL Editor
+-- ou : database/VERIFIER_MIGRATION.sql
+```
+
+### ENCORE : `null value in column "boutique_id"` (code 23502)
 
 ```
 ❌ SyncService : opération bloquée définitivement (produits)
-   — PostgrestException(PGRST204 : Could not find the 'date_ajout' column)
+   - PostgrestException(null value in column "boutique_id" ... violates
+     not-null constraint, code: 23502)
 ```
 
-**Ce n'est pas une erreur de code** : c'est la migration de la refonte UX
-(badge « Nouveau ») qui n'a pas encore été appliquée à ta base. Elle
-est prête, section 3 de `database/SUPABASE_A_EXECUTER.sql` :
+**Ce n'était pas un problème de migration.** Cause racine : la file de
+synchronisation rejouait des payloads **partiels** (`{id, actif: false}`)
+avec `upsert`, qui est un `INSERT ... ON CONFLICT DO UPDATE`. La ligne
+passait tant qu'elle existait en base ; dès qu'elle n'existait pas
+(produit créé hors-ligne), le serveur tentait de l'insérer sans
+`boutique_id` et l'entrée se bloquait définitivement après 8 essais.
 
-```sql
-alter table public.produits add column if not exists date_ajout timestamptz;
-alter table public.tarifs   add column if not exists date_ajout timestamptz;
-```
+**Corrigé en v1.13.4 (commit `72bcb0d`).** Les mises à jour partielles
+passent maintenant par le suffixe `__update` (un vrai `UPDATE`), et
+`SyncService.reparerEntreesLegacy()` re-route au démarrage les entrées
+déjà bloquées avant le correctif. **Aucune action de ta part.**
 
-**Ce que faire, dans l'ordre :**
+Si ce message revient encore, la base n'a pas été atteinte : vérifie le
+réseau, puis Menu Plus -> Synchronisation pour l'état de la file.
 
-1. Ouvre la totalité de `database/SUPABASE_A_EXECUTER.sql` dans le SQL
-   Editor et *Run* (il est **idempotent** : rejouable sans risque).
-2. Relance l'app.
+### Ancienne consigne, périmée
 
-**Ce qui a été fait en attendant** (v1.13.2) : le `SyncService` retry
-maintenant une fois **sans** les colonnes optionnelles quand PostgREST
-signale une colonne absente. Tes saisies hors-ligne ne sont donc plus
-bloquées définitivement ‐ elles se synchronisent, seul le badge
-« Nouveau » manque tant que la migration n'est pas faite.
+> ~~« Vider la file bloquée » : Menu Plus -> Synchronisation ->
+> « Relancer les opérations bloquées ».~~
 
-**Vider la file bloquée** (les entrées passées en `en_erreur` avant le
-correctif restent bloquées) : app → Menu Plus → Synchronisation →
-« Relancer les opérations bloquées ». Ou les supprimer définitivement
-depuis le même écran si tu ne veux pas les rejouer.
+Plus nécessaire depuis la 1.13.4 : la file se débloque seule au
+démarrage. Le bouton reste disponible si tu dois forcer.
 
 ## 1. SQL — migrations en attente (Supabase réel)
 
@@ -72,15 +80,13 @@ Contenu (rappel) :
 |---|---|---|
 | 1 | `clients` | colonnes `email`, `rccm`, `rib`, `logo_path` (point 28) |
 | 2 | `tarifs` | colonne `images` JSONB (point 36) |
-| 3 | RPC `reouvrir_boutique(p_id)` | admin/gérant, vérifie « fermée », journalise (point 22bis) |
+| 3 | `produits`, `tarifs` | colonne `date_ajout timestamptz` — badge « Nouveau » |
+| 4 | RPC `reouvrir_boutique(p_id)` | admin/gérant, vérifie « fermée », journalise (point 22bis) |
 
-**Vérification** (optionnel, en fin de fichier) :
-```sql
-select column_name from information_schema.columns
- where table_name = 'clients'
-   and column_name in ('email','rccm','rib','logo_path');
-select proname from pg_proc where proname = 'reouvrir_boutique';
-```
+**Vérification** : `database/VERIFIER_MIGRATION.sql` (lecture seule,
+9 contrôles, attendu `ok = true` partout). Plus fiable que de relire les
+DDL : le SQL Editor affiche « success » même quand une section a
+échoué silencieusement.
 
 ## 2. SQL — installation complète (base NEUVE uniquement)
 
@@ -120,6 +126,8 @@ flutter build web --release          # Web
 
 | Erreur | Cause probable | Correctif |
 |---|---|---|
+| `23502` `boutique_id` not-null | payload partiel rejoué en `upsert` | **corrigé en 1.13.4** ; vider la file via Menu Plus -> Synchronisation si résiduel |
+| `PGRST204` `date_ajout` | migration non jouée | `database/SUPABASE_A_EXECUTER.sql` section 3 |
 | `42501` sur `boutiques` | policy UPDATE | passer par la RPC (déployée en §1) |
 | `42P01` sur `reouvrir_boutique` | fonction absente | rejouer §1.3 |
 | `column does not exist` (clients/tarifs) | migration non jouée | rejouer §1.1/§1.2 |
