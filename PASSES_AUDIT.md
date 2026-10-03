@@ -863,3 +863,43 @@ TextStyle.fontFallback
     Traiter cela demande une police Unicode embarquee — decision
     d'architecture a poser, pas adeviner. Verdict : **CONFORME** sur le
     perimetre des libelles, **reserve** sur les donnees utilisateur.
+
+## 2026-10-03 - Depot Git : branche unique `main`
+
+**Demande** : ne conserver que cette version, « comme si c'etait la
+premiere fois qu'on faisait le push ».
+
+**Etat avant** : 16 branches distantes (`audit/formulaire-vente`,
+`feat/batch1` a `batch6`, `feat/boutiques-filtres`,
+`feat/categories-filtres`, `feat/achat-exports`, `feat/documents-emis`,
+`feat/sql-finalize`, `fix/plan-correction-totale`,
+`feat/refonte-ux-ecommerce`) et 15 branches locales.
+`origin/main` etait a `6de44ff`, soit **61 commits en retard**.
+
+**Action 1 - mise a jour de `main` par FAST-FORWARD** (`6de44ff..72bcb0d`).
+Aucun force-push, donc aucun commit ecrase (regle AGENTS.md 7.5). Les 61
+commits anterieurs restent dans l'historique.
+
+**Action 2 - controle de securite AVANT suppression.** Pour chacune des
+30 branches, `git rev-list --count <branche> --not main` :
+**toutes les valeurs sont a 0**. Aucun commit n'existait ailleurs que
+dans `main` : la suppression ne perdait rien. C'est ce controle qui
+distingue un nettoyage d'une perte de travail.
+
+**Action 3 - suppression.** 15 branches distantes + 15 locales.
+Une seule a necessite `-D` (`feat/batch5-menu`) : `git branch -d` la
+refusait en la comparant a son *upstream* et non a `main`, alors que le
+controle ci-dessus prouvait son contenu deja dans `main`.
+
+**Action 4 - `main` devient la branche par defaut** (`origin/HEAD` pointe
+desormais sur `main`), avec suivi ameliore. `git status` : `main` aligne
+sur `origin/main`, 0 commit non pousse.
+
+**Aucun fichier modifie** : la suite reste a **506/506 verts** et
+`dart analyze` a **0 erreur** (les references Git ne touchent pas le
+code, aucun re-execution necessaire).
+
+**Reserve** : le depot ne contient plus d'historique « par lot ». Le
+journal des lots reste dans `MISSION_STATUS.md` et `CHANGELOG.md`, qui
+sont commites dans `main` — c'est la que se trouve la tracabilite, pas
+dans les noms de branches.
