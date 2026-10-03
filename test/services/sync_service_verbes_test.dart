@@ -132,4 +132,70 @@ void main() {
           reason: '`{\'id\'}` seul ne peut pas cr\u00e9er de ligne');
     });
   });
+
+  group('colonnes uuid optionnelles (22P02)', () {
+    /// Relit le schema et rend, par table, ses colonnes uuid NOT NULL.
+    Map<String, Set<String>> uuidNotNull() {
+      final source = File('database/supabase_schema.sql').readAsStringSync();
+      final resultat = <String, Set<String>>{};
+      final tables = RegExp(
+              r'create table (?:if not exists )?public\.(\w+)\s*\((.*?)\n\);',
+              dotAll: true)
+          .allMatches(source);
+      for (final t in tables) {
+        final nom = t.group(1)!;
+        final notNull = <String>{};
+        for (final ligne in t.group(2)!.split('\n')) {
+          final propre = ligne.split('--').first.trim();
+          final m = RegExp(r'^(\w+)\s+uuid\b').firstMatch(propre);
+          if (m == null) continue;
+          final reste = propre.substring(m.end);
+          // `uuid` suivi de `not null` = obligatoire
+          if (RegExp(r'\bnot\s+null\b').hasMatch(reste)) notNull.add(m.group(1)!);
+        }
+        if (notNull.isNotEmpty) resultat[nom] = notNull;
+      }
+      return resultat;
+    }
+
+    test('aucune colonne listee n est uuid NOT NULL dans le schema', () {
+      final notNull = uuidNotNull();
+      final coupables = <String>[];
+      SyncService.colonnesUuidOptionnelles.forEach((table, colonnes) {
+        for (final c in colonnes) {
+          if ((notNull[table] ?? const <String>{}).contains(c)) {
+            coupables.add('$table.$c');
+          }
+        }
+      });
+      expect(coupables, isEmpty,
+          reason: 'une colonne NOT NULL ne peut pas valoir null : la '
+              'reparation la rebloquerait et masquerait une vraie erreur '
+              'de donnee.\n${coupables.join(', ')}');
+    });
+
+    test('chaque table listee existe dans le schema', () {
+      final source = File('database/supabase_schema.sql').readAsStringSync();
+      final tables = RegExp(r'create table (?:if not exists )?public\.(\w+)')
+          .allMatches(source)
+          .map((m) => m.group(1)!)
+          .toSet();
+      for (final table in SyncService.colonnesUuidOptionnelles.keys) {
+        expect(tables, contains(table),
+            reason: '$table n existe plus dans le schema');
+      }
+    });
+
+    test('mouvements_stock.ref_id et created_by sont des uuid NULLABLE', () {
+      final source = File('database/supabase_schema.sql').readAsStringSync();
+      final notNull = uuidNotNull()['mouvements_stock'] ?? const <String>{};
+      // nullable -> absentes de la table des NOT NULL
+      expect(notNull, isNot(contains('ref_id')));
+      expect(notNull, isNot(contains('created_by')));
+      // et bien des uuid
+      expect(source, contains('ref_id'));
+      expect(source, contains('created_by'));
+    });
+  });
+
 }

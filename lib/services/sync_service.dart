@@ -207,6 +207,23 @@ class SyncService extends ChangeNotifier {
   /// définitivement — la donnée saisie hors-ligne serait PERDUE. On
   /// réessaie donc une fois sans les colonnes optionnelles, en cohérence
   /// avec le repli déjà fait par `CloudRepository.upsertProduit`.
+  /// Colonnes UUID **nullables** par table mise en file : une chaine vide
+  /// y est un `22P02` garanti (`invalid input syntax for type uuid: ""`),
+  /// donc une entree bloquee DEFINITIVEMENT et une donnee perdue.
+  ///
+  /// Volontairement restreint aux colonnes dont le modele Dart utilise
+  /// `''` pour « aucune reference » (cf. `MouvementStock.refId`,
+  /// documente « '' si manuel »). Une colonne obligatoireRecevant `''`
+  /// n'est PAS listee : la couper silencieusement detruirait l'information
+  /// au lieu de la faire echouer visiblement.
+  ///
+  /// Source : `database/supabase_schema.sql`. Le test
+  /// `sync_service_verbes_test.dart` relit ce fichier et verifie
+  /// qu'aucune entree de cette table ne designe une colonne NOT NULL.
+  static const colonnesUuidOptionnelles = <String, Set<String>>{
+    'mouvements_stock': {'ref_id', 'created_by'},
+  };
+
   /// Un payload {id, actif} (ou {id} seul) ne peut pas correspondre a une
   /// CREATION : il manquerait les colonnes NOT NULL de toute table metier
   /// (libelle, montant, boutique_id...). C'est donc un patch herite des
@@ -235,8 +252,31 @@ class SyncService extends ChangeNotifier {
       if (table is! String) continue;
       if (operationPour(table) != SyncOperation.upsert) continue;
       final payload = e['payload'];
-      if (payload is! Map || !estPatchLegacy(payload)) continue;
-      e['table'] = '$table$SyncTable.suffixeUpdate';
+      if (payload is! Map) continue;
+
+      // Repare 1 : payload PARTIEL rejoue en upsert (INSERT sans
+      // boutique_id -> 23502).
+      if (estPatchLegacy(payload)) {
+        e['table'] = '$table$SyncTable.suffixeUpdate';
+        e['en_erreur'] = false;
+        e['essais'] = 0;
+        await _box!.put(cle, e);
+        repares++;
+        continue;
+      }
+
+      // Repare 2 : chaine VIDE dans une colonne uuid nullable
+      // (-> 22P02). La table seule suffit a identifier les colonnes.
+      final uuid = colonnesUuidOptionnelles[table];
+      if (uuid == null) continue;
+      var vide = false;
+      for (final colonne in uuid) {
+        if (payload[colonne] == '') {
+          payload[colonne] = null;
+          vide = true;
+        }
+      }
+      if (!vide) continue;
       e['en_erreur'] = false;
       e['essais'] = 0;
       await _box!.put(cle, e);

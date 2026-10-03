@@ -75,9 +75,12 @@ class StockMouvementNotifier extends ChangeNotifier {
       'quantite': m.quantite,
       'stock_apres': m.stockApres,
       'motif': m.motif,
-      'ref_id': m.refId,
+      // Colonnes UUID NULLABLE : la valeur « aucune reference » est
+      // NULL, pas ''. Postgres rejette '' (22P02) et l'entree se bloquait
+      // definitivement. Meme convention que compta_notifier._payload.
+      'ref_id': m.refId.isEmpty ? null : m.refId,
       'date_mouvement': m.date.toIso8601String(),
-      'created_by': m.createdBy,
+      'created_by': m.createdBy.isEmpty ? null : m.createdBy,
     });
   }
 
