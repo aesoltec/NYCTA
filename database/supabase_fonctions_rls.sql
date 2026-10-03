@@ -113,10 +113,16 @@ drop policy if exists "lecture produits" on public.produits;
 drop policy if exists "produits select" on public.produits;
 create policy "produits select" on public.produits
   for select to authenticated using (public.accede_boutique(boutique_id));
+-- OPTION A : le vendeur NE CREE pas de fiche produit. Il conserve la
+-- lecture (policy select) et la modification (policy « maj produits »).
+-- Raison metier : creer une fiche fixe le prix d'achat, donc la marge —
+-- c'est un acte de direction, pas une autonomie terrain. Le vendeur
+-- garde l'autonomie declaree dans la matrice : prix de vente, photo,
+-- seuil, quantite constatee.
 drop policy if exists "ecriture produits" on public.produits;
 create policy "ecriture produits" on public.produits
   for insert to authenticated
-  with check (public.user_role() in ('admin','gerant','vendeur'));
+  with check (public.user_role() in ('admin','gerant'));
 drop policy if exists "maj produits" on public.produits;
 create policy "maj produits" on public.produits
   for update to authenticated

@@ -11,6 +11,10 @@ class ProductCard extends StatelessWidget {
   final VoidCallback? onVendre;
   final VoidCallback? onTap;
   final ValueChanged<String>? onMenu;
+  /// Actions proposees au menu contextuel, deja filtrees par
+  /// les droits du role. Liste `const` ici = on proposerait
+  /// « Archiver » a un vendeur, qui ne peut pas le faire.
+  final List<String> actions;
 
   const ProductCard({
     super.key,
@@ -18,6 +22,7 @@ class ProductCard extends StatelessWidget {
     this.onVendre,
     this.onTap,
     this.onMenu,
+    this.actions = const [],
   });
 
   @override
@@ -68,15 +73,9 @@ class ProductCard extends StatelessWidget {
                     tooltip: 'Actions',
                     iconSize: 20,
                     onSelected: onMenu,
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(
-                          value: 'modifier', child: Text('Modifier')),
-                      PopupMenuItem(
-                          value: 'ajuster', child: Text('Ajuster')),
-                      PopupMenuItem(
-                          value: 'archiver', child: Text('Archiver')),
-                      PopupMenuItem(
-                          value: 'partager', child: Text('Partager')),
+                    itemBuilder: (_) => [
+                      for (final a in actions)
+                        PopupMenuItem(value: a, child: Text(libelleActionProduit(a))),
                     ],
                   ),
                 ),
@@ -152,3 +151,14 @@ class ProductCard extends StatelessWidget {
     );
   }
 }
+
+/// Libelle affichable d'une action de menu contextuel produit.
+/// Source unique : le menu doit dire la meme chose sur la carte ET sur
+/// la ligne de liste.
+String libelleActionProduit(String action) => switch (action) {
+      'modifier' => 'Modifier',
+      'ajuster' => 'Ajuster',
+      'archiver' => 'Archiver',
+      'partager' => 'Partager',
+      _ => action,
+    };

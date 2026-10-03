@@ -1059,3 +1059,83 @@ virtual method 'int java.lang.Integer.intValue()' on a null object
     Reserve : `res/drawable/` et le plugin natif sont hors de portee de
     la VM — ce defaut ne pouvait etre detecte que sur l'appareil.
     Verdict : **CONFORME**.
+
+## 2026-10-03 - 1.14.0 : cohérence métier des droits (option A)
+
+**Origine** : question de l'utilisateur — « pourquoi les vendeurs
+peuvent-ils ajouter un article en stock ? illogique », suivie d'une
+demande d'audit complet des droits.
+
+1. Fonctionnel OK - la ligne unique « Gérer stock (créer/modifier) »
+   confiait au vendeur trois actes de nature différente. Créer une fiche
+   catalogue fixe le **prix d'achat, donc la marge** : acte de direction.
+   La matrice se contredisait (ligne « créer/modifier » contre note
+   « autonomie terrain : prix, photo, seuil »). Option A appliquée :
+   lecture + modification conservées, création et retrait refusés.
+2. Métier OK - aucune règle inventée : chaque droit correspond à une
+   LIGNE de `MATRICE_PERMISSIONS.md`, et la matrice a été réécrite dans
+   le même sens (1 ligne devient 5). Rôle */gérant* conservés inchangés.
+   Le comptable et le caissier **lisent** le stock sans le modifier : le
+   compta suit l'inventaire, le caissier encaisse.
+3. Sécurité OK - **le vrai manque** : `ajouterProduit` et `majProduit`
+   n'avaient aucune garde, la seule protection étant l'affichage du
+   bouton. Une règle qui vit dans un `if (visible)` n'est pas une règle
+   d'accès. 4 gardes ajoutées. Corrigé aussi : **la barre de navigation
+   basse n'était pas filtrée** — un vendeur ouvrait « Dépenses » et
+   « Achats » alors que le menu « Plus » les cachait. Fuite de
+   confidentialité sur les charges et les achats.
+4. Overflow OK - le FAB « Produit » disparaît pour un vendeur : pas de
+   débordement possible, et la barre du bas a au moins deux onglets
+   (Accueil, Plus) donc jamais vide. `test/golden` et
+   `commerce_overflow_test` rejoués : verts.
+5. Performance OK - la liste d'onglets est reconstruite à chaque build
+   (5 éléments, une comparaison de `Set<Permission>` par onglet).
+   Négligeable ; pas de listeur dans un `build` chaud de grande ampleur.
+6. Tests OK - **22 nouveaux** : `test/droits/permissions_stock_test.dart`
+   (14 : matrice + gardes métier, rôle par rôle) et
+   `test/droits/navigation_droits_test.dart` (8 : onglets par rôle, dont
+   « aucun rôle ne reçoit un onglet qu'il n'a pas le droit de voir »).
+   2 tests de non-régression sur le menu contextuel filtré.
+   **Preuve** : le droit de création redonné au vendeur → 2 tests
+   échouent ; restauré → 22/22. Suite **546/546**, `dart analyze`
+   **0 erreur**.
+7. Documentation OK - `MATRICE_PERMISSIONS.md` (ligne unique → 5 lignes +
+   décision explicite + section serveur), CHANGELOG 1.14.0,
+   MISSION_STATUS (G13-G16), ce journal.
+8. Régression OK - deux tests existants ont échoué **à juste titre** :
+   ils encodaient l'ancien comportement. `fixes_critiques_test`
+   attendait « admin » dans le refus : j'ai changé le message en
+   « Réservé (direction) » → « Réservé (admin, gérant) », ce qui est plus
+   utile pour l'utilisateur *et* garde le test pertinent. Le second
+   test portait sur le menu non filtré : mis à jour, plus 2 tests ajoutés.
+   `ProductGrid` n'est utilisé **que dans les tests** (code mort
+   préexistant) — pas de régression en production, mais il reste à
+   nettoyer.
+9. UX OK - pour un vendeur : plus d'onglet Dépenses, plus de FAB
+   « Produit », menu contextuel réduit à Modifier / Ajuster / Partager.
+   Le stock reste consultable, donc il ne vend plus de l'inexistant.
+10. Contre-expertise - **deux de mes affirmations précédentes étaient
+    fausses, je les corrige** :
+    (a) « 7 permissions mortes » → **FAUX**. Mon regex d'audit avait
+    débordé sur les enums suivants et capturé des faux positifs. L'enum
+    `Permission` a 11 valeurs, toutes utilisées ;
+    (b) « aucune garde sur les 4 méthodes produits » → **partiellement
+    faux**. `supprimerProduit` avait déjà une garde, mais écrite avec
+    `session.role` et non `session.peut` — invisible pour un audit qui
+    cherche `peut(`. Le nombre réel était 2 méthodes sans garde, pas 4.
+    Les deux erreurs viennent de la même cause : un audit par motif de
+    chaîne au lieu d'une lecture du code. C'est ce qui justifie les
+    **22 tests** ci-dessus : ils vérifient le comportement, pas la
+    présence d'un motif.
+    **Réserve assumée** : 7 droits sur 11 (`voirCaisse`, `voirRapports`,
+    `gererPartenaires`, `cloturerMois`, `gererDepenses`, `configurer`,
+    `gererUtilisateurs`) restent protégés **uniquement par l'UI**. Je les
+    ai listés mais pas traités : c'est un chantier distinct, et les traiter
+    à moitié pendant un lot déjà large aurait introduit du risque.
+    **Réserve** : `backend/src/permissions.js` porte sa propre matrice
+    Node, non modifiée (le backend n'est pas joignable depuis l'app, qui
+    parle à Supabase). Décision à prendre séparément.
+    **Bloquant** : `database/DROITS_PRODUITS_VENDEUR.sql` doit être
+    exécuté sur la base réelle, sinon un vendeur peut insérer en
+    appelant directement l'API PostgREST avec la clé anon.
+    Verdict : **CONFORME** sur le périmètre livré.

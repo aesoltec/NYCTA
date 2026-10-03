@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/produit.dart';
 import '../../../widgets/app_image.dart';
 import '../../../widgets/money_text.dart';
+import 'product_card.dart';
 
 /// Vue liste dense du stock (tableau) :
 /// image | libellé | catégorie | prix achat | prix vente | stock | actions.
@@ -10,6 +11,8 @@ class ProductList extends StatelessWidget {
   final void Function(Produit p)? onTap;
   final void Function(Produit p)? onVendre;
   final void Function(Produit p, String action)? onMenu;
+  /// Actions de menu deja filtrees par les droits du role.
+  final List<String> actions;
 
   const ProductList({
     super.key,
@@ -17,6 +20,7 @@ class ProductList extends StatelessWidget {
     this.onTap,
     this.onVendre,
     this.onMenu,
+    this.actions = const [],
   });
 
   @override
@@ -32,6 +36,7 @@ class ProductList extends StatelessWidget {
           onTap: onTap == null ? null : () => onTap!(p),
           onVendre: onVendre == null ? null : () => onVendre!(p),
           onMenu: onMenu == null ? null : (a) => onMenu!(p, a),
+          actions: actions,
         );
       },
     );
@@ -44,6 +49,8 @@ class ProductListTile extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onVendre;
   final ValueChanged<String>? onMenu;
+  /// Actions de menu deja filtrees par les droits du role.
+  final List<String> actions;
 
   const ProductListTile({
     super.key,
@@ -51,6 +58,7 @@ class ProductListTile extends StatelessWidget {
     this.onTap,
     this.onVendre,
     this.onMenu,
+    this.actions = const [],
   });
 
   @override
@@ -118,16 +126,11 @@ class ProductListTile extends StatelessWidget {
               tooltip: 'Actions',
               iconSize: 20,
               onSelected: onMenu,
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                    value: 'modifier', child: Text('Modifier')),
-                PopupMenuItem(
-                    value: 'ajuster', child: Text('Ajuster')),
-                PopupMenuItem(
-                    value: 'archiver', child: Text('Archiver')),
-                PopupMenuItem(
-                    value: 'partager', child: Text('Partager')),
-              ],
+              itemBuilder: (_) => [
+                      for (final a in actions)
+                        PopupMenuItem(
+                            value: a, child: Text(libelleActionProduit(a))),
+                    ],
             ),
           ]),
         ),

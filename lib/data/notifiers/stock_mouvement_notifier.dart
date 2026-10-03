@@ -88,7 +88,10 @@ class StockMouvementNotifier extends ChangeNotifier {
   /// obligatoire. Retourne null si OK, sinon un message d'erreur.
   Future<String?> ajusterStock(String produitId, int nouveauStock,
       String motif, String boutiqueId) async {
-    if (!session.peut(Permission.gererStock)) {
+    // Ajuster une quantité = modifier la fiche (option A : autonomie
+    // terrain du vendeur). Le DROIT de RETIRER l'article est
+    // `retirerProduit`, réservé à la direction.
+    if (!session.peut(Permission.modifierProduit)) {
       return 'Réservé à la gestion du stock';
     }
     if (motif.trim().length < 3) return 'Motif requis (3 car. min.)';

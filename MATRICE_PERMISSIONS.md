@@ -9,11 +9,28 @@
 | Vendre (toutes activités) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | forfaits à son nom |
 | Ventes à crédit + encaissement | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Relances clients (impayés) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Gérer stock (créer/modifier) | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| Consulter le stock (lecture) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Créer un article (fiche catalogue) | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Modifier un article | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| Ajuster une quantité | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 > Décision documentée (exigences #9/#10) : le vendeur modifie les fiches
 > (autonomie terrain : prix, photo, seuil) mais ne retire jamais d'article
 > (bouton masqué + garde `Store.supprimerProduit` + trigger serveur).
-| Retirer un article du stock | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Retirer / archiver un article | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+> **Décision (option A, 2026-10-03).** La ligne unique « Gérer stock
+> (créer/modifier) » confiait au vendeur **trois actes de nature
+> différente** : créer une fiche catalogue, modifier une fiche, retirer
+> un article. Créer une fiche fixe le **prix d'achat, donc la marge** —
+> c'est un acte de direction, pas une autonomie terrain. Le vendeur
+> conserve ce qui est justifié :
+>
+> - la **lecture** du stock — indispensable, il ne doit pas vendre un
+>   article inexistant ou absent de son étagère ;
+> - la **modification** de ses fiches — autonomie terrain : prix de
+>   vente, photo, seuil, quantité constatée ;
+> - il ne **crée** pas d'article et ne **retire** rien (action absente du
+>   menu, garde métier `ProduitNotifier`, policy RLS, trigger serveur).
 | Voir caisse / trésorerie | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Voir rapports / analytique | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Gérer partenaires + clôturer | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
@@ -46,20 +63,19 @@
 - `achats` : écriture admin/gérant/comptable + boutique ; **vendeur/caissier : INSERT
   `statut='demande'` uniquement** (policy `achats demandes vendeurs`) — toute demande
   directe en `en_attente`/`valide` est rejetée (42501).
-- `produits` : vendeur peut insérer/modifier mais **jamais archiver** — trigger
-  `verrouiller_archivage_produit()` (admin/gérant seuls), miroir du garde
-  `Store.supprimerProduit` et du bouton masqué dans `StockScreen`.
-- `charges` / `documents` (`created_by NOT NULL`) : le client envoie toujours
-  l'auteur réel ; défaut serveur `auth.uid()` en garde-fou (plus de 23502).
-- `transactions` : écriture par rôle + boutique ; partenaire : forfaits à son nom.
-- `boutiques` : fermeture = soft delete (`actif=false`) admin/gérant ;
-  **réouverture** via RPC `reouvrir_boutique(p_id)` (SECURITY DEFINER,
-  garde admin/gérant côté serveur, vérifie l'état « fermée », journalise
-  dans `journal_activite`) — miroir du garde `Store.rouvrirBoutique` et
-  du bouton masqué pour les autres rôles.
-- Journal d'audit : triggers sur toutes les tables métier (`journal_activite`).
-- `ecritures` : **insert seul** (aucun update/delete) — corrections par
-  contre-écriture applicative ; lecture boutiques accessibles.
+- `produits` : **insertion admin/gérant uniquement** (option A — le vendeur ne
+  crée pas de fiche) ; **modification admin/gérant/vendeur** ;
+  **archivage refusé** hors admin/gérant — trigger
+  `verrouiller_archivage_produit()`, miroir des gardes métier
+  `ProduitNotifier.retirerProduit` et de l'absence d'action dans
+  `StockScreen`. Migration à appliquer sur la base réelle :
+  `database/DROITS_PRODUITS_VENDEUR.sql`.
+- **Barre de navigation basse filtrée** : `AppShell.onglets()` dérive les
+  onglets des droits du rôle. Avant correction c'était une liste `const`
+  de 5 destinations — un vendeur pouvait ouvrir « Achats » et
+  « Dépenses » alors que le menu « Plus » les lui cachait. Deux
+  entrées, deux traitements : exactement l'écart que ce document
+  qualifie de bug.
 
 ## Limites assumées
 

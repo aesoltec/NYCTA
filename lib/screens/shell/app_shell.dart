@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/env.dart';
@@ -18,9 +19,41 @@ import '../partenaire/partner_home_screen.dart';
 /// modules secondaires sont dans l'onglet « Plus ».
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
+  /// LIBELLES des onglets autorises pour [store], dans l'ordre.
+  ///
+  /// Expose pour le test de non-regression : avant correction, la barre
+  /// du bas etait une liste `const` et un VENDEUR pouvait ouvrir
+  /// « Depenses » et « Achats ». Tester l'AppShell complet serait fragile
+  /// (Supabase, Hive, navigation) pour une simple liste de libelles.
+  @visibleForTesting
+  static List<String> ongletsAutorises(Store store) =>
+      _onglets(store).map((_Onglet o) => o.libelle).toList();
+
+  /// Onglets de la barre de navigation, FILTRES par les droits du role.
+  ///
+  /// Avant, c'etait une liste `const` de 5 destinations : un vendeur
+  /// pouvait ouvrir « Achats » et « Depenses » alors que le menu « Plus »
+  /// les lui cachait. La divergence etait invisible parce que les deux
+  /// entrees n'etaient pas filtrees de la meme facon.
+  ///
+  /// `droits` vide = onglet ouvert a tous (Accueil, Plus).
+  static List<_Onglet> _onglets(Store store) => [
+        const _Onglet('Accueil', DashboardScreen(), {}),
+        if (store.peut(Permission.gererAchats))
+          const _Onglet('Achats', AchatListScreen(), {}),
+        // Lecture du catalogue : un caissier ou un vendeur doit pouvoir
+        // consulter le stock pour ne pas vendre un article inexistant.
+        if (store.peut(Permission.voirStock))
+          const _Onglet('Stock', StockScreen(), {}),
+        if (store.peut(Permission.gererDepenses))
+          const _Onglet('Dépenses', ChargesScreen(), {}),
+        const _Onglet('Plus', MenuScreen(), {}),
+      ];
+
   @override
   State<AppShell> createState() => _AppShellState();
 }
+
 
 /// Bandeau hors-ligne : données locales, synchronisation en attente.
 /// Le bouton Reconnecter recharge le cloud et efface le mode.
@@ -81,18 +114,14 @@ class _BandeauHorsLigneState extends State<_BandeauHorsLigne> {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
-
-  static const _pages = [
-    DashboardScreen(),
-    AchatListScreen(),
-    StockScreen(),
-    ChargesScreen(),
-    MenuScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
+    // Onglets autorises pour le role connecte. `index` est BORNÉ : un
+    // changement de role retrecit la liste, et un index hors bornes
+    // ferait lever une exception Flutter.
+    final onglets = AppShell._onglets(store);
+    final index = _index.clamp(0, onglets.length - 1);
     // P8 : le rôle Partenaire reçoit UNIQUEMENT son espace dédié —
     // aucun accès à la caisse, au stock ou à la configuration de la PME.
     if (store.role == Role.partenaire) {
@@ -234,26 +263,54 @@ class _AppShellState extends State<AppShell> {
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 220),
             child:
-                KeyedSubtree(key: ValueKey(_index), child: _pages[_index]),
+                KeyedSubtree(
+                    key: ValueKey(_index),
+                    child: onglets[index].page),
           ),
         ),
       ]),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
+        selectedIndex: index,
         onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home_rounded), label: 'Accueil'),
-          NavigationDestination(icon: Icon(Icons.shopping_cart_outlined),
-              selectedIcon: Icon(Icons.shopping_cart_rounded), label: 'Achats'),
-          NavigationDestination(icon: Icon(Icons.inventory_2_outlined),
-              selectedIcon: Icon(Icons.inventory_2_rounded), label: 'Stock'),
-          NavigationDestination(icon: Icon(Icons.money_off_outlined),
-              selectedIcon: Icon(Icons.money_off_rounded), label: 'Dépenses'),
-          NavigationDestination(icon: Icon(Icons.grid_view_outlined),
-              selectedIcon: Icon(Icons.grid_view_rounded), label: 'Plus'),
+        destinations: [
+          for (final o in onglets) o.destination(),
         ],
       ),
     );
   }
+}
+
+/// Un onglet de la barre de navigation, avec son icone et ses droits.
+///
+/// `droits` est documente pour le lecteur : la liste d'onglets est
+/// filtree par `Store.peut` et non par ce champ (qui sert de trace de
+/// l'intention). Le conserver evite qu'un onglet soit ajoute sans que sa
+/// condition d'acces soit ecrite au meme endroit que lui.
+class _Onglet {
+  final String libelle;
+  final Widget page;
+  final Set<Permission> droits;
+  const _Onglet(this.libelle, this.page, this.droits);
+
+  IconData get icone => switch (libelle) {
+        'Accueil' => Icons.home_outlined,
+        'Achats' => Icons.shopping_cart_outlined,
+        'Stock' => Icons.inventory_2_outlined,
+        'Dépenses' => Icons.money_off_outlined,
+        _ => Icons.grid_view_outlined,
+      };
+
+  IconData get iconeActive => switch (libelle) {
+        'Accueil' => Icons.home_rounded,
+        'Achats' => Icons.shopping_cart_rounded,
+        'Stock' => Icons.inventory_2_rounded,
+        'Dépenses' => Icons.money_off_rounded,
+        _ => Icons.grid_view_rounded,
+      };
+
+  NavigationDestination destination() => NavigationDestination(
+        icon: Icon(icone),
+        selectedIcon: Icon(iconeActive),
+        label: libelle,
+      );
 }

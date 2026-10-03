@@ -122,7 +122,19 @@ class _StockScreenState extends State<StockScreen> {
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
     final peutVendre = store.peut(Permission.vendre);
-    final peutGererStock = store.peut(Permission.gererStock);
+    // Quatre droits distincts : sans lui, l'UI confondait create,
+    // modifier et retirer — et le vendeur pouvait creer un article.
+    final peutCreer = store.peut(Permission.creerProduit);
+    final peutModifier = store.peut(Permission.modifierProduit);
+    final peutRetirer = store.peut(Permission.retirerProduit);
+    // Actions proposees au menu contextuel : on n'affiche que ce que le
+    // role a le droit de faire (avant : « Archiver » etait visible pour
+    // tout le monde et refuse SEULEMENT apres selection).
+    final actionsProduit = <String>[
+      if (peutModifier) ...['modifier', 'ajuster'],
+      if (peutRetirer) 'archiver',
+      'partager',
+    ];
     final cats = store.catsProduit;
     // Portée boutique : courante par défaut, globale au choix.
     final boutiqueId = (_filtres['boutique'] as String?) ?? '';
@@ -312,7 +324,8 @@ class _StockScreenState extends State<StockScreen> {
                           context, store, produits[i])
                       : null,
                   onMenu: (a) => _menuProduit(context, store,
-                      produits[i], a, peutGererStock),
+                      produits[i], a, peutModifier),
+                  actions: actionsProduit,
                 ),
               ),
             )
@@ -331,13 +344,14 @@ class _StockScreenState extends State<StockScreen> {
                           context, store, produits[i])
                       : null,
                   onMenu: (a) => _menuProduit(context, store,
-                      produits[i], a, peutGererStock),
+                      produits[i], a, peutModifier),
+                  actions: actionsProduit,
                 ),
               ),
             ),
         ]),
       ),
-      floatingActionButton: peutGererStock
+      floatingActionButton: peutCreer
           ? FloatingActionButton.extended(
               onPressed: () => _formProduit(context, store, null),
               icon: const Icon(Icons.add),
@@ -382,11 +396,11 @@ class _StockScreenState extends State<StockScreen> {
 
   /// Menu contextuel carte (⋮) : Modifier, Ajuster, Archiver, Partager.
   Future<void> _menuProduit(BuildContext context, Store store,
-      Produit p, String action, bool peutGererStock) async {
+      Produit p, String action, bool peutModifier) async {
     switch (action) {
       case 'modifier':
       case 'ajuster':
-        if (!peutGererStock) {
+        if (!peutModifier) {
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                 content: Text('⚠️ Gestion du stock réservée')));

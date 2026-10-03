@@ -68,6 +68,12 @@ class ProduitNotifier extends ChangeNotifier {
       a.trim().toLowerCase() == b.trim().toLowerCase();
 
   Future<String?> ajouterProduit(Produit p) async {
+    // Garde METIER : l'UI masquait le bouton, mais une regle d'acces qui
+    // vit uniquement dans un `if (visible)` n'en est pas une. Creer une
+    // fiche fixe le prix d'achat, donc la marge : acte de direction.
+    if (!session.peut(Permission.creerProduit)) {
+      return 'Création d\'article réservée (admin, gérant)';
+    }
     if (p.libelle.trim().length < 2) {
       return 'Libellé requis (2 car. min.)';
     }
@@ -126,6 +132,9 @@ class ProduitNotifier extends ChangeNotifier {
 
   /// Modification complète d'un produit (tap sur la fiche stock).
   Future<String?> majProduit(Produit p) async {
+    if (!session.peut(Permission.modifierProduit)) {
+      return 'Modification d\'article réservée';
+    }
     final i = produits.indexWhere((x) => x.id == p.id);
     if (i < 0) return 'Produit introuvable';
     if (produits.any((x) =>
@@ -161,6 +170,15 @@ class ProduitNotifier extends ChangeNotifier {
   }
 
   Future<void> archiverProduit(String id) async {
+    if (!session.peut(Permission.retirerProduit)) {
+      // `Future<void>` : on ne peut pas renvoyer un message. Le refus est
+      // trace ; le bouton est de toute facon absent pour ce role
+      // (StockScreen ne propose pas « Archiver »), ce garde est la
+      // TOILE DE SECOURS metier.
+      debugPrint('ProduitNotifier : archivage refuse '
+          '(Permission.retirerProduit), produit $id');
+      return;
+    }
     final i = produits.indexWhere((x) => x.id == id);
     if (i >= 0) {
       produits.removeAt(i);
@@ -175,8 +193,7 @@ class ProduitNotifier extends ChangeNotifier {
   /// Seuls admin/gérant retirent un article.
   Future<String?> supprimerProduit(String id,
       {bool forcerArchive = false}) async {
-    if (session.role != Role.admin &&
-        session.role != Role.gerant) {
+    if (!session.peut(Permission.retirerProduit)) {
       return 'Retrait d\'article réservé (admin, gérant)';
     }
     final i = produits.indexWhere((x) => x.id == id);

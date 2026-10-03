@@ -125,6 +125,7 @@ void main() {
           tester,
           ProductCard(
               produit: _p('a', 'Câble'),
+              actions: const ['modifier', 'archiver'],
               onMenu: (a) => action = a));
       expect(find.textContaining('000'), findsWidgets);
       expect(find.textContaining('Stock : 10'), findsOneWidget);
@@ -134,6 +135,55 @@ void main() {
       await tester.pumpAndSettle();
       expect(action, 'modifier');
     });
+  });
+
+  testWidgets('le menu ne propose QUE les actions du role',
+      (tester) async {
+    // Option A : un vendeur MODIFIE ses fiches mais ne RETIRE rien.
+    // Le menu ne doit donc proposer ni « Modifier » ni « Archiver ».
+    await _pomper(
+        tester,
+        ProductCard(
+            produit: Produit(
+              id: 'p1',
+              boutiqueId: 'b1',
+              libelle: 'Câble',
+              categorie: 'Test',
+              prixAchat: 1000,
+              prixVente: 1500,
+              stock: 10,
+            ),
+            actions: const ['partager']));
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    expect(find.text('Partager'), findsOneWidget);
+    expect(find.text('Modifier'), findsNothing,
+        reason: 'un role sans droit de modification ne doit pas voir '
+            'l\'action, meme si elle est desactivee a la selection');
+    expect(find.text('Archiver'), findsNothing);
+  });
+
+  testWidgets('aucune action autorisee -> menu vide, pas de menu fantome',
+      (tester) async {
+    await _pomper(
+        tester,
+        ProductCard(
+            produit: Produit(
+              id: 'p1',
+              boutiqueId: 'b1',
+              libelle: 'Câble',
+              categorie: 'Test',
+              prixAchat: 1000,
+              prixVente: 1500,
+              stock: 10,
+            )));
+    expect(find.byType(PopupMenuButton<String>), findsOneWidget,
+        reason: 'le defaut est vide : le menu ne montre que ce que le '
+            'appelant a passe. Un oubli donne un menu vide, visible en '
+            'revue, plutot qu\'une action non autorisee proposee.');
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    expect(find.byType(PopupMenuItem<String>), findsNothing);
   });
 
   group('ProductGrid colonnes', () {

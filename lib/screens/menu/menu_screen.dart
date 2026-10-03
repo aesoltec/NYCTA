@@ -146,7 +146,10 @@ class MenuScreen extends StatelessWidget {
 
         // ==================== STOCK ====================
         const _Section('Stock'),
-        if (store.peut(Permission.gererStock) ||
+        // Lecture du catalogue : ouverte a tout role qui vend ou gere le
+        // stock, pour ne pas proposer un article inexistant ou absent de
+        // son etagere (option A : le vendeur LIT).
+        if (store.peut(Permission.voirStock) ||
             store.peut(Permission.vendre))
           _Tuille(
             icone: Icons.inventory_2_outlined,
@@ -155,7 +158,7 @@ class MenuScreen extends StatelessWidget {
             sousTitre: '${store.produitsBoutique.length} article(s) · alertes, vente, galerie',
             destination: const StockScreen(),
           ),
-        if (store.peut(Permission.gererStock))
+        if (store.peut(Permission.modifierProduit))
           _Tuille(
             icone: Icons.swap_vert_outlined,
             couleur: const Color(0xFF00838F),
@@ -163,7 +166,7 @@ class MenuScreen extends StatelessWidget {
             sousTitre: 'Entrées, sorties, ajustements — traçabilité',
             destination: const MouvementsScreen(),
           ),
-        if (store.peut(Permission.gererStock) ||
+        if (store.peut(Permission.voirStock) ||
             store.peut(Permission.vendre))
           _Tuille(
             icone: Icons.photo_library_outlined,

@@ -18,6 +18,83 @@
 - **133 warnings** `inference_failure_*` / `unnecessary_cast` préexistants dans le projet, aucun introduit par la 6bis → tracé au CDC point **40ter** (v1.13.0)
 - Visibilité publique de `genererId` / `fileUpsert` / `numeroDocument` : réductible seulement via une couche d’accès dédiée, non rentable → tracé au CDC point **40quater**
 
+## 1.14.0 - 2026-10-03 (coherence metier des droits - option A)
+- **Demande utilisateur** : « pourquoi les vendeurs peuvent-ils ajouter un
+  article en stock ? illogique ». Audit complet des droits conduit.
+- **Diagnostic** : la ligne unique « Gerer stock (creer/modifier) » de la
+  matrice confiait au vendeur **trois actes de nature differente** —
+  creer une fiche catalogue (qui fixe le prix d'achat, donc la marge),
+  modifier une fiche, retirer un article. La matrice se contredisait
+  elle-meme : la ligne disait « creer/modifier », la note limiting a
+  « autonomie terrain : prix, photo, seuil ».
+- **OPTION A retenue** : le vendeur LIT le stock (ne pas vendre du
+  inexistant), MODIFIE ses fiches, ne CREE pas d'article, ne retire rien.
+
+### Droits
+- `Permission.gererStock` remplace par **quatre droits distincts**,
+  chacun aligne sur une ligne de matrice :
+  `voirStock`, `creerProduit`, `modifierProduit`, `retirerProduit`.
+- Rôles : le caissier et le comptable **lisent** le stock sans le
+  modifier (le comptable suit l'inventaire, le caissier encaisse).
+- `gererUtilisateurs` reste au seul admin (le gerant l'a perdu ? NON :
+  il ne l'a jamais eu — la matrice le disait deja ; aucun changement).
+
+### Gardes metier — le vrai manque
+- Audit : `ProduitNotifier.ajouterProduit` et `majProduit` n'avaient
+  **AUCUNE garde**. La seule protection etait l'affichage du bouton. Une
+  regle d'acces qui vit dans un `if (visible)` n'est pas une regle
+  d'acces : elle tombe devant tout autre chemin d'appel.
+- Ajoutees : `creerProduit` / `modifierProduit` / `retirerProduit`.
+  `archiverProduit` et `supprimerProduit` passent de « controle par role »
+  au droit `retirerProduit` (meme resultat, source unique).
+- Messages de refus nominatifs (« reserve (admin, gerant) ») au lieu de
+  « reserve (direction) » : l'utilisateur doit savoir qui a le droit.
+
+### Fuite de navigation
+- **La barre de navigation du bas etait une liste `const` de 5
+  destinations, sans aucun filtrage.** Un VENDEUR pouvait ouvrir
+  « Depenses » (charges de l'entreprise) et « Achats » (fournisseurs,
+  montants) — alors que le menu « Plus » les lui cachait correctement.
+  Deux entrees, deux traitements : exactement la divergence que la
+  matrice qualifie de bug.
+- Les onglets sont desormais derives des droits (`AppShell._onglets`),
+  et l'index est borne (un changement de role retrecit la liste).
+
+### Menu contextuel produit
+- Il proposait une liste `const` (« Modifier / Ajuster / Archiver /
+  Partager ») a **tout le monde**, y compris un caissier sans aucun droit :
+  l'action n'etait refusee qu'APRES selection. La liste est desormais
+  filtree par les droits (`ProductCard.actions`), defaut **vide** : un
+  oubli donne un menu vide, visible en revue, plutot qu'une action non
+  autorisee proposee.
+
+### Serveur
+- `database/supabase_fonctions_rls.sql` : policy `produits` INSERT
+  restreinte a `('admin','gerant')`.
+- `database/DROITS_PRODUITS_VENDEUR.sql` : **migration a executer sur la
+  base reelle**. Sans elle, un vendeur peut continuer d'inserer en
+  appelant directement l'API PostgREST avec la cle anon.
+
+### Tests
+- `test/droits/permissions_stock_test.dart` (14) : matrice + gardes
+  metier, role par role.
+- `test/droits/navigation_droits_test.dart` (8) : onglets par role, dont
+  « aucun role ne recoit un onglet qu'il n'a pas le droit de voir ».
+- 2 tests de non-regression sur le menu filtre.
+- **Preuve** : le droit de creation redonne au vendeur -> 2 tests
+  echouent ; restaure -> 22/22. Un test qui ne sait pas echouer ne
+  prouve rien.
+- Suite **546/546 verts**, `dart analyze` **0 erreur**.
+
+### Corrections de mes propres affirmations
+- J'ai d'abord annonce « 7 permissions mortes » : **FAUX**. Mon regex
+  d'audit avait deborde sur les enums suivants et capture des faux
+  positifs. Le vrai enum a 11 valeurs, toutes utilisees.
+- J'ai annonce « aucune garde sur les 4 methodes produits » : **partiellement
+  faux**. `supprimerProduit` avait deja une garde, mais par
+  `session.role` et non `session.peut` — invisible pour un audit qui
+  cherche `peut(`.
+
 ## 1.13.6 - 2026-10-03 (notifications Android : aucune ne s'affichait jamais)
 - **Origine** : `integration_test/device_image_flow_test.dart` joue sur
   l'appareil reel. Stack trace capturee :

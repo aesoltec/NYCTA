@@ -32,3 +32,9 @@ Thumbs.db
 # ----- Brouillons de travail (non versionnés) -----
 prompt.md
 
+# Fichiers GENERES par le tooling Flutter, jamais a versionner.
+# `GeneratedPluginRegistrant.java` en particulier : une copie perimee
+# listant `integration_test` fait ECHOUER `flutter build apk --release`
+# (`package dev.flutter.plugins.integration_test does not exist`).
+GeneratedPluginRegistrant.java
+android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
