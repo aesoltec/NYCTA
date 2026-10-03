@@ -89,11 +89,17 @@ void main() {
         reason: 'Parcourir doit ouvrir la galerie interne');
 
     // --- 6. L'image injectee doit être listee (scan reel du dossier).
-    expect(find.textContaining('aa11bb'), findsOneWidget,
+    // La tuile n'affiche AUCUN nom de fichier (vignette + puce
+    // Locale/Cloud seulement) : on l'identifie par son tag Hero
+    // `galerie_<cle>`, seule cle stable portee par l'UI.
+    final tuile = find.byWidgetPredicate(
+        (w) => w is Hero && w.tag.toString().contains('aa11bb'),
+        description: 'tuile de galerie pour aa11bb');
+    expect(tuile, findsOneWidget,
         reason: 'la galerie doit lister le PNG ecrit sur l\'appareil');
 
     // --- 7. Selection + retour au formulaire.
-    await tester.tap(find.textContaining('aa11bb').first);
+    await tester.tap(tuile);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.text('Galerie (1/5)'), findsOneWidget,

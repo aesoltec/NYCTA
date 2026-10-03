@@ -34,6 +34,15 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Icone de notification par defaut : deuxieme source resolue
+             par flutter_local_notifications apres
+             AndroidNotificationDetails.icon. Sans elle, tout appel qui
+             oublierait `icon:` provoquerait un NullPointerException dans
+             setSmallIcon() (aucune notification affichee). -->
+        <meta-data
+            android:name="com.dexterous.flutterlocalnotifications.default_icon"
+            android:resource="@drawable/ic_notification"
+            />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

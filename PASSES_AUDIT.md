@@ -1008,3 +1008,54 @@ NULLABLE. `''` n'est pas un uuid.
     ces tables je ne peux pas affirmer que leur insertion echoue ; les
     modifier a l'aveugle serait inventer une regle (AGENTS.md 10.8).
     Verdict : **CONFORME** sur le perimetre verifie.
+
+## 2026-10-03 - 1.13.6 : notifications Android inoperantes
+
+**Origine** : `integration_test/device_image_flow_test.dart` joue sur
+l'appareil reel. Stack trace :
+
+```
+PlatformException(error, ...NullPointerException: Attempt to invoke
+virtual method 'int java.lang.Integer.intValue()' on a null object
+ reference
+  at FlutterLocalNotificationsPlugin.setSmallIcon(...:474)
+  at NotificationService._notifier (notification_service.dart:66)
+  at NotificationService.verifier (notification_service.dart:76)
+```
+
+1. Fonctionnel OK - **sur Android, aucune notification ne s'affichait**
+   (stock bas, budget depasse, cloture mensuelle, rappel sauvegarde,
+   evenements, rappels, contributions). Et chaque alerte levait une
+   exception asynchrone non geree : `main.dart:73` appelle `verifier()`
+   sans `await` ni `try/catch`.
+2. Metier OK - aucune regle inventee : c'est du materiel Android. Les
+   trois corrections sont les mecanismes documentes du plugin
+   (`AndroidNotificationDetails.icon`, meta-data `default_icon`,
+   drawable en `res/drawable/`).
+3. Securite OK - aucun acces, aucune donnee.
+4. Overflow OK - sans objet.
+5. Performance OK - sans objet.
+6. Tests OK - +6 (`test/services/notification_android_test.dart`) qui
+   croisent le nom declare dans le Dart, le drawable reellement present
+   sur disque, les DEUX sources resolues par `show()`, et le fait que
+   `show()` soit enveloppe. Suite **522/522**, `dart analyze` 0 erreur.
+7. Documentation OK - CHANGELOG 1.13.6, MISSION_STATUS (G12), ce journal.
+8. Regression OK - **lecon principale, tracee** : le `try/catch` seul
+   n'a PAS regle le bug, il l'a **masque**. Premier build : plus de
+   crash, mais le NPE toujours present, simplement journalise. Il a
+   fallu une DEUXIEME itération pour poser `icon:` sur
+   `AndroidNotificationDetails`, qui est la source reellement consultee
+   par `show()` — le nom d'initialisation ne sert qu'a
+   `initialize()`. Trois iterations pour un bug ; ce qui a fait la
+   difference est d'avoir refuse de conclure au premier `try/catch`.
+9. UX OK - les alertes de gestion redeviennent visibles.
+10. Contre-expertise - **erreur de test assumee et corrigee** : le test
+    d'integration cherchait le nom du fichier dans la galerie. La
+    tuile (`media_tile.dart`) n'affiche **aucun nom** (vignette + puce
+    Locale/Cloud). L'image est desormais identifiee par son tag `Hero`.
+    **L'UI n'a PAS ete modifiee** pour faire passer un test incorrect :
+    ajouter un libelle de fichier dans la tuile serait une decision de
+    design, pas une correction de bug.
+    Reserve : `res/drawable/` et le plugin natif sont hors de portee de
+    la VM — ce defaut ne pouvait etre detecte que sur l'appareil.
+    Verdict : **CONFORME**.

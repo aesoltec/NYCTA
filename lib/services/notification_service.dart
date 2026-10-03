@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../data/store.dart';
@@ -12,11 +13,25 @@ import '../models/enums.dart';
 /// Vérifiées à chaque ouverture de l'app — zéro configuration.
 class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
+  /// Nom de l'icone de notification dans `res/drawable/`.
+  ///
+  /// Doit exister reellement : le plugin fait
+  /// `getIdentifier(nom, "drawable", package)` et, si le drawable est
+  /// absent, `setSmallIcon()` leve une NullPointerException.
+  @visibleForTesting
+  static const icone = 'ic_notification';
+
   static const _canal = NotificationDetails(
     android: AndroidNotificationDetails(
       'pme_gestion_alerts', 'Alertes de gestion',
       channelDescription: 'Stock, budgets, clôtures et sauvegardes',
-      importance: Importance.high, priority: Priority.high,
+      importance: Importance.high,
+      priority: Priority.high,
+      // SOURCE REELLE de l'icone affichee : le plugin resout
+      // `AndroidNotificationDetails.icon`, puis le meta-data manifest
+      // `default_icon`, puis `null` -> NPE dans setSmallIcon(). Sans ce
+      // champ, aucune notification ne s'affiche sur Android.
+      icon: icone,
     ),
     iOS: DarwinNotificationDetails(),
   );
@@ -38,7 +53,11 @@ class NotificationService {
     }
     await _plugin.initialize(
       const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        // Nom SIMPLE d'un drawable : le plugin resout via
+        // getIdentifier(nom, "drawable", package). Un nom qualifie
+        // (`@mipmap/...`) ne se resout pas et provoque un NPE dans
+        // setSmallIcon() -> aucune notification affichee.
+        android: AndroidInitializationSettings(icone),
         iOS: DarwinInitializationSettings(),
       ),
     );
@@ -63,7 +82,15 @@ class NotificationService {
       if (memoire.get(famille) == cle) return; // déjà notifié aujourd'hui
       await memoire.put(famille, cle);
     }
-    await _plugin.show(id, titre, corps, _canal);
+    try {
+      await _plugin.show(id, titre, corps, _canal);
+    } catch (e) {
+      // Une notification non affichee ne doit JAMAIS interrompre
+      // l'application : `main.dart` appelle `verifier()` sans await ni
+      // try/catch, donc une exception ici devenait une erreur asynchrone
+      // non traitee au demarrage.
+      debugPrint('NotificationService : affichage impossible ($id) — $e');
+    }
   }
 
   /// Passe de vérification complète — appelée au démarrage et après

@@ -18,6 +18,49 @@
 - **133 warnings** `inference_failure_*` / `unnecessary_cast` préexistants dans le projet, aucun introduit par la 6bis → tracé au CDC point **40ter** (v1.13.0)
 - Visibilité publique de `genererId` / `fileUpsert` / `numeroDocument` : réductible seulement via une couche d’accès dédiée, non rentable → tracé au CDC point **40quater**
 
+## 1.13.6 - 2026-10-03 (notifications Android : aucune ne s'affichait jamais)
+- **Origine** : `integration_test/device_image_flow_test.dart` joue sur
+  l'appareil reel. Stack trace capturee :
+  `PlatformException(NullPointerException ... setSmallIcon(...:474))`
+  via `NotificationService._notifier` -> `verifier`.
+- **Consequence metier** : sur Android, **aucune notification ne
+  s'affichait** (stock bas, budget depasse, cloture mensuelle, rappel
+  sauvegarde, evenements, rappels, contributions) — et chaque alerte
+  levait une exception asynchrone non geree, car `main.dart` appelle
+  `verifier()` sans `await` ni `try/catch`.
+- **Trois fautes cumulees** :
+  1. `android/app/src/main/res/drawable/` ne contenait **aucune icone de
+     notification** (seulement `launch_background.xml`). Creee :
+     `ic_notification.xml`, vecteur blanc sur transparent (Android
+     impose une silhouette blanche dans la barre d'etat) ;
+  2. l'icone d'initialisation pointait sur un nom qualifie
+     `mipmap/ic_launcher`, que le plugin ne resout pas
+     (`getIdentifier(nom, "drawable", package)`) ;
+  3. **le vrai levier n'etait pas pose** : en version 17 du plugin,
+     `show()` resout `AndroidNotificationDetails.icon`, puis le
+     meta-data manifest `default_icon`, puis `null` — d'ou le NPE. Le
+     nom mis sur `AndroidInitializationSettings` ne sert qu'a
+     l'initialisation, pas a l'affichage.
+- **Corrections** : `icon:` sur les details de la notification + meta-data
+  `default_icon` dans le manifest (defense en profondeur) + `try/catch`
+  autour de `show()` : une notification ratee ne doit jamais empecher
+  l'app de demarrer.
+- **Leçon tracee** : le `try/catch` seul n'a PAS regle le bug — il l'a
+  masque. Le test sur appareil l'a demontre (NPE toujours present,
+  simplement journalise). « ca ne plante plus » n'est pas « ca marche ».
+- **Test** : `test/services/notification_android_test.dart`, 6 verifications
+  croisant le nom declare dans le Dart, le drawable reellement present
+  sur le disque, les DEUX sources resolues par le plugin, et le fait que
+  `show()` soit enveloppe. `res/drawable/` etait invisible pour la VM
+  (le plugin est natif) : ce defaut ne pouvait pas etre trouve hors
+  appareil.
+- Correction du test d'integration : la tuile de galerie
+  (`media_tile.dart`) n'affiche **aucun nom de fichier** (vignette +
+  puce Locale/Cloud). L'image injectee est desormais identifiee par son
+  tag `Hero` `galerie_<cle>`. **L'UI n'a pas ete modifiee** pour
+  faire passer un test incorrect.
+- Suite **522/522 verts**, `dart analyze` **0 erreur**.
+
 ## 1.13.5 - 2026-10-03 (debordement de l'ecran Synchronisation)
 - **Signale par l'utilisateur sur l'appareil**, puis confirme par la stack
   trace Flutter :
