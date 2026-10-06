@@ -1242,3 +1242,64 @@ Trois demandes utilisateur. **583/583 verts**, `dart analyze` **0 erreur**.
     lecture ; (c) la feuille XLSX est choisie par indice, pas par nom
     dans l'interface — la sélection de feuille reste à faire.
     Verdict : **CONFORME** sur le périmètre livré, réserves tracées.
+
+## G20 - Cartes de taille irreguliere (grilles Stock et Articles) - 2026-10-06
+
+1. Verification fonctionnelle OK - la demande (cartes de meme taille dans
+   Stock et dans Articles) est **prouvee par test**, pas constatee a
+   l'oeil : `carte_grille_uniforme_test.dart` compare les hauteurs rendues
+   de 3 cartes aux libelles de longueurs tres differentes (« Cable »,
+   « Forfait telephonie », « Installation et configuration d'un reseau
+   intranet pour la societe ») et exige une egalite stricte. Les 2 goldens
+   ont ete relus visuellement apres regeneration.
+2. Verification metier sans objet - aucune regle metier touchee.
+3. Securite sans objet.
+4. Verification overflow/layout **OK, et c'est le point dur** - trois
+   debordements verticaux de 21 a 23 px ont d'abord ete mesures a
+   TextScaler 1.5x et 2.0x. L'ecart etant **constant** quelle que soit
+   l'echelle, il ne venait pas des lignes de texte. La cause reelle
+   etait le libelle « Utiliser dans vente » qui **passait a la ligne**
+   dans un bouton de 148 px de large : la hauteur du bouton dependait
+   donc de la largeur ET de l'echelle de texte, et aucune constante de
+   hauteur de carte ne pouvait suivre. Correction a la source (libelles
+   de boutons verrouilles sur une ligne), pas par gonflage de constante.
+   Les constantes restantes ont ete **calibrees sur mesure** : 68 px
+   deborderait de 10 px sur l'ecran Stock a 320 px, 86 px laissait un
+   vide visible entre le prix et le bouton -> 82 px.
+   `textscale_test.dart` (320/360/768/1024 x 1.0/1.3/1.5/2.0) et le
+   nouveau test d'uniformite repasse au vert.
+5. Performance OK - une grille a extent fixe est **moins** couteuse
+   qu'un masonry, qui mesure chaque enfant avant de le placer.
+6. Tests OK - **593/593 verts**, 0 erreur `dart analyze`. 12 tests
+   ajoutes, dont l'un verifie que le bloc titre fait toujours la meme
+   hauteur (une reservation de 2 lignes, pas un titre qui varie de 1 a 2
+   lignes). Ajout egalement d'un **golden manquant** :
+   `test/golden/tarif_ux_test.dart`. La carte article n'avait ete
+   verifiee qu'isolée, jamais dans sa grille - c'est-a-dire jamais dans
+   la disposition reelle.
+7. Documentation OK - CHANGELOG (1.15.1), MISSION_STATUS (G20), ce
+   journal.
+8. Verification regression - **un test existant a du etre corrige** :
+   `product_card_test.dart` verifiait la presence de `SliverMasonryGrid`,
+   volontairement supprime. Il verifie maintenant `SliverGrid` **et**
+   l'absence de masonry. La suite complete a ete rejouee : 593/593.
+   Reserveeria levee : les 33 tests de `commerce_overflow_test.dart`
+   rendaient une carte dans un `ListView` (hauteur non bornee) et
+   echouaient, parce que `Expanded` exige une hauteur bornee. Plutot que
+   d'affaiblir le test ou d'imposer la grille a l'appelant, les cartes
+   ont ete rendues tolerantes via `SlotCorps` / `EspaceCarte`.
+9. UX OK - sur-estimer la hauteur est sans risque (le `Spacer` absorbe
+   le surplus) alors que sous-estimer deborderait ; la marge est donc
+   assumee et documentee. Le libelle en trop est coupe par une ellipse
+   plutot que de tronquer le mot.
+10. Contre-expertise finale - **reserves** : (a) `mainAxisExtent` est
+    une constante, donc la hauteur de carte ne s'adapte pas a une
+    traduction plus longue qu'une autre ni a un changement de police ;
+    une mesure par `TextPainter` serait plus juste mais introduirait une
+    passe de layout par carte ; (b) a 320 px avec un libelle d'article
+    long, le bouton affiche « Utiliser dans v... » - l'ellipse est
+    preferable a un bouton qui deborde, mais le libelle est a raccourcir
+    si le retour d'utilisateur le signale ; (c) le mode liste n'est pas
+    concerne, ce qui est coherent : une liste a toujours des hauteurs
+    variables par nature.
+    Verdict : **CONFORME** sur le perimetre demande.

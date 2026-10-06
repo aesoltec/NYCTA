@@ -84,7 +84,9 @@ lib/
   screens/     login, shell, dashboard, transaction, journal,
                stock, partenaires, rapports
     gallery/   Galerie d'images (parcourir, upload, affecter, supprimer)
-  widgets/     MoneyText, SoftCard, EmptyView, TypeChip
+  widgets/     MoneyText, SoftCard, EmptyView, TypeChip,
+               carte_grille (taille UNIFORME des cartes de grille :
+               CarteGrille, TitreCarte, SlotCorps, EspaceCarte)
 ```
 
 > **Règle du Store** : `store.dart` ne contient plus de logique métier.

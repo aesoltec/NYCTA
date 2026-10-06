@@ -112,6 +112,45 @@ devis) issu d un autre logiciel, a corriger puis reutiliser.
   sous charge parallele — passe seul, echoue en charge. Sans rapport avec
   ce lot.
 
+## 1.15.1 - 2026-10-06 (cartes de taille uniforme : Stock et Articles)
+- **Demande utilisateur** : « les cartes des produits dans stocks doivent
+  etre uniforme en taille, ceux dans articles aussi ».
+- **Cause** : les deux grilles etaient en `SliverMasonryGrid`, qui empile
+  les hauteurs **par construction**. Les cartes avaient un titre sur 1 ou
+  2 lignes selon le libelle, donc deux cartes d'une meme rangee
+  n'avaient pas la meme taille.
+- Grilles en `SliverGrid` + `SliverGridDelegateWithFixedCrossAxisCount` :
+  `mainAxisExtent` est la seule delegate qui donne une hauteur
+  reellement constante (elle ne depend pas de la largeur, contrairement
+  a `childAspectRatio` qui change d'un telephone a l'autre).
+- Nouvelle source unique `lib/widgets/carte_grille.dart` : `CarteGrille`
+  (geometrie), `TitreCarte` (deux lignes reservees), `SlotCorps` et
+  `EspaceCarte` (comportement hors grille).
+- Le titre occupe **toujours deux lignes** : un libelle court ne rend plus
+  la carte plus basse. Le libelle en trop est coupe par une ellipse.
+- **Defaut secondaire trouve et corrige** : le libelle « Utiliser dans
+  vente » passait a la ligne dans un bouton de 148 px de large (2
+  colonnes a 320 px), donc la hauteur du bouton dependait de la largeur
+  ET de l'echelle de texte — aucune constante de hauteur ne pouvait
+  suivre. Libelles de boutons verrouilles sur une ligne (`maxLines: 1`
+  + ellipse).
+- Les cartes restent utilisables **hors grille** (liste, defilement) :
+  `SlotCorps` / `EspaceCarte` adaptent le layout a une hauteur non
+  bornee au lieu de faire echouer la mise en page.
+- Hauteur calibree **sur mesure** : 68 px deborderait de 10 px sur
+  l'ecran Stock a 320 px, 86 px laissait un vide visible entre le prix et
+  le bouton. Retenu : 82 px.
+- Anti-regression : `test/widget/carte_grille_uniforme_test.dart`
+  (12 tests) verifie l'egalite stricte des hauteurs avec des libelles de
+  longueurs tres differentes, en 320/360/768 px et a TextScaler
+  1.0/1.5/2.0, plus l'absence de debordement.
+- Golden **manquant ajoute** : `test/golden/tarif_ux_test.dart` — la
+  carte article n'avait ete verifiee qu'isolée, jamais dans sa grille,
+  donc jamais dans la disposition reelle.
+- Suite **593/593 verts**, `dart analyze` **0 erreur**.
+- `test/widget/product_card_test.dart` mis a jour : il verifiait la
+  presence de `SliverMasonryGrid`, volontairement supprime.
+
 ## 1.14.0 - 2026-10-03 (coherence metier des droits - option A)
 - **Demande utilisateur** : « pourquoi les vendeurs peuvent-ils ajouter un
   article en stock ? illogique ». Audit complet des droits conduit.
