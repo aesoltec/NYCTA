@@ -1139,3 +1139,106 @@ demande d'audit complet des droits.
     exécuté sur la base réelle, sinon un vendeur peut insérer en
     appelant directement l'API PostgREST avec la clé anon.
     Verdict : **CONFORME** sur le périmètre livré.
+
+## 2026-10-06 - 1.15.0 : achats, modification de documents, import tableur
+
+Trois demandes utilisateur. **583/583 verts**, `dart analyze` **0 erreur**.
+
+### Bug 1 — accès aux achats ouvert au vendeur
+
+1. Fonctionnel OK - le tableau de bord montrait la tuile Achats par un
+   contournement explicite : `if (gererAchats || role == vendeur ||
+   role == caissier)`. La tuile n'avait AUCUNE garde, donc le tap
+   ouvrait la liste complète des achats et de leurs fournisseurs.
+2. Métier OK - la matrice prévoit « Créer demande d'achat » pour le
+   caissier et le vendeur, mais l'app n'a pas de mode demande : sans
+   `gererAchats` le formulaire est inaccessible. La tuile menait donc à
+   une impasse **en divulguant au passage les achats**. Fermée, et la
+   capacité tracée comme divergence ouverte plutôt que simulée par un
+   écran qui ne fonctionne pas.
+3. Sécurité OK - garde ajoutée dans l'écran lui-même, pas seulement à
+   l'appelant : une tuile qui pousse un écran sensible ne doit pas
+   dépendre du seul endroit qui décide de l'afficher.
+4-5. Sans objet.
+6. Tests OK - le lot précédent couvre déjà « aucun rôle ne reçoit un
+   onglet qu'il n'a pas le droit de voir ».
+7-8. Sans objet.
+9. UX OK - le vendeur ne voit plus l'onglet Achats ni la tuile.
+10. Contre-expertise - **réserve** : la « demande d'achat » de la
+    matrice reste non implémentée. C'est un functionality, pas un bug ;
+    elle demandera un mode dédié dans le formulaire d'achat. Le RLS
+    (`achats demandes vendeurs`) autorise déjà l'insertion statut
+    `demande` : seul l'écran manque.
+
+### Bug 2 — la modification de documents n'existait pas
+
+1. Fonctionnel OK - diagnostic, pas une panne : `DocumentBati` était
+   immuable avec un `copyWith` limité à trois champs (signature, statut,
+   motif) ; `enregistrerDocument` faisait `insert(0, doc)` donc le rejeu
+   **dupliquait** ; `DocumentPreviewScreen` n'est qu'un **lecteur**, sans
+   aucun formulaire ; `majStatutDocument` ne savait changer que le
+   statut ; et l'action « Modifier » était **calculée ligne 386 mais
+   jamais utilisée** — le compilateur le signalait par un warning que
+   j'avais lu comme un détail.
+2. Métier OK - **règle retenue : un document `emis` n'est pas
+   modifiable**. Ce n'est pas une invention, c'est la matrice
+   (« statuts brouillon → emis », validation comptable formelle) : un
+   émis est un justificatif comptable et fiscal, le modifier après coup
+   casse la piste d'audit. Le refus nomme la voie légitime — annuler
+   avec motif, puis ré-émettre.
+3. Sécurité OK - `copyWith` ne pouvait pas mettre un champ à `null`
+   (`?? this.x`) : `effacerSignature` et `effacerMotif` ajoutés, sinon
+   une signature était impossible à retirer.
+4. Overflow OK - formulaire testé à 360 px.
+5. Performance OK - sans objet.
+6. Tests OK - 12 tests notifier (brouillon modifié, émis refusé avec
+   message nommant la voie, totaux recalculés, pas de duplication,
+   numéro inconnu) + 3 tests écran à 360 px.
+7-8. Sans objet.
+9. UX OK - le formulaire de création est **réutilisé** en mode édition
+   (un seul formulaire, deux modes). J'avais d'abord écrit un second
+   écran d'édition : supprimé, c'était une divergence future garantie.
+10. Contre-expertise - **auto-correction** : le premier écran que j'ai
+    écrit affichait les totaux avec `toStringAsFixed` (`2000.00`), sans
+    séparateur de milliers, alors que le projet a une convention
+    monétaire unique (`C.money`, utilisée partout ailleurs). Un montant
+    de facture affiché différemment selon l'écran est une source
+    d'erreur de lecture : corrigé, pas assoupli dans le test.
+
+### Fonctionnalité — import de documents depuis un tableur
+
+1. Fonctionnel OK - reprise d'un portefeuille existant (factures, BL,
+   bons de commande, devis) à corriger puis réutiliser.
+2. Métier OK - **tout import naît en `brouillon`**. Un document émis est
+   un justificatif fiscal ; un import non relu ne peut pas en être un.
+   C'est cohérent avec la règle de non-modification ci-dessus, et c'est
+   ce qui rend l'import réutilisable : le brouillon se corrige puis se
+   valide. Le modèle de données ne change pas.
+3. Sécurité OK - l'écran vérifie le rôle (autonome), et le vendor ne
+   peut importer qu'en brouillon (`enregistrerDocument` l'impose déjà).
+4. Overflow OK - listes scrollables, colonnes de chiffres bornées.
+5. Performance OK - traitement ligne à ligne, sans accumulation.
+6. Tests OK - 22 tests du service pur. **Ils ont révélé 4 bugs réels** :
+   (a) `nombre('1.234,56')` renvoyait `null` — la normalisation
+   française produisait une virgule que `double.tryParse` refuse ;
+   (b) `N° de pièce` ne correspondait à aucun synonyme ;
+   (c) la clé de regroupement des lignes sans numéro n'était pas stable
+   (`ordre.length` changeait à chaque ligne) — un document par ligne ;
+   (d) `client`, `date` et `type` n'étaient capturés que si la ligne
+   portait un numéro — **tout import sans colonne numéro échouait
+   silencieusement**, ce qui est le cas le plus courant (premier import).
+7-8. Sans objet.
+9. UX OK - le format attendu est affiché en permanence, pas seulement
+   dans un rapport d'erreur : un import qui échoue faute de format est
+   un import raté. Le rapport montre TOUTES les anomalies.
+10. Contre-expertise - **réserves** : (a) une seule disposition est
+    gérée (« une ligne = une ligne de document »). Les tableurs en
+    dispositions par blocs (en-têtes répétés, lignes de totaux, sauts
+    de page) produiront des anomalies signalées, pas des documents
+    faux — c'est le comportement voulu, mais l'import n'est pas encore
+    « automatique » sur ces fichiers ; (b) `.xls` (ancien format
+    binaire) n'est pas supporté par le paquet `excel`, l'extension
+    est refusée explicitement plutôt que de faire échouer l'import à la
+    lecture ; (c) la feuille XLSX est choisie par indice, pas par nom
+    dans l'interface — la sélection de feuille reste à faire.
+    Verdict : **CONFORME** sur le périmètre livré, réserves tracées.

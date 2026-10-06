@@ -44,6 +44,33 @@ class DocumentNotifier extends ChangeNotifier {
     return null;
   }
 
+  /// Modifie un document **brouillon** (client, lignes, date, taux).
+  ///
+  /// Refuse un document `emis` : c'est un justificatif comptable et
+  /// fiscal. La voie legitime est `annulerDocument` (motif trace) puis
+  /// re-emettre — c'est ce que dit la matrice des permissions
+  /// (« statuts brouillon → emis », validation formelle).
+  ///
+  /// Les totaux sont recalcules : un document dont le total ne correspond
+  /// plus a ses lignes est une facture fausse.
+  Future<String?> modifierDocument(DocumentBati d, {double? tvaPct}) async {
+    final i = documentsEmis.indexWhere((e) =>
+        e.numero == d.numero || (d.id != null && e.id == d.id));
+    if (i < 0) return 'Document introuvable';
+    if (documentsEmis[i].statut != 'brouillon') {
+      return 'Document émis : modification impossible. Annulez-le '
+          '(motif obligatoire) puis émettez-le à nouveau.';
+    }
+    final recalcule = tvaPct == null ? d : d.recalculeTaux(tvaPct);
+    documentsEmis[i] = recalcule;
+    notifyListeners();
+    if (CloudRepository.actif) {
+      await CloudRepository.majDocument(recalcule, boutiqueId,
+          id: documentsEmis[i].id, numero: d.numero);
+    }
+    return null;
+  }
+
   /// Validation manager d'un brouillon vendeur : `brouillon` → `emis`.
   Future<String?> validerDocument(String numero) async {
     if (!session.peut(Permission.gererDocuments) ||

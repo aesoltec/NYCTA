@@ -268,13 +268,15 @@ class DashboardScreen extends StatelessWidget {
         const SizedBox(height: 22),
         // ---- Achats fournisseurs (Phase 2) : total mois, en attente,
         //      reste dû, suggestion si stock bas ----
-        if (store.peut(Permission.gererAchats) ||
-            store.role == Role.vendeur ||
-            store.role == Role.caissier)
+        // Les achats ne sont visibles que des roles qui les gerent. La
+        // tuile montrait volontairement au vendeur et au caissier (pour
+        // une « demande d'achat » prevue par la matrice) mais n'a pas de
+        // mode demande : elle ouvrait la liste complete des achats et de
+        // leurs fournisseurs. Divergence avec la barre basse, corrigee
+        // ici — la demande d'achat reste une capacite a implémenter.
+        if (store.peut(Permission.gererAchats))
           const _TuileAchats(),
-        if (store.peut(Permission.gererAchats) ||
-            store.role == Role.vendeur ||
-            store.role == Role.caissier)
+        if (store.peut(Permission.gererAchats))
           const SizedBox(height: 22),
         SectionHeader(
             titre: 'Nouvelle opération',
@@ -386,6 +388,12 @@ class _TuileAchats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
+    // Garde dans le WIDGET, pas seulement a l'appelant : une tuile qui
+    // pousse un ecran sensible ne doit pas dependre du seul endroit qui
+    // decide de l'afficher.
+    if (!store.peut(Permission.gererAchats)) {
+      return const SizedBox.shrink();
+    }
     final enAttente = store.achatsEnAttente.length;
     final alertes = store.alertesStock.length;
     return SoftCard(

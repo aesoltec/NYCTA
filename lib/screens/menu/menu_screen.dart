@@ -121,10 +121,15 @@ class MenuScreen extends StatelessWidget {
           ),
 
         // ==================== ACHATS ====================
+        // Garde (matrice) : la tuile ne s'ouvre que pour les rôles qui
+        // Gèrent les achats. Avant, vendeur et caissier y avaient accès
+        // « pour une demande d'achat » — mais il n'existe pas de mode
+        // demande : la tuile ouvrait la liste complète des achats et de
+        // leurs fournisseurs, divergence avec la barre basse et le
+        // dashboard (déjà corrigés). Accès complet réservé
+        // admin/gérant/comptable.
         const _Section('Achats'),
-        if (store.peut(Permission.gererAchats) ||
-            store.role == Role.vendeur ||
-            store.role == Role.caissier)
+        if (store.peut(Permission.gererAchats))
           _Tuille(
             icone: Icons.shopping_cart_outlined,
             couleur: const Color(0xFFEF6C00),

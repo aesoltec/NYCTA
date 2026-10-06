@@ -8,7 +8,9 @@ import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
 import '../../services/backup_service.dart';
 import '../../services/export_service.dart';
+import 'document_import_screen.dart';
 import 'document_preview_screen.dart';
+import 'documents_screen.dart';
 import '../../widgets/date_picker_field.dart';
 
 /// P9 — Historique des documents émis : chaque facture, devis, bon ou
@@ -94,6 +96,16 @@ class _DocumentsHistoryScreenState
       appBar: AppBar(
         title: const Text('Documents émis'),
         actions: [
+          // Import Excel/CSV (factures, BL, bons de commande, devis) :
+          // même accès que l'émission de documents.
+          if (store.peut(Permission.gererDocuments) ||
+              store.role == Role.vendeur)
+            IconButton(
+              tooltip: 'Importer un document (Excel/CSV)',
+              icon: const Icon(Icons.file_download_outlined),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const DocumentImportScreen())),
+            ),
           PopupMenuButton<String>(
             tooltip: 'Exporter l\'historique filtré',
             icon: const Icon(Icons.ios_share_outlined),
@@ -368,6 +380,13 @@ class _LigneDocument extends StatelessWidget {
     final aPayer = doc.statut == 'emis' && store.peut(Permission.gererDocuments);
     final aAnnuler = (doc.statut == 'brouillon' || doc.statut == 'emis') &&
         (store.role == Role.admin || store.role == Role.gerant);
+    // Édition : seul un brouillon se modifie (garde métier dans
+    // DocumentNotifier.modifierDocument). Qui : les rôles qui gèrent
+    // les documents, et le vendeur — émetteur de brouillons, il doit
+    // pouvoir corriger le sien avant validation.
+    final aModifier = doc.statut == 'brouillon' &&
+        (store.peut(Permission.gererDocuments) ||
+            store.role == Role.vendeur);
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -479,6 +498,30 @@ class _LigneDocument extends StatelessWidget {
                                       .primary)),
                         ),
                       ),
+                      if (aModifier)
+                        InkWell(
+                          onTap: () async {
+                            final modifie = await Navigator.of(context)
+                                .push(MaterialPageRoute<bool>(
+                              builder: (_) =>
+                                  DocumentsScreen(docExistant: doc),
+                            ));
+                            if (modifie == true && context.mounted) {
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(const SnackBar(
+                                      content: Text(
+                                          '✅ Document modifié')));
+                            }
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 2),
+                            child: Text('Modifier ✎',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF3D6FB4))),
+                          ),
+                        ),
                       if (aValider)
                         InkWell(
                           onTap: () async {

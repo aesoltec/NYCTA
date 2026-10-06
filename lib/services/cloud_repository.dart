@@ -709,6 +709,54 @@ class CloudRepository {
 
   /// Validation manager d'un brouillon : `brouillon` → `emis`.
   /// Utilisé par Store.validerDocument (rôles financiers uniquement).
+  /// Met a jour le contenu d'un document (client, totaux, date).
+  ///
+  /// Le statut n'est PAS modifie ici : passer brouillon -> emis passe par
+  /// `majStatutDocument`, qui trace la validation. Et un document `emis`
+  /// n'est pas modifiable (garde dans `DocumentNotifier.modifierDocument`)
+  /// : c'est un justificatif comptable et fiscal.
+  ///
+  /// Les LIGNES sont reecrites integralement : une modification de
+  /// document est une nouvelle version de ses lignes, pas une fusion.
+  /// Sans cela, retirer une ligne du document ne serait pas persiste et
+  /// l'historique cloud divergerait de l'ecran.
+  static Future<void> majDocument(DocumentBati d, String boutiqueId,
+      {String? id, String? numero}) =>
+      _silencieux(() async {
+        final docId = id ?? d.id;
+        var requete = _c!.from('documents').update({
+          'client_nom': d.client,
+          'total_ht': d.totalHT,
+          'tva': d.tva,
+          'total_ttc': d.totalTTC,
+          'statut': d.statut,
+        });
+        if (docId != null) {
+          await requete.eq('id', docId);
+        } else {
+          await requete.eq('numero', numero ?? d.numero);
+        }
+        if (docId == null) return;
+        final anciennes = await _c!.from('document_lignes').select().eq(
+              'document_id', docId);
+        for (final l in (anciennes as List).cast<Map<String, dynamic>>()) {
+          final lid = l['id']?.toString();
+          if (lid != null && lid.isNotEmpty) {
+            await _c!.from('document_lignes').delete().eq('id', lid);
+          }
+        }
+        if (d.lignes.isEmpty) return;
+        await _c!.from('document_lignes').insert([
+          for (final l in d.lignes)
+            {
+              'document_id': docId,
+              'libelle': l.libelle,
+              'quantite': l.quantite,
+              'prix_unitaire': l.prixUnitaire,
+            }
+        ]);
+      });
+
   static Future<void> majStatutDocument(
           {String? id, String? numero, required String statut}) =>
       _silencieux(() async {

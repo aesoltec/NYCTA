@@ -18,6 +18,100 @@
 - **133 warnings** `inference_failure_*` / `unnecessary_cast` préexistants dans le projet, aucun introduit par la 6bis → tracé au CDC point **40ter** (v1.13.0)
 - Visibilité publique de `genererId` / `fileUpsert` / `numeroDocument` : réductible seulement via une couche d’accès dédiée, non rentable → tracé au CDC point **40quater**
 
+## 1.15.0 - 2026-10-06 (achats, modification de documents, import tableur)
+Trois demandes utilisateur, trois chantiers.
+
+### 1. Acces aux ACHATS ferme au vendeur et au caissier
+- Le tableau de bord montrait la tuile Achats via un contournement
+  explicite : `if (gererAchats || role == vendeur || role == caissier)`.
+  La tuile elle-meme n avait aucune garde, donc le tap ouvrait la liste
+  complete des achats et de leurs fournisseurs.
+- Correction : condition sur `gererAchats` seul, plus une garde interne
+  au widget (une tuile qui pousse un ecran sensible ne doit pas
+  dependre du seul endroit qui decide de l afficher).
+- La capacite « demande d achat » prevue par la matrice n existe pas dans
+  l app : sans `gererAchats` le formulaire est inaccessible, donc la
+  tuile menait a une impasse **en divulguant au passage les achats**.
+  Trace comme divergence ouverte plutot que simulee par un ecran qui ne
+  fonctionne pas.
+
+### 2. Modification de documents : elle n existait pas
+- `DocumentBati` etait immuable avec un `copyWith` limite a trois champs
+  (signature, statut, motif) : impossible de changer client, lignes,
+  totaux ou date.
+- `enregistrerDocument` faisait toujours `insert(0, doc)` : le rejouer
+  **dupliquait** le document au lieu de le mettre a jour.
+- `DocumentPreviewScreen` n est qu un **lecteur** : aucun formulaire
+  d edition. C est ce qui se ressentait comme « la fonction ne marche
+  pas ».
+- `majStatutDocument` ne savait changer que le statut.
+- Corrections : `copyWith` complet (avec `effacerSignature` /
+  `effacerMotif`, les `?? this.x` rendaient la mise a null impossible),
+  `recalculeTaux`, `CloudRepository.majDocument` (ecrit aussi les
+  lignes), `DocumentNotifier.modifierDocument`.
+- **Regle** : un document emis n est pas modifiable. Ce n est pas une
+  invention, c est la matrice (« statuts brouillon vers emis », validation
+  comptable formelle) : un emis est un justificatif comptable et fiscal,
+  le modifier apres coup casse la piste d audit. Le refus nomme la voie
+  legitime — annuler avec motif puis re-emettre.
+- Action « Modifier » cablee dans l historique : la variable
+  `aModifier` etait calculee ligne 386 mais **jamais utilisee**. Elle
+  ouvre `DocumentsScreen(docExistant:)`, c'est-a-dire le **formulaire de
+  creation reutilise en mode edition** : un seul formulaire, deux modes.
+  En edition le type et le numero sont verrouilles (changer le type
+  changerait le prefixe de numero et la nature du justificatif) ; le
+  client, la date et les lignes restent modifiables.
+- Totaux affiches avec `C.money`, la convention monetaire du projet
+  (`toStringAsFixed` sortait « 2000.00 » sans separateur de milliers,
+  different du reste de l application).
+
+### 3. Import de documents depuis un tableur
+Reprise d un portefeuille existant (factures, BL, bons de commande,
+devis) issu d un autre logiciel, a corriger puis reutiliser.
+- `DocumentImportService` : service **pur**, sans dependance Flutter ni
+  stockage, donc testable sur VM.
+  - en-tetes tolerants : accents, casse, ponctuation, synonymes ERP
+    (`Qte`, `QTY`, `PU`, `Libelle`, `N° de piece`) ;
+  - separateur CSV detecte (`;` ou `,`) comme le fait Excel, BOM UTF-8
+    retire, guillemets geres ;
+  - nombres tolerants : virgule decimale, espaces insecables, symbole
+    monetaire, format du type `1.234,56` ;
+  - dates tolerantes : `jj/MM/aaaa`, `aaaa-mm-jj`, `DateTime`, avec
+    garde anti-absurdite ;
+  - type deduit d un libelle libre (Facture, Devis, Bon de commande,
+    BL, Ticket) ;
+  - **regroupement** : toutes les lignes d un meme numero forment UN
+    document ; sans numero, cle stable par client ;
+  - **aucune perte silencieuse** : chaque ligne rejetee est comptee et
+    decrite avec son numero de ligne ;
+  - modele exportable.
+- `DocumentImportSource` : lecture CSV et XLSX sur disque.
+- `DocumentImportScreen` + widgets : choix du type et du TVA, selection
+  du fichier, ecriture du modele, rapport complet (documents pret(s),
+  colonnes non utilisees, anomalies, apercu), import.
+- **Regle** : tout import nait en `brouillon`. Un document emis est un
+  justificatif fiscal ; un import non relu ne peut pas en etre un. C est
+  coherent avec la regle de non-modification ci-dessus, et c est ce qui
+  rend l import reutilisable : le brouillon se corrige puis se valide.
+- Aucun nouveau paquet : `excel`, `csv` et `file_picker` etaient deja
+  des dependances.
+
+### Tests
+- `test/droits/document_modification_test.dart` (12)
+- `test/droits/document_edition_test.dart` (3, dont 360 px)
+- `test/services/document_import_test.dart` (22)
+- Golden `documents_emis_360` regenere (bouton d import ajoute en
+  AppBar, diff verifie visuellement avant regeneration).
+- Les tests du service d import ont eux-memes revele **4 bugs reels**,
+  corriges : virgule decimale qui renvoyait null, variante `N°`,
+  cle de regroupement instable (un document par ligne), metadonnees
+  capturees seulement si la ligne portait un numero (tout import sans
+  colonne numero echouait silencieusement).
+- Suite **583/583 verts**, `dart analyze` **0 erreur**.
+- Reserve : `image_persistence_test.dart` (compression) est instable
+  sous charge parallele — passe seul, echoue en charge. Sans rapport avec
+  ce lot.
+
 ## 1.14.0 - 2026-10-03 (coherence metier des droits - option A)
 - **Demande utilisateur** : « pourquoi les vendeurs peuvent-ils ajouter un
   article en stock ? illogique ». Audit complet des droits conduit.

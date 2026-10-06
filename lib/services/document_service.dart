@@ -34,18 +34,59 @@ class DocumentBati {
     this.motifAnnulation,
   });
 
-  DocumentBati copyWith(
-          {String? signatureClientPath,
-          String? statut,
-          String? motifAnnulation}) =>
+  /// Copie complete. Les trois premiers champs utilisaient `?? this.x`,
+  /// ce qui rendait IMPOSSIBLE de les remettre a null (effacer une
+  /// signature, retirer un motif) : un `effacer` explicite est fourni.
+  DocumentBati copyWith({
+    String? id,
+    TypeDocument? type,
+    String? numero,
+    String? date,
+    String? client,
+    List<LigneDoc>? lignes,
+    double? totalHT,
+    double? tva,
+    double? totalTTC,
+    String? devise,
+    String? statut,
+    String? signatureClientPath,
+    String? motifAnnulation,
+    bool effacerSignature = false,
+    bool effacerMotif = false,
+  }) =>
       DocumentBati(
-        id: id, type: type, numero: numero, date: date, client: client,
-        lignes: lignes, totalHT: totalHT, tva: tva, totalTTC: totalTTC,
-        devise: devise, statut: statut ?? this.statut,
-        signatureClientPath:
-            signatureClientPath ?? this.signatureClientPath,
-        motifAnnulation: motifAnnulation ?? this.motifAnnulation,
+        id: id ?? this.id,
+        type: type ?? this.type,
+        numero: numero ?? this.numero,
+        date: date ?? this.date,
+        client: client ?? this.client,
+        lignes: lignes ?? this.lignes,
+        totalHT: totalHT ?? this.totalHT,
+        tva: tva ?? this.tva,
+        totalTTC: totalTTC ?? this.totalTTC,
+        devise: devise ?? this.devise,
+        statut: statut ?? this.statut,
+        signatureClientPath: effacerSignature
+            ? null
+            : (signatureClientPath ?? this.signatureClientPath),
+        motifAnnulation: effacerMotif
+            ? null
+            : (motifAnnulation ?? this.motifAnnulation),
       );
+
+  /// Recalcule HT/TVA/TTC a partir des lignes et d'un taux.
+  ///
+  /// Un document modifie doit avoir des totaux COHERENTS avec ses
+  /// lignes : recalculer ici evite qu'une modification laisse un total
+  /// incoherent (erreur de facture).
+  DocumentBati recalculeTaux(double tauxPct) {
+    final ht = lignes.fold(0.0, (s, l) => s + l.total);
+    return copyWith(
+      totalHT: ht,
+      tva: ht * tauxPct / 100,
+      totalTTC: ht * (1 + tauxPct / 100),
+    );
+  }
 }
 
 class DocumentService {

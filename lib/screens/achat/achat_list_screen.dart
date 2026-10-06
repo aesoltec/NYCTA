@@ -39,6 +39,20 @@ class _AchatListScreenState extends State<AchatListScreen> {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
+    // Garde métier (matrice) : la liste complète — dettes, validation,
+    // réception, paiement — est réservée aux rôles qui gèrent les achats.
+    // Les entrées UI (barre basse, dashboard, menu « Plus ») sont déjà
+    // filtrées ; celle-ci couvre toute navigation qui les contournerait
+    // (lien direct, régression) : le rôle ne voit plus rien de sensible.
+    if (!store.peut(Permission.gererAchats)) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Achats fournisseurs')),
+        body: const EmptyView(
+          icon: Icons.lock_outline,
+          message: 'Accès réservé',
+          hint: 'Gestion des achats réservée (admin, gérant, comptable).'),
+      );
+    }
     final role = store.role;
     // Vendeur/caissier : création de demandes uniquement (pas de gererAchats).
     final peutCreer = store.peut(Permission.gererAchats) ||

@@ -4,12 +4,20 @@ import '../../data/store.dart';
 import '../../core/validators.dart';
 import '../../models/document.dart';
 import '../../models/enums.dart';
+import '../../services/document_service.dart';
 import '../../widgets/date_selector.dart';
 import 'document_preview_screen.dart';
 
 /// Choix du type de document + client + lignes d'articles.
+///
+/// Deux modes :
+/// - création : le document est généré puis prévisualisé ;
+/// - édition ([docExistant]) : seul un BROUILLON peut être ouvert ici —
+///   client, date et lignes sont pré-remplis, le type et le numéro sont
+///   verrouillés, la sauvegarde passe par `Store.modifierDocument`.
 class DocumentsScreen extends StatefulWidget {
-  const DocumentsScreen({super.key});
+  final DocumentBati? docExistant;
+  const DocumentsScreen({super.key, this.docExistant});
   @override
   State<DocumentsScreen> createState() => _DocumentsScreenState();
 }
@@ -20,20 +28,50 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   DateTime _date = DateTime.now();
   final List<LigneDoc> _lignes = [const LigneDoc(libelle: '', quantite: 1, prixUnitaire: 0)];
 
+  bool get _enEdition => widget.docExistant != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final doc = widget.docExistant;
+    if (doc != null) {
+      _type = doc.type;
+      _client.text = doc.client;
+      // Date illisible (ex. « non renseignée » d'un import) : aujourd'hui.
+      _date = DocumentService.parseAffichage(doc.date) ?? DateTime.now();
+      _lignes
+        ..clear()
+        ..addAll(doc.lignes);
+    }
+  }
+
+  @override
+  void dispose() {
+    _client.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = context.watch<Store>();
     final devise = store.profile.devise;
     // Matrice documentaire (mission §2.9) : vendeur/caissier émettent
     // ticket, BL, facture simple et devis — JAMAIS de bon de commande
-    // fournisseur (réservé achats/manager).
-    final typesAutorises = (store.role == Role.vendeur)
-        ? TypeDocument.values
-            .where((t) => t != TypeDocument.bonCommande)
-            .toList()
-        : TypeDocument.values;
+    // fournisseur (réservé achats/manager). En édition, le type est
+    // verrouillé : changer le type changerait le préfixe de numéro et la
+    // nature du document (bordereau ≠ facture), donc le justificatif.
+    final typesAutorises = _enEdition
+        ? [widget.docExistant!.type]
+        : (store.role == Role.vendeur)
+            ? TypeDocument.values
+                .where((t) => t != TypeDocument.bonCommande)
+                .toList()
+            : TypeDocument.values;
     return Scaffold(
-      appBar: AppBar(title: const Text('Documents commerciaux')),
+      appBar: AppBar(
+          title: Text(_enEdition
+              ? 'Modifier le document'
+              : 'Documents commerciaux')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
@@ -49,13 +87,23 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                     child: ChoiceChip(
                       label: Text(t.titre),
                       selected: _type == t,
-                      onSelected: (_) => setState(() => _type = t),
+                      onSelected: _enEdition
+                          ? null
+                          : (_) => setState(() => _type = t),
                     ),
                   ),
               ],
             ),
           ),
           const SizedBox(height: 16),
+          if (_enEdition)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                  "Édition d'un brouillon : type et numéro verrouillés — le client, la date et les lignes peuvent changer. Les totaux sont recalcules à l'enregistrement.",
+                  style:
+                      TextStyle(fontSize: 12.5, color: Color(0xFF64748B))),
+            ),
           ChampDate(
             valeur: _date,
             label: "Date du document",
@@ -126,34 +174,80 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              icon: const Icon(Icons.visibility_outlined),
-              label: const Text('Générer le document'),
-              onPressed: () {
-                final valides = _lignes
-                    .where((l) =>
-                        l.libelle.trim().isNotEmpty &&
-                        l.quantite > 0 &&
-                        (_type.sansPrix || l.prixUnitaire > 0))
-                    .toList();
-                if (valides.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Ajoutez au moins un article valide')));
-                  return;
-                }
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => DocumentPreviewScreen(
-                    type: _type,
-                    client: _client.text.trim(),
-                    lignes: valides,
-                    date: _date,
-                  ),
-                ));
-              },
+              icon: Icon(_enEdition
+                  ? Icons.save_alt_outlined
+                  : Icons.visibility_outlined),
+              label: Text(_enEdition
+                  ? 'Enregistrer les modifications'
+                  : 'Générer le document'),
+              onPressed: _enEdition
+                  ? () => _enregistrerModif(context, store)
+                  : () {
+                      final valides = _lignes
+                          .where((l) =>
+                              l.libelle.trim().isNotEmpty &&
+                              l.quantite > 0 &&
+                              (_type.sansPrix || l.prixUnitaire > 0))
+                          .toList();
+                      if (valides.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Ajoutez au moins un article valide')));
+                        return;
+                      }
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => DocumentPreviewScreen(
+                          type: _type,
+                          client: _client.text.trim(),
+                          lignes: valides,
+                          date: _date,
+                        ),
+                      ));
+                    },
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// Sauvegarde de l'édition d'un BROUILLON : le type et le numéro ne
+  /// changent pas ; client, date et lignes sont remplacés et les totaux
+  /// recalcules au taux du profil (un total incohérent serait une
+  /// facture fausse). Le statut reste brouillon : c'est la validation
+  /// manager qui le passe à émis — un document émis, lui, ne se
+  /// modifie jamais (voir `DocumentNotifier.modifierDocument`).
+  Future<void> _enregistrerModif(BuildContext context, Store store) async {
+    final doc = widget.docExistant!;
+    if (_client.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Le client est requis')));
+      return;
+    }
+    final valides = _lignes
+        .where((l) =>
+            l.libelle.trim().isNotEmpty &&
+            l.quantite > 0 &&
+            (_type.sansPrix || l.prixUnitaire > 0))
+        .toList();
+    if (valides.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ajoutez au moins un article valide')));
+      return;
+    }
+    final erreur = await store.modifierDocument(
+      doc.copyWith(
+        client: _client.text.trim(),
+        date: formatDateCourt(_date),
+        lignes: valides,
+      ),
+      tvaPct: store.profile.tva,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(erreur == null ? '✅ Document modifié' : '⚠️ $erreur')));
+    if (erreur == null) {
+      Navigator.of(context).pop();
+    }
   }
 
   /// Sélecteur d'article dans le catalogue tarifaire.
