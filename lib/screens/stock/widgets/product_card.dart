@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/produit.dart';
+import '../../../widgets/carte_grille.dart';
 import '../../../widgets/money_text.dart';
 import 'badge_produit.dart';
 import 'image_carousel.dart';
@@ -45,9 +46,11 @@ class ProductCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
+        // `mainAxisSize` par defaut (max) : avec `min`, Flutter donne des
+        // contraintes NON bornees aux enfants non flexibles, et `SlotCorps`
+        // ne pourrait plus distinguer une grille d'une liste.
         child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
             children: [
               Stack(children: [
                 Hero(
@@ -80,19 +83,21 @@ class ProductCard extends StatelessWidget {
                   ),
                 ),
               ]),
-              Flexible(
+              // `Expanded` : la grille impose une hauteur fixe, le bloc
+              // texte occupe donc TOUT l'espace restant au lieu de
+              // laisser une carte plus basse qu'une autre.
+              SlotCorps(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(p.libelle,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600)),
+                        TitreCarte(
+                          texte: p.libelle,
+                          echelle:
+                              MediaQuery.textScalerOf(context).scale(1.0),
+                        ),
                         const SizedBox(height: 2),
                         Text(p.categorie,
                             maxLines: 1,
@@ -131,7 +136,10 @@ class ProductCard extends StatelessWidget {
                                     color: couleurStock)),
                           ),
                         ]),
-                        const SizedBox(height: 6),
+                        // Le reste de l'espace va entre le stock et le
+                        // bouton : le bouton est toujours en bas de la
+                        // carte, quelle que soit la longueur du libelle.
+                        const EspaceCarte(),
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton(
@@ -140,7 +148,14 @@ class ProductCard extends StatelessWidget {
                                 visualDensity: VisualDensity.compact,
                                 padding: const EdgeInsets.symmetric(
                                     vertical: 8)),
-                            child: const Text('Vendre'),
+                            // Libellé sur une seule ligne : un bouton qui passe à la la
+                            // ligne change la hauteur de la carte selon la
+                            // largeur, ce qui casserait l'uniformité.
+                            child: const Text(
+                              'Vendre',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
                       ]),

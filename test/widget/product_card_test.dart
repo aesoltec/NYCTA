@@ -206,10 +206,14 @@ void main() {
   group('StockScreen refondu', () {
     testWidgets('grille + bascule liste', (tester) async {
       await _pomper(tester, const StockScreen());
-      expect(find.byType(SliverMasonryGrid), findsOneWidget);
+      // Grille a hauteur FIXE (`SliverGrid`), plus masonry : le masonry
+      // empilait des hauteurs variables, donc les cartes n'etaient pas
+      // de taille uniforme.
+      expect(find.byType(SliverGrid), findsOneWidget);
+      expect(find.byType(SliverMasonryGrid), findsNothing);
       await tester.tap(find.byTooltip('Vue liste'));
       await tester.pumpAndSettle();
-      expect(find.byType(SliverMasonryGrid), findsNothing);
+      expect(find.byType(SliverGrid), findsNothing);
       expect(find.byType(ProductListTile), findsWidgets);
     });
 

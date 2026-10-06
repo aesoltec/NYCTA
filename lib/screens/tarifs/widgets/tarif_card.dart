@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/tarif.dart';
+import '../../../widgets/carte_grille.dart';
 import '../../../widgets/money_text.dart';
 import '../../stock/widgets/badge_produit.dart';
 import '../../stock/widgets/image_carousel.dart';
@@ -30,9 +31,11 @@ class TarifCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
+        // `mainAxisSize` par defaut (max) : avec `min`, Flutter donne des
+        // contraintes NON bornees aux enfants non flexibles, et `SlotCorps`
+        // ne pourrait plus distinguer une grille d'une liste.
         child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
             children: [
               Stack(children: [
                 ImageCarousel(t.images),
@@ -64,7 +67,7 @@ class TarifCard extends StatelessWidget {
                   ),
                 ),
               ]),
-              Flexible(
+              SlotCorps(
                 child: Padding(
                   padding:
                       const EdgeInsets.fromLTRB(10, 8, 10, 10),
@@ -73,12 +76,11 @@ class TarifCard extends StatelessWidget {
                           CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(t.libelle,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600)),
+                        TitreCarte(
+                          texte: t.libelle,
+                          echelle:
+                              MediaQuery.textScalerOf(context).scale(1.0),
+                        ),
                         const SizedBox(height: 2),
                         Text(t.categorie,
                             maxLines: 1,
@@ -92,7 +94,7 @@ class TarifCard extends StatelessWidget {
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFF0F172A))),
-                        const SizedBox(height: 6),
+                        const EspaceCarte(),
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton(
@@ -103,8 +105,18 @@ class TarifCard extends StatelessWidget {
                                 padding:
                                     const EdgeInsets.symmetric(
                                         vertical: 8)),
-                            child:
-                                const Text('Utiliser dans vente'),
+                            // Un libellé de bouton ne doit JAMAIS passer à la ligne : sur deux
+                            // colonnes à 320 px la carte fait 148 px, et le
+                            // texte « Utiliser dans vente » débordait sur
+                            // deux lignes — donc la hauteur du bouton
+                            // dépendait de la largeur et de l'échelle de
+                            // texte, et aucune hauteur de carte ne pouvait
+                            // être fiable.
+                            child: const Text(
+                              'Utiliser dans vente',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
                       ]),

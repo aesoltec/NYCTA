@@ -20,6 +20,7 @@ import 'widgets/product_list.dart';
 
 import '../../services/export_service.dart';
 import '../../widgets/filtre_panel.dart';
+import '../../widgets/carte_grille.dart';
 
 class StockScreen extends StatefulWidget {
   const StockScreen({super.key});
@@ -311,21 +312,34 @@ class _StockScreenState extends State<StockScreen> {
           else if (_grille)
             SliverPadding(
               padding: const EdgeInsets.all(8),
-              sliver: SliverMasonryGrid.count(
-                crossAxisCount: 2,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                childCount: produits.length,
-                itemBuilder: (_, i) => ProductCard(
-                  produit: produits[i],
-                  onTap: () => _ouvrirDetail(context, produits[i]),
-                  onVendre: peutVendre
-                      ? () => _vendreRapide(
-                          context, store, produits[i])
-                      : null,
-                  onMenu: (a) => _menuProduit(context, store,
-                      produits[i], a, peutModifier),
-                  actions: actionsProduit,
+              // Grille de hauteur FIXE : toutes les cartes ont la même
+              // taille, quelle que soit la longueur du libellé.
+              //
+              // `mainAxisExtent` est la seule delegate qui donne une
+              // hauteur réellement constante : `childAspectRatio` la
+              // déduit de la largeur, donc elle change d'un téléphone à
+              // l'autre. La hauteur suit l'échelle de texte du système,
+              // sinon elle déborde à 1.5x ou 2.0x.
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  mainAxisExtent: CarteGrille.hauteur(context),
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) => ProductCard(
+                    produit: produits[i],
+                    onTap: () => _ouvrirDetail(context, produits[i]),
+                    onVendre: peutVendre
+                        ? () => _vendreRapide(
+                            context, store, produits[i])
+                        : null,
+                    onMenu: (a) => _menuProduit(context, store,
+                        produits[i], a, peutModifier),
+                    actions: actionsProduit,
+                  ),
+                  childCount: produits.length,
                 ),
               ),
             )

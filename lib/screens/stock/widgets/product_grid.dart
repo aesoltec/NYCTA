@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../../../models/produit.dart';
+import '../../../widgets/carte_grille.dart';
 import 'product_card.dart';
 
 /// Grille responsive : 2 colonnes mobile, 3 tablette, 4 desktop.
@@ -30,11 +30,17 @@ class ProductGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (ctx, contraintes) {
       final colonnes = colonnesPour(contraintes.maxWidth);
-      return MasonryGridView.count(
-        crossAxisCount: colonnes,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
+      // Grille de hauteur FIXE, comme l'écran Stock. Le masonry empilait
+      // des cartes de hauteurs variables, et donnait une hauteur NON
+      // BORNÉE aux enfants — incompatible avec le `Expanded` de la carte.
+      return GridView.builder(
         padding: const EdgeInsets.all(8),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: colonnes,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          mainAxisExtent: CarteGrille.hauteur(context),
+        ),
         itemCount: produits.length,
         itemBuilder: (_, i) {
           final p = produits[i];

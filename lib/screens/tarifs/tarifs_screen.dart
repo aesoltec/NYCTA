@@ -12,6 +12,7 @@ import '../../widgets/filtre_panel.dart';
 import 'widgets/categorie_tree.dart';
 import 'widgets/tarif_card.dart';
 import 'widgets/tarif_detail_screen.dart';
+import '../../widgets/carte_grille.dart';
 
 /// Tarifs & catalogue : articles vendus AVEC prix, y compris hors stock.
 /// Accès lecture : tous les rôles (utile aux ventes) ; gestion : admin/gérant.
@@ -159,27 +160,42 @@ class _TarifsScreenState extends State<TarifsScreen> {
                       : contraintes.crossAxisExtent >= 700
                           ? 3
                           : 2;
-                  // Masonry (hauteur libre) : jamais d'overflow
-                  // vertical même à TextScaler 2.0x.
-                  return SliverMasonryGrid.count(
-                    crossAxisCount: colonnes,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childCount: tarifs.length,
-                    itemBuilder: (_, i) {
-                      final t = tarifs[i];
-                      return TarifCard(
-                        tarif: t,
-                        onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => TarifDetailScreen(
-                                    tarifId: t.id))),
-                        onUtiliser: () =>
-                            Navigator.of(context).pop(t.id),
-                        onMenu: (a) => _menu(
-                            context, store, t, a, peutGerer),
-                      );
-                    },
+                  // Grille de hauteur FIXE : toutes les cartes
+                  // d'articles ont la même taille, quelle que soit la
+                  // longueur du libellé.
+                  //
+                  // Le bloc texte d'une carte article est plus court que
+                  // celui d'un produit (pas de prix d'achat ni de stock),
+                  // d'où une constante dédiée. La hauteur suit l'échelle
+                  // de texte, sinon elle déborde à 1.5x ou 2.0x — ce que
+                  // le masonry évitait, mais en sacrifiant l'uniformité.
+                  return SliverGrid(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: colonnes,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      mainAxisExtent: CarteGrille.hauteur(
+                        context,
+                        texte: CarteGrille.texteArticle,
+                      ),
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) {
+                        final t = tarifs[i];
+                        return TarifCard(
+                          tarif: t,
+                          onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (_) => TarifDetailScreen(
+                                      tarifId: t.id))),
+                          onUtiliser: () =>
+                              Navigator.of(context).pop(t.id),
+                          onMenu: (a) => _menu(
+                              context, store, t, a, peutGerer),
+                        );
+                      },
+                      childCount: tarifs.length,
+                    ),
                   );
                 }),
               ),
