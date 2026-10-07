@@ -164,9 +164,8 @@ DROP POLICY IF EXISTS document_modifications_select ON document_modifications;
 CREATE POLICY document_modifications_select ON document_modifications
   FOR SELECT
   USING (boutique_id IN (
-    SELECT b.id FROM boutiques b
-     JOIN boutique_acces ba ON ba.boutique_id = b.id
-     WHERE ba.user_id = auth.uid()
+    SELECT boutique_id FROM user_boutiques
+    WHERE user_id = auth.uid()
   ));
 
 -- Les corrections sont des TRACES : on les insere (le client ecrit sa
@@ -176,9 +175,8 @@ DROP POLICY IF EXISTS document_modifications_insert ON document_modifications;
 CREATE POLICY document_modifications_insert ON document_modifications
   FOR INSERT
   WITH CHECK (boutique_id IN (
-    SELECT b.id FROM boutiques b
-     JOIN boutique_acces ba ON ba.boutique_id = b.id
-     WHERE ba.user_id = auth.uid()
+    SELECT boutique_id FROM user_boutiques
+    WHERE user_id = auth.uid()
   ));
 
 -- ----------------------------------------------------------------------------
