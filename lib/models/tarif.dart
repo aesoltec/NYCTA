@@ -18,6 +18,14 @@ class Tarif {
   /// Nullable pour rétrocompatibilité.
   final DateTime? dateAjout;
 
+  /// Unité de vente de l'article (pcs, kg, heure, lot…).
+  ///
+  /// Pas la colonne par défaut : l'unité se saisit ligne par ligne sur le
+  /// document, et deux lignes du même article peuvent avoir des unités
+  /// différentes (10 kg + 3 colis de 2 kg). Elle est proposée à la
+  /// création pour éviter de la retaper à chaque devis.
+  final String unite;
+
   const Tarif({
     required this.id,
     required this.libelle,
@@ -27,6 +35,7 @@ class Tarif {
     this.actif = true,
     this.images = const [],
     this.dateAjout,
+    this.unite = 'pcs',
   });
 
   /// Badge « Nouveau » (< 7 jours) — seul badge du catalogue.
@@ -41,7 +50,8 @@ class Tarif {
           String? libelle,
           String? description,
           List<String>? images,
-          DateTime? dateAjout}) =>
+          DateTime? dateAjout,
+          String? unite}) =>
       Tarif(
         id: id,
         libelle: libelle ?? this.libelle,
@@ -51,5 +61,6 @@ class Tarif {
         actif: actif ?? this.actif,
         images: images ?? this.images,
         dateAjout: dateAjout ?? this.dateAjout,
+        unite: unite ?? this.unite,
       );
 }

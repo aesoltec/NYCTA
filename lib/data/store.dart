@@ -186,6 +186,9 @@ class Store extends ChangeNotifier {
     );
     if (snapshot == null) return false;
     _appliquerSnapshot(snapshot, choisirBoutique: true);
+    // Journal des corrections : charge APRES l'application du snapshot,
+    // sinon les numeros de documents ne sont pas dans le notifier.
+    await document.chargerJournal();
     notifyListeners();
     // `depenses` est peuplé : ici, et seulement ici en production, la
     // génération des charges récurrentes a un effet réel.

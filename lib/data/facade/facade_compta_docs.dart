@@ -28,8 +28,9 @@ extension StoreComptaDocsFacade on Store {
 
   /// Modification d'un document BROUILLON (client, lignes, date, taux).
   /// Un document emis se refuse : annuler avec motif puis re-emettre.
-  Future<String?> modifierDocument(DocumentBati d, {double? tvaPct}) =>
-      document.modifierDocument(d, tvaPct: tvaPct);
+  Future<String?> modifierDocument(DocumentBati d,
+          {double? tvaPct, String? motif}) =>
+      document.modifierDocument(d, tvaPct: tvaPct, motif: motif);
 
   Future<String?> validerDocument(String numero) =>
       document.validerDocument(numero);

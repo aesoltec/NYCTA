@@ -19,6 +19,10 @@ class DocumentPreviewScreen extends StatefulWidget {
   final DocumentBati? docExistant;
   // Date d'émission choisie dans le formulaire (mode construction).
   final DateTime? date;
+  // Informations de pied de document (mode construction).
+  final String note;
+  final String adresseLivraison;
+  final int delaiPaiementJours;
   const DocumentPreviewScreen({
     super.key,
     this.type,
@@ -26,6 +30,9 @@ class DocumentPreviewScreen extends StatefulWidget {
     this.lignes = const [],
     this.docExistant,
     this.date,
+    this.note = '',
+    this.adresseLivraison = '',
+    this.delaiPaiementJours = 0,
   });
 
   @override
@@ -61,8 +68,20 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
       lignes: widget.lignes,
       date: widget.date,
     );
+    // Pied de document : la construction ne connaît que le type, le
+    // client, les lignes et la date — les conditions sont ajoutées ici.
+    final avecPied = doc.copyWith(
+      note: widget.note,
+      adresseLivraison: widget.adresseLivraison,
+      delaiPaiementJours: widget.delaiPaiementJours,
+      echeance: widget.delaiPaiementJours > 0 && !doc.type.sansPrix
+          ? DocumentService.formatDate(
+              (widget.date ?? DateTime.now())
+                  .add(Duration(days: widget.delaiPaiementJours)))
+          : '',
+    );
     // Historique P9 : chaque document consulté est enregistré.
-    await store.enregistrerDocument(doc, date: widget.date);
+    await store.enregistrerDocument(avecPied, date: widget.date);
     // Facture, ticket et bordereau de livraison : sortie de stock
     // automatique pour les lignes correspondant à un produit en stock.
     List<String> ignores = const [];
@@ -166,12 +185,29 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 5),
                   child: Row(children: [
-                    Expanded(flex: 5,
-                        child: Text(l.libelle,
-                            maxLines: 2, overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 13))),
+                    Expanded(
+                          flex: 5,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // La référence précède le libellé quand elle
+                              // existe : elle relie la ligne à sa fiche
+                              // article. Même règle que le PDF.
+                              if (l.reference.trim().isNotEmpty)
+                                Text(l.reference.trim(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF64748B))),
+                              Text(l.libelle,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 13)),
+                            ],
+                          )),
                     Expanded(flex: 2,
-                        child: Text('${l.quantite}',
+                        child: Text('${l.quantite} ${l.unite}',
                             textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
                     if (!doc.type.sansPrix) ...[
                       Expanded(flex: 3,
@@ -228,6 +264,50 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
             ]),
           ),
           const SizedBox(height: 12),
+          // Pied du document : conditions propres à CE document (le PDF
+          // affiche exactement les mêmes lignes).
+          if (doc.adresseLivraison.trim().isNotEmpty ||
+              doc.note.trim().isNotEmpty ||
+              (!doc.type.sansPrix &&
+                  doc.delaiPaiementJours > 0 &&
+                  doc.echeance.trim().isNotEmpty))
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [
+                  BoxShadow(
+                      color: Color(0x10000000),
+                      blurRadius: 8,
+                      offset: Offset(0, 3))
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (doc.adresseLivraison.trim().isNotEmpty)
+                    Text('Livraison : ${doc.adresseLivraison.trim()}',
+                        style: const TextStyle(fontSize: 12.5)),
+                  if (!doc.type.sansPrix &&
+                      doc.delaiPaiementJours > 0 &&
+                      doc.echeance.trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                          'Conditions de paiement : ${doc.delaiPaiementJours} jours '
+                          '- échéance ${doc.echeance.trim()}',
+                          style: const TextStyle(fontSize: 12.5)),
+                    ),
+                  if (doc.note.trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(doc.note.trim(),
+                          style: const TextStyle(fontSize: 12.5)),
+                    ),
+                ],
+              ),
+            ),
           if (MediaService.existe(store.profile.signaturePath) ||
               MediaService.existe(store.profile.cachetPath))
             Container(

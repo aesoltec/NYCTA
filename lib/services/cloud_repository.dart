@@ -652,10 +652,28 @@ class CloudRepository {
           await _c!.from('documents').insert(base);
         }
         for (final l in d.lignes) {
-          await _c!.from('document_lignes').insert({
-            'id': uuid(), 'document_id': id, 'libelle': l.libelle,
-            'quantite': l.quantite, 'prix_unitaire': l.prixUnitaire,
-          });
+          // `unite` / `reference` : colonnes de DML_DATES_DOCUMENTS.sql. Base non
+          // migree -> repli sur les 3 colonnes d'origine (les valeurs
+          // restent en memoire locale, seul le cloud les perd).
+          try {
+            await _c!.from('document_lignes').insert({
+              'id': uuid(),
+              'document_id': id,
+              'libelle': l.libelle,
+              'quantite': l.quantite,
+              'prix_unitaire': l.prixUnitaire,
+              'unite': l.unite,
+              'reference': l.reference,
+            });
+          } catch (_) {
+            await _c!.from('document_lignes').insert({
+              'id': uuid(),
+              'document_id': id,
+              'libelle': l.libelle,
+              'quantite': l.quantite,
+              'prix_unitaire': l.prixUnitaire,
+            });
+          }
         }
         return id;
       });
@@ -724,17 +742,41 @@ class CloudRepository {
       {String? id, String? numero}) =>
       _silencieux(() async {
         final docId = id ?? d.id;
-        var requete = _c!.from('documents').update({
+        // Colonnes de base : toujours présentes sur une base migree.
+        final base = <String, dynamic>{
           'client_nom': d.client,
           'total_ht': d.totalHT,
           'tva': d.tva,
           'total_ttc': d.totalTTC,
           'statut': d.statut,
-        });
+        };
+        // Colonnes ajoutees par DML_DATES_DOCUMENTS.sql : absentes sur une
+        // base non migree, l'update echoue. On tente avec, puis SANS ->
+        // le document est enregistre plutot que perdu.
+        final enrichi = <String, dynamic>{
+          ...base,
+          'date_doc': d.date,
+          'note': d.note,
+          'adresse_livraison': d.adresseLivraison,
+          'echeance': d.echeance,
+          'delai_paiement_jours': d.delaiPaiementJours,
+        };
         if (docId != null) {
-          await requete.eq('id', docId);
+          try {
+            await _c!.from('documents').update(enrichi).eq('id', docId);
+          } catch (_) {
+            await _c!.from('documents').update(base).eq('id', docId);
+          }
         } else {
-          await requete.eq('numero', numero ?? d.numero);
+          final q = _c!.from('documents').update(enrichi);
+          try {
+            await q.eq('numero', numero ?? d.numero);
+          } catch (_) {
+            await _c!
+                .from('documents')
+                .update(base)
+                .eq('numero', numero ?? d.numero);
+          }
         }
         if (docId == null) return;
         final anciennes = await _c!.from('document_lignes').select().eq(
@@ -746,7 +788,20 @@ class CloudRepository {
           }
         }
         if (d.lignes.isEmpty) return;
-        await _c!.from('document_lignes').insert([
+        // `unite` / `reference` : colonnes de DML_DATES_DOCUMENTS.sql.
+        // Base non migree -> repli sur les 3 colonnes d'origine.
+        final lignesCompletes = [
+          for (final l in d.lignes)
+            {
+              'document_id': docId,
+              'libelle': l.libelle,
+              'quantite': l.quantite,
+              'prix_unitaire': l.prixUnitaire,
+              'unite': l.unite,
+              'reference': l.reference,
+            }
+        ];
+        final lignesLegacy = [
           for (final l in d.lignes)
             {
               'document_id': docId,
@@ -754,8 +809,55 @@ class CloudRepository {
               'quantite': l.quantite,
               'prix_unitaire': l.prixUnitaire,
             }
-        ]);
+        ];
+        try {
+          await _c!.from('document_lignes').insert(lignesCompletes);
+        } catch (_) {
+          await _c!.from('document_lignes').insert(lignesLegacy);
+        }
       });
+
+  /// Journal des corrections de documents (traçabilité).
+  ///
+  /// Ecriture au moment de la modification, jamais recalculée : si le
+  /// journal disparait au rechargement cloud, l'historique des
+  /// corrections est perdu — c'est précisément ce qui rend la
+  /// modification d'un document emitted légitime.
+  static Future<void> journaliserModification(
+          ModificationDocument m, String boutiqueId) =>
+      _silencieux(() async {
+        await _c!.from('document_modifications').insert({
+          'boutique_id': boutiqueId,
+          'numero': m.numero,
+          'date': m.date,
+          'auteur': m.auteur,
+          'motif': m.motif,
+          'resume': m.resume,
+          'created_by': _c!.auth.currentUser?.id,
+        });
+      });
+
+  /// Journal des corrections, pour un ensemble de numéros donnés.
+  /// Un seul appel réseau quel que soit le nombre de documents.
+  static Future<List<ModificationDocument>> chargerModifications(
+      List<String> numeros) async {
+    if (numeros.isEmpty) return const [];
+    try {
+      final r = await _c!
+          .from('document_modifications')
+          .select()
+          .inFilter('numero', numeros)
+          .order('date', ascending: false);
+      return (r as List)
+          .map((e) => ModificationDocument.depuisJson(
+              (e as Map).cast<String, dynamic>()))
+          .toList();
+    } catch (_) {
+      // Table absente (base non migree) : l'historique reste en memoire
+      // locale, on ne bloque pas le chargement pour autant.
+      return const [];
+    }
+  }
 
   static Future<void> majStatutDocument(
           {String? id, String? numero, required String statut}) =>

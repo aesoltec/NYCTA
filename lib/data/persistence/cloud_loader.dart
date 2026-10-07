@@ -466,6 +466,9 @@ class CloudLoader {
       final lignesParDoc = await charger(docRows);
       String fmt(DateTime d) =>
           '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+      // Texte cloud Possibly null (colonne absente sur une base non
+      // migree) -> chaine vide, jamais `null` : le PDF teste isNotEmpty.
+      String _txt(Object? v) => v?.toString() ?? '';
       final Future<String?> Function(String?) signer =
           signatureLocale ??
               ((c) async => c == null || c.isEmpty
@@ -484,24 +487,33 @@ class CloudLoader {
             lignes: [
               for (final l
                   in lignesParDoc[r['id'].toString()] ?? const [])
-                LigneDoc(
-                  libelle: l['libelle'].toString(),
-                  quantite:
-                      (l['quantite'] as num?)?.toInt() ?? 1,
-                  prixUnitaire:
-                      (l['prix_unitaire'] as num?)?.toDouble() ?? 0,
-                ),
+                LigneDoc.fromMap(
+                    (l as Map).cast<String, dynamic>()),
             ],
             totalHT: (r['total_ht'] as num?)?.toDouble() ?? 0,
             tva: (r['tva'] as num?)?.toDouble() ?? 0,
             totalTTC: (r['total_ttc'] as num?)?.toDouble() ?? 0,
             devise: s.profile.devise,
             statut: r['statut']?.toString() ?? 'emis',
+            // Colonnes de DML_DATES_DOCUMENTS.sql : absentes sur une base
+            // non migree -> repli neutre, jamais une valeur nulle
+            // (le PDF teste `isNotEmpty`).
+            note: _txt(r['note']),
+            adresseLivraison: _txt(r['adresse_livraison']),
+            echeance: _txt(r['echeance']),
+            delaiPaiementJours:
+                (r['delai_paiement_jours'] as num?)?.round() ?? 0,
             signatureClientPath: await signer(
                 r['signature_client_path']?.toString()),
           ),
       ]);
     }
+    // Journal des corrections : charge APRES les documents, sinon les
+    // numeros a interroger ne sont pas encore connus.
+    // Le journal est charge par l'appelant (Store.chargerDuCloud), apres
+    // application du snapshot : ici les documents ne sont pas encore
+    // dans le notifier.
+
     // Boutique courante : première accessible (origine conservée).
     if (s.boutiques.isNotEmpty) {
       s.boutiqueId = s.boutiques

@@ -117,11 +117,14 @@ class PdfService {
               data: [
                 for (final l in doc.lignes)
                   if (doc.type.sansPrix)
-                    [l.libelle, '${l.quantite}']
+                    [_designation(l), '${l.quantite} ${l.unite}']
                   else
-                    [l.libelle, '${l.quantite}',
-                     C.money(l.prixUnitaire, doc.devise),
-                     C.money(l.total, doc.devise)],
+                    [
+                      _designation(l),
+                      '${l.quantite} ${l.unite}',
+                      C.money(l.prixUnitaire, doc.devise),
+                      C.money(l.total, doc.devise)
+                    ],
               ],
             ),
             pw.SizedBox(height: 12),
@@ -245,6 +248,28 @@ class PdfService {
                   child:
                       pw.Image(cachet, fit: pw.BoxFit.contain)),
             pw.SizedBox(height: 10),
+            // ---------- Pied : conditions du document ----------
+            // Ces informations sont SAISIES sur le document (donc
+            // propres à lui), pas reprises du profil entreprise : deux
+            // factures d'une même société peuvent avoir des conditions
+            // différentes.
+            if (doc.adresseLivraison.trim().isNotEmpty)
+              pw.Text('Livraison : ${doc.adresseLivraison.trim()}',
+                  style: const pw.TextStyle(fontSize: 8)),
+            if (!doc.type.sansPrix &&
+                doc.delaiPaiementJours > 0 &&
+                doc.echeance.trim().isNotEmpty)
+              pw.Text(
+                  'Conditions de paiement : ${doc.delaiPaiementJours} jours - '
+                  'échéance ${doc.echeance.trim()}',
+                  style: const pw.TextStyle(fontSize: 8)),
+            if (doc.note.trim().isNotEmpty) ...[
+              pw.SizedBox(height: 4),
+              // Tirets ASCII : les polices PDF intégrées sont Latin-1 et
+              // perdraient silencieusement toute ponctuation typographique.
+              pw.Text(doc.note.trim(),
+                  style: const pw.TextStyle(fontSize: 8)),
+            ],
             if (profile.banque.isNotEmpty)
               pw.Text('Banque : ${profile.banque} - ${profile.coordonneesBancaires}',
                   style: const pw.TextStyle(fontSize: 8)),
@@ -256,6 +281,16 @@ class PdfService {
     );
     return pdf.save();
   }
+
+  /// Désignation imprimée : la référence précède le libellé quand elle
+  /// existe, ce qui permet de relier la ligne à sa fiche article.
+  static String _designation(LigneDoc l) =>
+      l.reference.trim().isEmpty
+          ? l.libelle
+          // Trait d'union ASCII, PAS le tiret cadratin : les polices
+          // integrees a `package:pdf` sont Latin-1 et perdraient
+          // silencieusement U+2014.
+          : '${l.reference.trim()} - ${l.libelle}';
 
   static pw.Widget _total(String label, double valeur, String devise) => pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,

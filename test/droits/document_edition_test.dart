@@ -72,6 +72,14 @@ void main() {
     await tester.enterText(
         find.widgetWithText(TextField, 'Client'), 'Client Modifié');
     await tester.pumpAndSettle();
+    // Le formulaire est plus long qu'avant (conditions, note, unité,
+    // référence) : le bouton d'enregistrement est plus bas que l'ecran.
+    // On le fait defiler plutot que d'agrandir le viewport de test.
+    await tester.scrollUntilVisible(
+      find.text('Enregistrer les modifications'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Enregistrer les modifications'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -88,6 +96,11 @@ void main() {
     final store = await _ouvrir(tester);
     await tester.enterText(find.widgetWithText(TextField, 'Client'), '');
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Enregistrer les modifications'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Enregistrer les modifications'));
     await tester.pumpAndSettle();
     expect(store.document.documentsEmis.first.client, 'Client A');

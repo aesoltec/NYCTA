@@ -13,10 +13,11 @@ DocumentBati _doc({
   String statut = 'brouillon',
   String client = 'Client A',
   List<LigneDoc>? lignes,
+  TypeDocument type = TypeDocument.devisProforma,
 }) =>
     DocumentBati(
       id: 'doc1',
-      type: TypeDocument.devisProforma,
+      type: type,
       numero: numero,
       date: '01/10/2026',
       client: client,
@@ -116,16 +117,83 @@ void main() {
     });
   });
 
-  group('modifier un document EMIS : refus justifie', () {
-    test('refuse, et nomme la voie legitime', () async {
-      final n = _notifier(init: [_doc(statut: 'emis')]);
-      final err = await n.modifierDocument(_doc(statut: 'emis', client: 'X'));
+  group('modifier un document EMIS : la regle depend de sa NATURE', () {
+    // Regle professionnelle : un numero de FACTURE ne doit correspondre
+    // qu'a un seul contenu (justificatif fiscal). Un devis, un bon de
+    // commande ou un bordereau ne sont pas des justificatifs fiscaux et se
+    // corrigent en pratique -- avec motif et journal.
+    test('FACTURE emise : refus, et nomme la voie legitime', () async {
+      final n = _notifier(init: [
+        _doc(statut: 'emis', type: TypeDocument.facture)
+      ]);
+      final err = await n.modifierDocument(
+          _doc(statut: 'emis', client: 'X', type: TypeDocument.facture),
+          motif: 'erreur de quantite');
       expect(err, isNotNull);
       expect(err!.toLowerCase(), contains('annul'),
           reason: 'le refus doit dire comment faire autrement, sinon '
               "l'utilisateur cherche pourquoi l'editeur ne marche pas");
       expect(n.documentsEmis.first.client, 'Client A',
           reason: 'rien ne doit avoir ete modifie');
+    });
+
+    test('TICKET emis : refuse aussi (justificatif de caisse)', () async {
+      final n = _notifier(init: [
+        _doc(statut: 'emis', type: TypeDocument.ticketCaisse)
+      ]);
+      final err = await n.modifierDocument(
+          _doc(statut: 'emis', client: 'X', type: TypeDocument.ticketCaisse),
+          motif: 'erreur de saisie');
+      expect(err, isNotNull);
+    });
+
+    for (final t in [
+      TypeDocument.devisProforma,
+      TypeDocument.bonCommande,
+      TypeDocument.bonLivraison,
+    ]) {
+      test('${t.name} emis : modifiable AVEC motif, journalise',
+          () async {
+        final n = _notifier(init: [_doc(statut: 'emis', type: t)]);
+        final err = await n.modifierDocument(
+            _doc(statut: 'emis', client: 'Client B', type: t),
+            motif: 'quantite corrigee a la livraison');
+        expect(err, isNull, reason: err);
+        expect(n.documentsEmis.first.client, 'Client B');
+        expect(n.modifications.length, 1);
+        expect(n.modifications.first.numero, n.documentsEmis.first.numero);
+        expect(n.modifications.first.motif, 'quantite corrigee a la livraison');
+      });
+
+      test('${t.name} emis : refuse SANS motif', () async {
+        final n = _notifier(init: [_doc(statut: 'emis', type: t)]);
+        final err = await n.modifierDocument(
+            _doc(statut: 'emis', client: 'Client B', type: t));
+        expect(err, isNotNull);
+        expect(err!.toLowerCase(), contains('motif'));
+        expect(n.documentsEmis.first.client, 'Client A',
+            reason: 'rien ne doit avoir ete modifie');
+      });
+    }
+
+    test('un brouillon : modifiable SANS motif, et NON journalise', () async {
+      // Personne n'a vu un brouillon : la trace n'a pas d'interet, et le
+      // journal doit rester lisible.
+      final n = _notifier(init: [_doc(statut: 'brouillon')]);
+      final err = await n.modifierDocument(
+          _doc(statut: 'brouillon', client: 'Client C'));
+      expect(err, isNull, reason: err);
+      expect(n.documentsEmis.first.client, 'Client C');
+      expect(n.modifications, isEmpty);
+    });
+
+    test('un document annule ou paye : fige', () async {
+      for (final statut in ['annule', 'paye']) {
+        final n = _notifier(init: [_doc(statut: statut)]);
+        final err = await n.modifierDocument(
+            _doc(statut: statut, client: 'X'), motif: 'peu importe');
+        expect(err, isNotNull, reason: statut);
+      }
     });
 
     test('un vendeur peut emettre un brouillon mais pas le valider', () {

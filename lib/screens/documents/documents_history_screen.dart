@@ -8,6 +8,7 @@ import '../../widgets/empty_view.dart';
 import '../../widgets/money_text.dart';
 import '../../services/backup_service.dart';
 import '../../services/export_service.dart';
+import '../../widgets/date_selector.dart';
 import 'document_import_screen.dart';
 import 'document_preview_screen.dart';
 import 'documents_screen.dart';
@@ -245,7 +246,14 @@ class _DocumentsHistoryScreenState
                   separatorBuilder: (_, __) =>
                       const SizedBox(height: 8),
                   itemBuilder: (_, i) =>
-                      _LigneDocument(doc: docs[i]),
+                      _LigneDocument(
+                            doc: docs[i],
+                            // Journal filtré sur CE document : la liste
+                            // est partagée par tous.
+                            modifications: store.document.modifications
+                                .where((m) => m.numero == docs[i].numero)
+                                .toList(),
+                          ),
                 ),
         ),
       ]),
@@ -306,9 +314,85 @@ class _DocumentsHistoryScreenState
   }
 }
 
+/// Bandeau « document modifié N fois » dépliable.
+///
+/// Affiché DANS la ligne de l'historique, pas dans un écran à part : la
+/// question « ce document a-t-il été corrigé après émission ? » se pose
+/// en le regardant, pas en le cherchant.
+class _BandeauJournal extends StatelessWidget {
+  final List<ModificationDocument> modifications;
+
+  const _BandeauJournal({required this.modifications});
+
+  static String _quand(String iso) {
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    return '${d.day.toString().padLeft(2, '0')}/'
+        '${d.month.toString().padLeft(2, '0')}/${d.year} '
+        '${d.hour.toString().padLeft(2, '0')}:'
+        '${d.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final couleur = Theme.of(context).colorScheme.primary;
+    return Theme(
+      // Replié par défaut : déplié, chaque document corrigé de
+      // l'historique prendrait trois lignes de plus, sur tous les
+      // documents en même temps.
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        shape: const Border(),
+        collapsedShape: const Border(),
+        title: Text(
+          modifications.length == 1
+              ? '1 correction après émission'
+              : '${modifications.length} corrections après émission',
+          style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: couleur),
+        ),
+        children: [
+          for (final m in modifications)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${_quand(m.date)} — ${m.auteur}',
+                      style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF334155))),
+                  Text('Motif : ${m.motif}',
+                      style: const TextStyle(fontSize: 11.5)),
+                  Text(m.resume,
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B))),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _LigneDocument extends StatelessWidget {
   final DocumentBati doc;
-  const _LigneDocument({required this.doc});
+  /// Corrections déjà faites sur ce document émis. Sans elles, le journal
+  /// existerait mais resterait invisible : une correction doit pouvoir
+  /// être expliquée à un tiers, c'est tout son intérêt.
+  final List<ModificationDocument> modifications;
+  const _LigneDocument({
+    required this.doc,
+    this.modifications = const [],
+  });
 
   static String _libelleStatut(String statut) => switch (statut) {
         'brouillon' => 'BROUILLON',
@@ -380,13 +464,24 @@ class _LigneDocument extends StatelessWidget {
     final aPayer = doc.statut == 'emis' && store.peut(Permission.gererDocuments);
     final aAnnuler = (doc.statut == 'brouillon' || doc.statut == 'emis') &&
         (store.role == Role.admin || store.role == Role.gerant);
-    // Édition : seul un brouillon se modifie (garde métier dans
-    // DocumentNotifier.modifierDocument). Qui : les rôles qui gèrent
-    // les documents, et le vendeur — émetteur de brouillons, il doit
-    // pouvoir corriger le sien avant validation.
-    final aModifier = doc.statut == 'brouillon' &&
+    // Édition : dépend de la NATURE du document, pas seulement de son
+    // statut (garde métier dans `DocumentBati.peutModifier`, seule source
+    // de vérité). Un devis / BC / BL émis reste modifiable — avec motif
+    // et journal ; une facture ou un ticket émis ne l'est pas, son
+    // numéro doit correspondre à un seul contenu. Qui : les rôles qui
+    // gèrent les documents, et le vendeur — émetteur de brouillons, il
+    // doit pouvoir corriger le sien avant validation.
+    final aModifier = doc.peutModifier &&
         (store.peut(Permission.gererDocuments) ||
             store.role == Role.vendeur);
+
+    /// Dupliquer : disponible sur TOUT document (brouillon, émis, annulé,
+    /// payé). Crée un NOUVEAU brouillon avec le même contenu, même client,
+    /// mêmes lignes, mêmes conditions — nouveau numéro, statut brouillon.
+    /// Utile : devis accepté → facture (dupliquer, ajuster, émettre) ;
+    /// BL livré → facture ; BC fournisseur → nouvelle commande.
+    final aDupliquer = store.peut(Permission.gererDocuments) ||
+        store.role == Role.vendeur;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -476,13 +571,20 @@ class _LigneDocument extends StatelessWidget {
               // Actions : ligne wrappée sous l'en-tête — jamais de
               // dépassement vertical (corrige « bottom overflowed by
               // 33 pixels » de l'ancien trailing en colonne).
-              if (aValider || aPayer || aAnnuler)
+              if (aValider ||
+                    aPayer ||
+                    aAnnuler ||
+                    aDupliquer ||
+                    modifications.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Wrap(
                     spacing: 16,
                     runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
+                      if (modifications.isNotEmpty)
+                        _BandeauJournal(modifications: modifications),
                       InkWell(
                         onTap: () =>
                             BackupService.exporterDocumentCsv(doc),
@@ -498,6 +600,41 @@ class _LigneDocument extends StatelessWidget {
                                       .primary)),
                         ),
                       ),
+                      // Dupliquer : premier dans l'ordre, car c'est l'action
+                      // la plus frequente apres consultation. Cree un NOUVEAU
+                      // brouillon avec le meme contenu, nouveau numero.
+                      if (aDupliquer)
+                        InkWell(
+                          onTap: () async {
+                            final doc2 = doc.copyWith(
+                              id: null,
+                              numero: '', // le formulaire generera le suivant
+                              date: formatDateCourt(DateTime.now()),
+                              statut: 'brouillon',
+                              signatureClientPath: null,
+                              motifAnnulation: null,
+                            );
+                            final modifie = await Navigator.of(context)
+                                .push(MaterialPageRoute<bool>(
+                              builder: (_) =>
+                                  DocumentsScreen(docExistant: doc2),
+                            ));
+                            if (modifie == true && context.mounted) {
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(const SnackBar(
+                                      content: Text(
+                                          '✅ Document dupliqué (brouillon)')));
+                            }
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 2),
+                            child: Text('Dupliquer ⟳',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF2E7D32))),
+                          ),
+                        ),
                       if (aModifier)
                         InkWell(
                           onTap: () async {

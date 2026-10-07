@@ -28,7 +28,23 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   DateTime _date = DateTime.now();
   final List<LigneDoc> _lignes = [const LigneDoc(libelle: '', quantite: 1, prixUnitaire: 0)];
 
+  /// Motif de modification — obligatoire sur un document ÉMIS
+  /// (`DocumentBati.exigeMotifModification`), libre sur un brouillon.
+  final _motif = TextEditingController();
+  final _note = TextEditingController();
+  final _adresseLivraison = TextEditingController();
+  int _delaiPaiement = 0;
+
   bool get _enEdition => widget.docExistant != null;
+
+  /// Un document émis modifiable exige un motif : on le dit AVANT, dans
+  /// le bandeau, plutôt que de le faire échouer à l'enregistrement.
+  bool get _motifExige => _enEdition && widget.docExistant!.exigeMotifModification;
+
+  /// Échéance = date du document + délai de règlement. Une facture
+  /// payable le 12 pour 30 jours arrive le 12, pas le 11 du mois
+  /// suivant : on calcule en jours, pas en mois.
+  DateTime _echeance() => _date.add(Duration(days: _delaiPaiement));
 
   @override
   void initState() {
@@ -39,6 +55,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       _client.text = doc.client;
       // Date illisible (ex. « non renseignée » d'un import) : aujourd'hui.
       _date = DocumentService.parseAffichage(doc.date) ?? DateTime.now();
+      _note.text = doc.note;
+      _adresseLivraison.text = doc.adresseLivraison;
+      _delaiPaiement = doc.delaiPaiementJours;
       _lignes
         ..clear()
         ..addAll(doc.lignes);
@@ -48,6 +67,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   @override
   void dispose() {
     _client.dispose();
+    _motif.dispose();
+    _note.dispose();
+    _adresseLivraison.dispose();
     super.dispose();
   }
 
@@ -117,6 +139,17 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                     ? 'Fournisseur' : 'Client',
                 prefixIcon: const Icon(Icons.person_outline)),
           ),
+          // Adresse de livraison : pertinente surtout au bordereau, où
+          // la marchandise est rarement livrée à l'adresse de
+          // facturation. Optionnel partout ailleurs.
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _adresseLivraison,
+            decoration: const InputDecoration(
+              labelText: 'Adresse de livraison (si différente)',
+              prefixIcon: Icon(Icons.local_shipping_outlined),
+            ),
+          ),
           const SizedBox(height: 20),
           Row(children: [
             Flexible(
@@ -152,6 +185,62 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                   const LigneDoc(libelle: '', quantite: 1, prixUnitaire: 0))),
             ),
           ]),
+          // Conditions de règlement + note libre : information utile au
+          // client, et source du suivi des impayés. Sur un bordereau
+          // (sans prix) un délai n'a aucun sens -> masqué.
+          if (!_type.sansPrix) ...[
+            const SizedBox(height: 16),
+            // Plein largeur, PAS dans un `Row` : `DropdownButtonFormField`
+            // interpose un `RepaintBoundary`, donc un `Expanded` autour
+            // de lui n'a pas de `Flex` pour parent -> « Incorrect use of
+            // ParentDataWidget ».
+            DropdownButtonFormField<int>(
+              initialValue: _delaiPaiement,
+              isExpanded: true,
+              decoration:
+                  const InputDecoration(labelText: 'Conditions de paiement'),
+              // Bornes usuelles : comptant 0, puis 15/30/45/60 jours.
+              items: const [
+                DropdownMenuItem(value: 0, child: Text('Comptant')),
+                DropdownMenuItem(value: 15, child: Text('15 jours')),
+                DropdownMenuItem(value: 30, child: Text('30 jours')),
+                DropdownMenuItem(value: 45, child: Text('45 jours')),
+                DropdownMenuItem(value: 60, child: Text('60 jours')),
+              ],
+              onChanged: (v) => setState(() => _delaiPaiement = v ?? 0),
+            ),
+            if (_delaiPaiement > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Échéance : ${formatDateCourt(_echeance())}',
+                  style: const TextStyle(
+                      fontSize: 12.5, color: Color(0xFF64748B)),
+                ),
+              ),
+          ],
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _note,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'Note / conditions (imprimée en pied)',
+              hintText: 'Ex. Paiement à 30 jours, marchandise vérifiée…',
+              prefixIcon: Icon(Icons.notes_outlined),
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_motifExige)
+            TextFormField(
+              controller: _motif,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Motif de modification (obligatoire)',
+                hintText: 'Ex. erreur de quantité saisie à la livraison',
+                prefixIcon: Icon(Icons.history_toggle_off_outlined),
+              ),
+            ),
+          const SizedBox(height: 20),
           for (var i = 0; i < _lignes.length; i++)
             _LigneEditor(
               key: ValueKey(i),
@@ -159,9 +248,18 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               devise: devise,
               sansPrix: _type.sansPrix,
               onChanged: (l) => setState(() => _lignes[i] = l),
-              onSupprimer: _lignes.length > 1
-                  ? () => setState(() => _lignes.removeAt(i))
-                  : null,
+              // Le retrait est possible même sur la DERNIERE ligne : la
+              // ligne vide restante est ignorée à l'enregistrement (elle
+              // n'a ni libellé, ni quantité). Sans cela, un document
+              // d'une seule ligne ne pouvait pas être vidé — l'utilisateur
+              // se retrouvait bloqué sans comprendre pourquoi.
+              onSupprimer: () => setState(() {
+                _lignes.removeAt(i);
+                if (_lignes.isEmpty) {
+                  _lignes.add(const LigneDoc(
+                      libelle: '', quantite: 1, prixUnitaire: 0));
+                }
+              }),
             ),
           const SizedBox(height: 24),
           if (_type.sansPrix)
@@ -200,6 +298,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                           client: _client.text.trim(),
                           lignes: valides,
                           date: _date,
+                          note: _note.text.trim(),
+                          adresseLivraison: _adresseLivraison.text.trim(),
+                          delaiPaiementJours: _delaiPaiement,
                         ),
                       ));
                     },
@@ -234,13 +335,26 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           const SnackBar(content: Text('Ajoutez au moins un article valide')));
       return;
     }
+    if (_motifExige && _motif.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Motif de modification obligatoire : un document émis reste traçable')));
+      return;
+    }
     final erreur = await store.modifierDocument(
       doc.copyWith(
         client: _client.text.trim(),
         date: formatDateCourt(_date),
         lignes: valides,
+        note: _note.text.trim(),
+        adresseLivraison: _adresseLivraison.text.trim(),
+        delaiPaiementJours: _delaiPaiement,
+        echeance: _delaiPaiement > 0 && !_type.sansPrix
+            ? formatDateCourt(_echeance())
+            : '',
       ),
       tvaPct: store.profile.tva,
+      motif: _motif.text.trim(),
     );
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -298,7 +412,14 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                         style: const TextStyle(fontWeight: FontWeight.w700)),
                     onTap: () {
                       onChanged(LigneDoc(
-                          libelle: t.libelle, quantite: 1, prixUnitaire: t.prix));
+                          libelle: t.libelle,
+                          quantite: 1,
+                          prixUnitaire: t.prix,
+                          // L'unité de la fiche tarif est proposée, mais reste
+                          // MODIFIABLE dans l'éditeur de ligne : deux
+                          // lignes du même article peuvent avoir des
+                          // unités différentes (10 kg + 3 colis).
+                          unite: t.unite.trim().isEmpty ? 'pcs' : t.unite));
                       Navigator.pop(ctx);
                     },
                   ),
@@ -335,37 +456,59 @@ class _LigneEditor extends StatelessWidget {
         TextFormField(
           initialValue: ligne.libelle,
           decoration: const InputDecoration(labelText: 'Libellé'),
-          onChanged: (v) => onChanged(LigneDoc(
-              libelle: v, quantite: ligne.quantite, prixUnitaire: ligne.prixUnitaire)),
+          onChanged: (v) => onChanged(ligne.copyWith(libelle: v)),
         ),
         const SizedBox(height: 10),
         Row(children: [
+          Expanded(
+            child: TextFormField(
+              initialValue: ligne.reference,
+              decoration: const InputDecoration(labelText: 'Réf.'),
+              onChanged: (v) => onChanged(ligne.copyWith(reference: v)),
+            ),
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: TextFormField(
               initialValue: ligne.quantite == 0 ? '' : '${ligne.quantite}',
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Qté'),
               validator: (v) => V.entier(v, min: 1, label: 'Qté'),
-              onChanged: (v) => onChanged(LigneDoc(
-                  libelle: ligne.libelle,
-                  quantite: int.tryParse(v) ?? 0,
-                  prixUnitaire: ligne.prixUnitaire)),
+              onChanged: (v) =>
+                  onChanged(ligne.copyWith(quantite: int.tryParse(v) ?? 0)),
             ),
           ),
           const SizedBox(width: 10),
+          // Unité de vente : sans elle « 3 » ne dit rien (3 pièces ? 3 kg ?
+          // 3 heures ?). Champ étroit + liste de suggestions, parce que
+          // les unités réelles sont peu nombreuses et connues.
+          Expanded(
+            child: TextFormField(
+              initialValue: ligne.unite,
+              decoration: const InputDecoration(labelText: 'Unité'),
+              onChanged: (v) => onChanged(ligne.copyWith(
+                  unite: v.trim().isEmpty ? 'pcs' : v.trim())),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
           if (!sansPrix)
             Expanded(
               flex: 2,
               child: TextFormField(
-                initialValue: ligne.prixUnitaire == 0 ? '' : ligne.prixUnitaire.toStringAsFixed(0),
+                initialValue: ligne.prixUnitaire == 0
+                    ? ''
+                    : ligne.prixUnitaire.toStringAsFixed(0),
                 keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: 'Prix unit. ($devise)'),
-                onChanged: (v) => onChanged(LigneDoc(
-                    libelle: ligne.libelle,
-                    quantite: ligne.quantite,
-                    prixUnitaire: double.tryParse(v.replaceAll(' ', '')) ?? 0)),
+                decoration:
+                    InputDecoration(labelText: 'Prix unit. ($devise)'),
+                onChanged: (v) => onChanged(ligne.copyWith(
+                    prixUnitaire:
+                        double.tryParse(v.replaceAll(' ', '')) ?? 0)),
               ),
             ),
+          if (!sansPrix) const SizedBox(width: 10),
           if (onSupprimer != null)
             IconButton(
                 icon: const Icon(Icons.remove_circle_outline, size: 20),

@@ -67,6 +67,11 @@ class ImportResultat {
 }
 
 /// Service d'import : pur, sans dependance externe ni Flutter.
+/// Cellule texte d'une ligne de tableur, normalisee.
+/// Vide / absente -> chaine vide, jamais `null`.
+String _cellule(Map<String, String?> ligne, String cle) =>
+    (ligne[cle] ?? '').trim();
+
 class DocumentImportService {
   const DocumentImportService();
 
@@ -458,6 +463,12 @@ class DocumentImportService {
             libelle: l['designation']!,
             quantite: double.parse(l['quantite']!).round(),
             prixUnitaire: double.parse(l['prix']!),
+            // Colonnes facultatives du tableur : absentes -> unite par
+            // defaut, sinon la ligne importerait sans unite.
+            unite: _cellule(l, 'unite').isEmpty
+                ? 'pcs'
+                : _cellule(l, 'unite'),
+            reference: _cellule(l, 'reference'),
           ),
       ];
       final ht = lignesDoc.fold(0.0, (s, l) => s + l.total);
