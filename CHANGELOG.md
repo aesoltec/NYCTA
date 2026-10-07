@@ -151,6 +151,68 @@ devis) issu d un autre logiciel, a corriger puis reutiliser.
 - `test/widget/product_card_test.dart` mis a jour : il verifiait la
   presence de `SliverMasonryGrid`, volontairement supprime.
 
+## 1.16.0 - 2026-10-06 (edition, duplication, journal, conditions - G21)
+
+### Edition complete d'un document commercial
+Un document (devis, bon de commande, bordereau, facture, ticket) est
+desormais entierement editable en creation **et** en edition (sur un
+brouillon) :
+- **Unite et reference par ligne** : quasi obligatoire en pratique
+  (« 2 » ne veut rien dire sans savoir si ce sont 2 pieces, 2 kg ou
+  2 heures). Exigee sur facture et bordereau, valeur par defaut « pcs ».
+- **Conditions de reglement** : delai (comptant / 15 / 30 / 45 / 60
+  jours) + **date d'echeance calculee en JOURS** (pas en mois : le 31
+  + 1 jour = 1er du mois suivant, pas 28/02).
+- **Note libre / conditions** imprimee en pied de document.
+- **Adresse de livraison** distincte (utile au bordereau quand la
+  marchandise est livree ailleurs qu'a l'adresse de facturation).
+
+### Regle professionnelle differenciee par NATURE du document
+Un numero de facture ne doit correspondre qu'a un seul contenu
+(justificatif fiscal). La correction d'un document emis depend de sa
+NATURE, pas seulement de son statut :
+- `brouillon` : toujours modifiable — personne ne l'a encore vu.
+- `emis` **devis / BC / BL** : modifiable, **motif obligatoire** +
+  journal automatique (qui, quoi, quand).
+- `emis` **facture / ticket** : **IMMUABLE**. Correction = avoir
+  (note de credit) ou `annulerDocument` (motif trace) puis re-emission.
+- `annule` / `paye` : figes.
+
+### Duplication (gain de temps)
+Action « Dupliquer ⟳ » disponible sur TOUT document (brouillon, emis,
+annule, paye). Cree un NOUVEAU brouillon avec le meme contenu (client,
+lignes, unite, reference, conditions, note, adresse) — **nouveau
+numero**, statut brouillon. Flux : devis accepte -> facture (dupliquer,
+ajuster, emettre) ; BL livre -> facture ; BC fournisseur -> nouvelle
+commande.
+
+### Journal des modifications (traçabilité)
+Chaque modification d'un document EMIS laisse une trace : qui, quand,
+pourquoi, resume lisible (« 2 -> 3 lignes, total 2 000 -> 3 000 FCFA »).
+- Ecrit au moment de la modification (avec le document).
+- Recharge au demarrage depuis le cloud (`document_modifications`).
+- Bandeau « N correction(s) apres emission » visible dans l'historique,
+  replie par defaut — le journal ne concerne QUE son document.
+
+### Cloud & PDF
+- **Migration SQL** (`database/DML_DATES_DOCUMENTS.sql`) : colonnes
+  `date_doc`, `note`, `adresse_livraison`, `echeance`,
+  `delai_paiement_jours`, `unite`, `reference` + table
+  `document_modifications` (RLS, pas d'UPDATE/DELETE, index unique).
+- Repli gracieux sur base non migree (payload enrichi -> legacy).
+- PDF imprime : unite + reference par ligne, note, echeance, adresse
+  livraison.
+
+### Preuves
+- `651/651` tests verts, `dart analyze` **0 erreur**.
+- **28 nouveaux tests** : `document_edition_avancee_test.dart` (27 tests
+  couvrant regle par nature, motif, journal, totaux, aller-retour,
+  duplication), `bannier_journal_test.dart` (5 tests : visibilite,
+  filtre par document, overflow a 320px x 2.0), `documents_sql_test.dart`
+  (17 tests SQL : colonnes, RLS, pas de UPDATE/DELETE, idempotence).
+- 2 goldens verifies visuellement (Stock grille, Articles grille).
+- Commit `c653d07`.
+
 ## 1.14.0 - 2026-10-03 (coherence metier des droits - option A)
 - **Demande utilisateur** : « pourquoi les vendeurs peuvent-ils ajouter un
   article en stock ? illogique ». Audit complet des droits conduit.

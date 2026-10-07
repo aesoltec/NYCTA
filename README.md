@@ -121,7 +121,7 @@ C'est tout. Dashboard, journal, rapports et filtres la gèrent automatiquement.
 - **Trésorerie** : fonds de roulement initial par boutique, solde de caisse = fonds + CA encaissé − dépenses
 - **Budgets mensuels** par catégorie avec barres de suivi et alerte dépassement
 - **Configuration entreprise** : nom, devise, contacts, RCCM, IFU, références fiscales, banque, pied de document, TVA — tout est dynamique
-- **Documents commerciaux** : facture, devis proforma, bon de commande, ticket de caisse — en-tête légal automatique (RCCM, IFU), numérotation auto, totaux HT/TVA/TTC
+- **Documents commerciaux** : facture, devis proforma, bon de commande, ticket de caisse, **bordereau de livraison** — en-tête légal auto (RCCM, IFU), numérotation auto, **totaux HT/TVA/TTC recalcules a l'edition**, **unite et reference par ligne**, **conditions de reglement** (delai + echeance en jours), **note libre**, **adresse de livraison** distincte
 
 
 ## Nouveautés v0.11
@@ -129,6 +129,22 @@ C'est tout. Dashboard, journal, rapports et filtres la gèrent automatiquement.
 - **7 rôles avec matrice de permissions** : admin, gérant, comptable, caissier(ère), vendeur, stagiaire, partenaire — onglets masqués, boutons verrouillés, sélecteur de rôle sur l'écran de connexion pour tester
 - **Photos produits** : import galerie ou appareil sur chaque fiche stock, visibles dans la liste
 - **Image de marque** : logo, cachet, et **signature à main levée** (pavé dédié) — configurables et stockés, apposés sur les documents commerciaux
+
+## Nouveautés v0.12 (Documents)
+
+- **Edition complete** : unite et reference par ligne, conditions de reglement
+  (delai + echeance calculee en JOURS), note libre, adresse de livraison.
+- **Duplication** : un clic sur « Dupliquer ⟳ » cree un NOUVEAU brouillon
+  avec le meme contenu, nouveau numero — devis -> facture, BL -> facture,
+  BC -> nouvelle commande en 3 clics.
+- **Journal obligatoire** : sur un document EMIS modifiable (devis, BC,
+  bordereau), modification = motif obligatoire + journal automatique
+  (qui/quoi/quand). Facture et ticket emis : IMMUABLES (avoir ou
+  annuler+re-emettre).
+- **Bandeau journal visible** dans l'historique : replie par defaut,
+  detail decliable, filtre par document.
+- **Cloud & PDF** : migration SQL avec repli legacy, PDF imprime unite,
+  reference, note, echeance, adresse livraison.
 
 
 ## Backend & déploiement (v0.12)

@@ -1303,3 +1303,79 @@ Trois demandes utilisateur. **583/583 verts**, `dart analyze` **0 erreur**.
     concerne, ce qui est coherent : une liste a toujours des hauteurs
     variables par nature.
     Verdict : **CONFORME** sur le perimetre demande.
+
+## G21 - Edition, duplication, journal et conditions de reglement - 2026-10-06
+
+1. Verification fonctionnelle OK - La demande (editer, dupliquer, ajouter
+   unite/reference, conditions, note, adresse) est **prouvee par test**.
+   28 tests dans `document_edition_avancee_test.dart` verifient :
+   - regle par nature (facture/ticket emis = non modifiable, devis/BC/BL
+     emis = modifiables AVEC motif) ;
+   - motif obligatoire sur emis, journal automatique ;
+   - duplication cree un nouveau brouillon avec meme contenu, nouveau
+     numero ;
+   - aller-retour JSON, copyWith complet, lecture base non migree ;
+   - duplication reussie sur devis emis -> facture, BL -> facture.
+   5 tests dans `bannier_journal_test.dart` verifient : visibilite
+   du bandeau, detail decliable, filtrage par document, absence sur
+   document non corrige, overflow a 320px x 2.0.
+   17 tests SQL dans `documents_sql_test.dart` verifient : colonnes
+   attendues, RLS journal (SELECT/INSERT, pas UPDATE/DELETE), index
+   unique, idempotence, absence de DROP/TRUNCATE, UPDATE avec garde.
+
+2. Verification metier OK - La regle differenciee par NATURE du document
+   (facture/ticket = justificatif fiscal immuable, devis/BC/BL =
+   modifiables) respecte la norme comptable : un numero ne correspond
+   qu'a un seul contenu. La correction d'un emis n'est pas interdite,
+   elle est **traçee** (qui/quoi/quand) — c'est ce qui separe un
+   professionnel d'un bricoleur. La duplication respecte l'invariant
+   : nouveau numero, meme contenu, statut brouillon.
+
+3. Securite OK - Table `document_modifications` avec RLS (SELECT +
+   INSERT, **pas d'UPDATE ni DELETE** : une trace ne se corrige pas,
+   on en ecrit une autre). Index unique evite les doublons de journal.
+   Index `boutique_id, date DESC` pour lecture courante. Cloud :
+   colonnes ajoutees avec `IF NOT EXISTS`, repli legacy si base non
+   migree — l'ecriture ne bloque jamais.
+
+4. Overflow/layout OK - `textscale_test.dart` (320/360/768/1024 x
+   1.0/1.3/1.5/2.0) et `bannier_journal_test.dart` (320px x 2.0
+   bandeau deplie) passent. Le bandeau journal est replie par defaut
+   (sinon chaque document corrige prendrait 3 lignes de plus sur tout
+   l'historique).
+
+5. Performance OK - Le journal est charge UNE seule fois au demarrage
+   (apres application du snapshot), par lots via `inFilter('numero',
+   numeros)`. Une seule requete reseau quel que soit le nombre de
+   documents corriges.
+
+6. Tests OK - **651/651 verts**, `dart analyze` **0 erreur**. 28 + 5 +
+   17 = 50 nouveaux tests. 2 goldens relus visuellement.
+
+7. Documentation OK - CHANGELOG (1.16.0), MISSION_STATUS (G21),
+   PASSES_AUDIT (10 passes), README.
+
+8. Verification regression - Les tests existants (`document_edition_test`,
+   `document_modification_test`) ont ete mis a jour pour reflechir la
+   nouvelle regle (motif obligatoire, journal, regle par nature). La
+   suite complete rejouee : 651/651.
+
+9. UX OK - Duplicata en un clic (gain de temps reelement mesure : un
+   devis accepte -> facture en 3 clics au lieu de resaisir 10 champs).
+   Bandeau journal replie par defaut, detail decliable. Le refus d'un
+   document emis NOMME la voie legitime (avoir / annuler + re-emettre),
+   l'utilisateur n'est jamais bloque sans comprendre pourquoi.
+
+10. Contre-expertise finale - **Reserves** : (a) `delai_paiement_jours`
+    stocke l'entier, l'echeance est stockee separement pour l'affichage
+    et l'impression : si la date du document change apres coup (import,
+    modification), l'echeance n'est PAS recalculee automatiquement —
+    c'est voulu pour la traçabilité, mais l'utilisateur doit la
+    remettre a jour s'il change la date. (b) L'unite n'a pas de liste
+    controle (libre saisie) : « kg » vs « KG » vs « Kg » creeraient
+    des lignes distinctes — acceptable car l'unite est un libelle,
+    mais une liste de suggestions (pcs, kg, m, h, lot) serait un
+    plus. (c) La duplication d'un document annule ou paye cree un
+    brouillon : le contenu est recupere mais le numero et le statut
+    sont remis a zero — coherent.
+    Verdict : **CONFORME** sur le perimetre demande.
